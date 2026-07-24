@@ -152,12 +152,12 @@ var Filters = {};
   };
 
   var LINE_COLORS = {
-    powerLines: "#5ba3e0",
-    belts: "#e67e22",
-    pipelines: "#2ecc71",
-    railroads: "#cccccc",
-    hypertubes: "#00bcd4",
-    vehiclePaths: "#f39c12",
+    powerLines: "#ffe119",
+    belts: "#f58231",
+    pipelines: "#3cb44b",
+    railroads: "#ffffff",
+    hypertubes: "#4363d8",
+    vehiclePaths: "#a9a9a9",
   };
 
   var LINE_LABELS = {
