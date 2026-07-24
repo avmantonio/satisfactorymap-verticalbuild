@@ -15,6 +15,7 @@ Usage: py tools/build_site.py [--skip-wasm]
 
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -111,6 +112,37 @@ def buildTiles(mapImage):
     return cacheDir
 
 
+def stampAssetVersion():
+    """Append ?v=<content-hash> to every local js/css URL in dist/index.html.
+
+    Without an explicit Cache-Control anywhere (neither _headers nor the dev
+    server sent one), browsers fall back to heuristic caching (~10% of the
+    file's age) -- and fetches made INSIDE the wasm worker (importScripts,
+    the .wasm binary) are not revalidated by a page hard-refresh, so after a
+    rebuild the app could keep running the previous parser for hours. The
+    stamp changes each asset's URL whenever any shipped js/css/wasm content
+    changes, which is a guaranteed cache miss on every browser; save_client
+    .js re-reads its own ?v= and forwards it to worker.js, which forwards it
+    to the pkg/ URLs (see those files). The reload of index.html itself is
+    safe unstamped: navigation reloads always revalidate the document.
+    """
+    hasher = hashlib.sha256()
+    for sub in ("", "vendor", "pkg"):
+        directory = os.path.join(DIST, sub)
+        for name in sorted(os.listdir(directory)):
+            if name.endswith((".js", ".css", ".wasm")):
+                with open(os.path.join(directory, name), "rb") as f:
+                    hasher.update(f.read())
+    version = hasher.hexdigest()[:12]
+    indexPath = os.path.join(DIST, "index.html")
+    with open(indexPath, encoding="utf-8") as f:
+        html = f.read()
+    html = re.sub(r'((?:src|href)=")([^":]+\.(?:js|css))(")',
+                  rf"\g<1>\g<2>?v={version}\g<3>", html)
+    with open(indexPath, "w", encoding="utf-8", newline="\n") as f:
+        f.write(html)
+
+
 def main():
     skip_wasm = "--skip-wasm" in sys.argv
 
@@ -176,6 +208,8 @@ def main():
             path = os.path.join(DIST, "pkg", junk)
             if os.path.isfile(path):
                 os.remove(path)
+
+    stampAssetVersion()
 
     with open(os.path.join(DIST, "_headers"), "w", encoding="utf-8", newline="\n") as f:
         f.write(HEADERS)
