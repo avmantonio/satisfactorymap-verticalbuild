@@ -204,12 +204,51 @@ var Filters = {};
   // data.js's checkForNewerSave), switching to an entirely different save,
   // and (via localStorage) closing the tab entirely: the filter you set up
   // for your factory is still applied next visit. Only explicitly-toggled
-  // keys are stored, so new kinds in a future save default to visible.
+  // keys are stored, so a kind nobody ever touched defaults to visible --
+  // unless an enclosing group was toggled, which stores group-level state
+  // that new kinds inherit (see the hierarchical persistence below).
   var VISIBILITY_STORAGE_KEY = "smapSavedVisibility";
   var savedVisibility = {};
   try {
     savedVisibility = JSON.parse(localStorage.getItem(VISIBILITY_STORAGE_KEY)) || {};
   } catch (e) { /* corrupt/blocked storage: start fresh */ }
+  // ---- Hierarchical persistence -------------------------------------------
+  // A group toggle is stored as ONE "group:<path>" entry (path = the group
+  // titles from the top-level section down, counts stripped, "/"-joined)
+  // rather than one entry per bucket the group happened to contain in that
+  // save. Per-bucket entries only exist for rows toggled *after* the
+  // enclosing group's last toggle -- the group toggle deletes them, having
+  // overridden them anyway (see setCheckedDeep). Restoring resolves
+  // most-specific-first: explicit bucket entry, innermost enclosing group,
+  // ..., outermost, the "*" entry Check/Uncheck-all writes, then visible.
+  // This is what makes a category toggled off stay WHOLLY off in a different
+  // save: object kinds that didn't exist when the category was toggled have
+  // no bucket entry, so they inherit the category's stored state instead of
+  // defaulting back to visible and leaving the category partially shown.
+  //
+  // The stack tracks the group ancestry while renderGroup builds its
+  // children (building is fully synchronous) -- appendLeafRow reads it to
+  // restore, renderGroup itself to know its own path.
+  var groupPathStack = [];
+
+  function groupTitleKey(title) {
+    // "Production (1,234)" / "Hard Drives (3/12)" -> stable, count-free key.
+    return title.replace(/\s*\([\d,\/]+\)\s*$/, "");
+  }
+
+  function savedGroupStateForStack() {
+    for (var i = groupPathStack.length; i > 0; i--) {
+      var key = "group:" + groupPathStack.slice(0, i).join("/");
+      if (savedVisibility.hasOwnProperty(key)) {
+        return savedVisibility[key];
+      }
+    }
+    if (savedVisibility.hasOwnProperty("*")) {
+      return savedVisibility["*"];
+    }
+    return true;
+  }
+
   var persistTimer = null;
   function persistVisibility() {
     // Debounced: "Uncheck all" writes hundreds of keys in one burst.
@@ -404,11 +443,12 @@ var Filters = {};
     var rowToggle = makeToggle();
     var checkbox = rowToggle.checkbox;
     // A row's checkbox can control several buckets at once, so restoring falls
-    // back to "visible" unless a previous visit explicitly recorded otherwise
-    // for one of them; in practice they're always toggled together.
+    // back to the enclosing groups' stored state (see the hierarchical-
+    // persistence comment above) unless a previous visit explicitly recorded
+    // otherwise for one of them; in practice they're always toggled together.
     var restoredVisible = row.buckets.reduce(function(acc, bucket) {
       return savedVisibility.hasOwnProperty(bucket.key) ? savedVisibility[bucket.key] : acc;
-    }, true);
+    }, savedGroupStateForStack());
     checkbox.checked = restoredVisible;
     row.buckets.forEach(function(bucket) { bucket.visible = restoredVisible; });
     checkbox.addEventListener("change", function() {
@@ -485,6 +525,11 @@ var Filters = {};
     var allBuckets = [];
     var childCheckboxes = [];
 
+    // On the ancestry stack while the children build, so appendLeafRow (here
+    // or in any nested renderGroup) restores against the right group path.
+    groupPathStack.push(groupTitleKey(title));
+    var groupPath = groupPathStack.join("/");
+
     if (typeof content === "function") {
       var nested = content(childrenDiv);
       allBuckets = nested.buckets;
@@ -496,6 +541,7 @@ var Filters = {};
         allBuckets = allBuckets.concat(row.buckets);
       });
     }
+    groupPathStack.pop();
 
     group.appendChild(childrenDiv);
     container.appendChild(group);
@@ -543,10 +589,21 @@ var Filters = {};
       // then redraw exactly once for the whole toggle -- instead of once
       // per descendant leaf row.
       childCheckboxes.forEach(function(checkbox) { setCheckedDeep(checkbox, checked); });
+      // One stored "group:" entry for the whole toggle; the per-bucket and
+      // nested-group entries it just overrode are deleted rather than
+      // rewritten, so a future save's NEW kinds under this group inherit
+      // this state too (see the hierarchical-persistence comment above).
       allBuckets.forEach(function(bucket) {
         bucket.visible = checked;
-        savedVisibility[bucket.key] = checked;
+        delete savedVisibility[bucket.key];
       });
+      var descendantPrefix = "group:" + groupPath + "/";
+      Object.keys(savedVisibility).forEach(function(key) {
+        if (key.indexOf(descendantPrefix) === 0) {
+          delete savedVisibility[key];
+        }
+      });
+      savedVisibility["group:" + groupPath] = checked;
       persistVisibility();
       refreshGroupCheckboxes();
       MapApp.layer.requestRedraw();
@@ -1476,9 +1533,11 @@ var Filters = {};
   // checkbox somewhere under #sidebar (nav column rows + every category's
   // detail content, selected or not), so setting all of them plus every
   // bucket covers the whole tree in one pass without needing to walk the
-  // group structure itself. Recorded into savedVisibility too, same as any
-  // other toggle (see the row/parent checkbox handlers above), so it
-  // survives a reload. Both live in the nav column's header (not the detail
+  // group structure itself. Persisted as a single "*" entry replacing the
+  // whole store -- the global version of the group toggles' one-entry rule
+  // (see the hierarchical-persistence comment above), so kinds/categories
+  // that only exist in a future save inherit the same choice instead of
+  // defaulting back to visible. Both live in the nav column's header (not the detail
   // pane) since they act globally, across every category -- not just
   // whichever one happens to be selected. Scoped to the nav column + detail
   // pane, NOT all of #sidebar: #sidebarFooter also holds checkboxes that are
@@ -1500,8 +1559,8 @@ var Filters = {};
     }
     MapApp.layer.buckets.forEach(function(bucket) {
       bucket.visible = checked;
-      savedVisibility[bucket.key] = checked;
     });
+    savedVisibility = { "*": checked };
     persistVisibility();
     MapApp.layer.requestRedraw();
   }
