@@ -33,6 +33,10 @@ up to **15 seconds at a time** — WebGL rendering instead of DOM markers
 - **Edit your save** — move, copy/paste, rotate or delete whole factory
   sections (with undo), then download the edited `.sav` and load it in the
   game.
+- **Link straight to a map** — append `?url=<address-of-a-save>` to load a
+  hosted `.sav` automatically (e.g. a dedicated server's autosave exposed
+  over HTTP). The file downloads directly into your browser — never through
+  this site's servers — so its host must allow cross-origin (CORS) requests.
 - **Private by construction** — fully client-side; the save never leaves
   your machine. Works offline once loaded.
 
