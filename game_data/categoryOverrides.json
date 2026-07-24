@@ -25,7 +25,9 @@
     "Build_RailroadSwitchControl_C": ["Logistics", "Trains"],
     "Build_ConveyorAttachmentSplitterLift_C": ["Logistics", "Conveyor Attachments"],
     "Build_ConveyorAttachmentMergerLift_C": ["Logistics", "Conveyor Attachments"],
-    "Build_ConveyorAttachmentSplitterSmartLift_C": ["Logistics", "Conveyor Attachments"]
+    "Build_ConveyorAttachmentSplitterSmartLift_C": ["Logistics", "Conveyor Attachments"],
+    "Build_ConveyorAttachmentMergerPriorityLift_C": ["Logistics", "Conveyor Attachments"],
+    "Build_ConveyorAttachmentSplitterProgrammableLift_C": ["Logistics", "Conveyor Attachments"]
   },
   "classFootprintsMeters": {
     "Build_HubTerminal_C": [5.0, 3.0],
@@ -41,7 +43,9 @@
     "Build_RailroadSwitchControl_C": [1.5, 1.5],
     "Build_ConveyorAttachmentSplitterLift_C": [4.0, 4.0],
     "Build_ConveyorAttachmentMergerLift_C": [4.0, 4.0],
-    "Build_ConveyorAttachmentSplitterSmartLift_C": [4.0, 4.0]
+    "Build_ConveyorAttachmentSplitterSmartLift_C": [4.0, 4.0],
+    "Build_ConveyorAttachmentMergerPriorityLift_C": [4.0, 4.0],
+    "Build_ConveyorAttachmentSplitterProgrammableLift_C": [4.0, 4.0]
   },
   "hiddenClasses": [
     "BUILD_Potty_mk1_C",

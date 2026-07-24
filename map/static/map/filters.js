@@ -171,22 +171,30 @@ var Filters = {};
   // Category/subcategory order comes from the payload (payload.menuOrder,
   // built from game_data/generated/buildingCategories.json) -- see buildBuildingCategorySections.
 
-  // Lightweight buildables (foundations/walls/ramps/beams) come in several
-  // material skins per shape -- e.g. "Foundation 4m", "Foundation 4m
-  // (Asphalt)", "Foundation 4m (Concrete)", "Foundation 4m (Metal)",
-  // "Foundation 4m (Polished Concrete)" are all the exact same shape/size,
-  // just different paint, and would otherwise show up as 5 separate sidebar
-  // rows. Only suffixes confirmed to be pure material/skin are stripped here
-  // -- other parenthetical suffixes seen in the readable-name data (e.g.
-  // "(Window)", "(No Indicator)", "(1 m)") indicate a genuinely different
-  // shape or size and must NOT be merged away. Applied across every building
-  // category (not just Foundations/Walls/Architecture) since it's a no-op for
-  // any label that never carries one of these suffixes.
-  var MATERIAL_LABEL_SUFFIXES = [" (Asphalt)", " (Concrete)", " (Polished Concrete)", " (Metal)"];
+  // Same-thing-to-the-user variants merged into one sidebar row, by
+  // stripping a known label suffix so they land in the same merged group:
+  //
+  // - Material skins on lightweight buildables (foundations/walls/ramps/
+  //   beams) -- e.g. "Foundation 4m (Asphalt)"/"(Concrete)"/"(Metal)"/
+  //   "(Polished Concrete)" are the exact same shape/size as "Foundation
+  //   4m", just different paint, and would otherwise be 5 separate rows.
+  //   Only suffixes confirmed to be pure material/skin are stripped --
+  //   other parenthetical suffixes in the readable-name data (e.g.
+  //   "(Window)", "(No Indicator)", "(1 m)") indicate a genuinely
+  //   different shape or size and must NOT be merged away.
+  // - " on Lift": the game silently swaps a splitter/merger placed on a
+  //   conveyor lift to a distinct Build_*Lift_C class ("Conveyor Splitter
+  //   on Lift", ...). Functionally it IS that splitter/merger; showing it
+  //   as a second object type just reads as noise.
+  //
+  // Applied across every building category since it's a no-op for any label
+  // that never carries one of these suffixes. Tooltips/selection keep each
+  // bucket's own full label, so the variant is still identifiable per object.
+  var MERGED_LABEL_SUFFIXES = [" (Asphalt)", " (Concrete)", " (Polished Concrete)", " (Metal)", " on Lift"];
 
-  function mergedMaterialLabel(label) {
-    for (var i = 0; i < MATERIAL_LABEL_SUFFIXES.length; i++) {
-      var suffix = MATERIAL_LABEL_SUFFIXES[i];
+  function mergedRowLabel(label) {
+    for (var i = 0; i < MERGED_LABEL_SUFFIXES.length; i++) {
+      var suffix = MERGED_LABEL_SUFFIXES[i];
       if (label.slice(-suffix.length) === suffix) {
         return label.slice(0, -suffix.length);
       }
@@ -1220,7 +1228,7 @@ var Filters = {};
     return { label: typeEntry.label, count: pointCount(typeEntry.points, 4), color: color, renderType: typeEntry.renderType, buckets: [bucket] };
   }
 
-  // Same-shape/different-material typeEntries (see mergedMaterialLabel) merged
+  // Same-shape/different-material typeEntries (see mergedRowLabel) merged
   // into a single row controlling all of their buckets at once. `typePaths`
   // and `category` aren't used by the sidebar itself -- they're carried
   // along so this same row object can double as a building-search catalog
@@ -1240,10 +1248,29 @@ var Filters = {};
   // over them regardless of where these categories fall in the sidebar's order.
   var DRAW_PRIORITY_BY_CATEGORY = { Organisation: -1, Walls: -1 };
 
+  // Registers a line row in the building search catalog (see
+  // buildingSearchEntries) when its payload data carries a typePath --
+  // searching "power line"/"railroad"/"conveyor belt" then finds the row,
+  // and its eye toggle flips the exact sidebar checkbox. Before this, only
+  // point/rect building rows were searchable, and (worse) power lines
+  // matched a duplicate dot-rendered building row that collectBuildings no
+  // longer emits -- so the search toggle flipped an invisible bucket while
+  // the actual lines stayed put.
+  function registerLineSearchRow(row, lineData) {
+    if (lineData.typePath) {
+      row.typePaths = [lineData.typePath];
+      row.category = lineData.category || "Unknown";
+      row.subcategory = lineData.subcategory;
+      buildingSearchEntries.push(row);
+    }
+    return row;
+  }
+
   function lineRow(key, lines) {
     var lineData = lines[key];
     var bucket = makeLineBucket("line:" + key, LINE_LABELS[key], LINE_COLORS[key], lineData.polylines, lineData.ids, "server", null, lineData.pointStride);
-    return { label: LINE_LABELS[key], count: lineData.polylines.length, color: LINE_COLORS[key], renderType: "line", buckets: [bucket] };
+    var row = { label: LINE_LABELS[key], count: lineData.polylines.length, color: LINE_COLORS[key], renderType: "line", buckets: [bucket] };
+    return registerLineSearchRow(row, lineData);
   }
 
   // A leaf row from an already-collected line group (per-mark belts/pipes --
@@ -1260,7 +1287,8 @@ var Filters = {};
   // category/subcategory. Keeps the full label ("Conveyor Belt Mk.3") rather
   // than a bare "Mk.3", since it now sits among unrelated leaf rows.
   function beltPipeRow(keyPrefix, color, group) {
-    return lineRowFromData(keyPrefix + group.mark, group.label, null, color, group);
+    var row = lineRowFromData(keyPrefix + group.mark, group.label, null, color, group);
+    return registerLineSearchRow(row, group);
   }
 
   function byCountDesc(a, b) { return b.count - a.count; }
@@ -1353,12 +1381,12 @@ var Filters = {};
       var color = BUILDING_CATEGORY_COLORS[category] || BUILDING_CATEGORY_COLORS.Unknown;
       var drawPriority = DRAW_PRIORITY_BY_CATEGORY[category] || 0;
       // Group by (subcategory, merged label) first so same-shape/different-
-      // material typeEntries (see mergedMaterialLabel) collapse into one row
+      // material typeEntries (see mergedRowLabel) collapse into one row
       // instead of one row per material skin.
       var mergedGroups = {};
       var mergedOrder = [];
       categoryEntry.types.forEach(function(typeEntry) {
-        var mergedLabel = mergedMaterialLabel(typeEntry.label);
+        var mergedLabel = mergedRowLabel(typeEntry.label);
         var key = typeEntry.subcategory + " " + mergedLabel;
         if (!mergedGroups[key]) {
           mergedGroups[key] = { subcategory: typeEntry.subcategory, mergedLabel: mergedLabel, entries: [] };
