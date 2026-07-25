@@ -119,10 +119,9 @@ fn step_owned_impl(
 /// against the pre-action state gives the right total. The first op must
 /// plan (that's the dry-run that surfaces semantic refusals while the
 /// session is still healthy); a later op that fails to plan just adds
-/// nothing -- the fold surfaces its real error. Used by the wasm big-edit
-/// guard: growth past the body's spare capacity means restart-in-a-fresh-
-/// worker, and checking only the first op would let the other half of a
-/// mixed paste overflow unguarded.
+/// nothing -- the fold surfaces its real error. Used by the wasm
+/// too-big-edit refusal (grown_body_can_exist): checking only the first op
+/// would let the other half of a mixed paste slip past the bound.
 pub fn planned_growth(store: &SaveStore, ops: &[EditOp]) -> PResult<usize> {
     let mut grow = 0usize;
     for (i, op) in ops.iter().enumerate() {
@@ -135,30 +134,23 @@ pub fn planned_growth(store: &SaveStore, ops: &[EditOp]) -> PResult<usize> {
     Ok(grow)
 }
 
-/// Can an edit whose growth exceeds the body's spare capacity still be
-/// applied in THIS wasm instance (apply_plan's streamed fallback), or does
-/// it need a fresh worker? The streamed apply allocates the compressed
-/// snapshot (~len/8 with fast zlib) and the grown body (+slack); linear
-/// memory that is already allocated but free again -- e.g. the dropped
-/// object model in a post-load full worker -- is reusable (the allocator
-/// coalesces; the 3/4 factor discounts fragmentation, and the old body's
-/// own block, freed mid-apply, is not counted at all). Only what can't be
-/// covered by reuse must come from growing linear memory, which together
-/// with a margin for the payload rebuild has to stay under the 4GiB
-/// ceiling. Mid-size saves always pass; the fresh-worker restart is
-/// reserved for saves genuinely near the ceiling.
-pub fn fits_streamed_apply(mem_bytes: u64, live_bytes: u64, body_len: u64, growth: u64) -> bool {
+/// Pre-empting an in-place apply is reserved for CERTAIN doom: the grown
+/// body itself -- one contiguous allocation -- can never exist in a 4GiB
+/// wasm heap, so the edit is refused up front (session healthy, desktop
+/// app suggested). Everything else is attempted right here: the streamed
+/// apply peaks at ~1x body, and if the heap genuinely can't take it the
+/// trap surfaces as the same too-big edit failure, with the client
+/// reloading only to restore the map and the earlier committed edits.
+/// (Two rounds of estimate heuristics -- worst-case, then free-heap-aware
+/// -- each kept pre-empting real saves whose pastes applied fine;
+/// predictions about allocator state lose to just asking it.)
+pub fn grown_body_can_exist(body_len: u64, growth: u64) -> bool {
     const CEILING: u64 = 4 << 30;
-    const MARGIN: u64 = 512 << 20;
-    // MARGIN (payload rebuild etc.) counts as an allocation like the rest --
-    // it reuses freed heap just as well, so it belongs in `needed`, not
-    // stacked on top of linear memory (which would bar any big instance no
-    // matter how empty its heap is).
-    let needed = body_len + growth + crate::decompress::BODY_EDIT_SLACK as u64 + body_len / 8
-        + MARGIN;
-    let reusable = mem_bytes.saturating_sub(live_bytes) / 4 * 3;
-    let heap_growth = needed.saturating_sub(reusable);
-    mem_bytes.saturating_add(heap_growth) <= CEILING
+    const OVERHEAD: u64 = 64 << 20; // runtime + code + stacks, roughly
+    body_len
+        .saturating_add(growth)
+        .saturating_add(crate::decompress::BODY_EDIT_SLACK as u64)
+        <= CEILING - OVERHEAD
 }
 
 /// Compress a pristine body for retention (wasm keeps the undo baseline as

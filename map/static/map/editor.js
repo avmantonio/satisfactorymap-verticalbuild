@@ -222,20 +222,14 @@ var EditorTool = (function() {
     SaveLoadFlow.busyProgress(phase, percent);
   }
 
-  // The ops of the in-flight applyAction, so failApply can commit them for
-  // the fresh-instance replay when the worker signals a big edit.
-  var pendingActionOps = null;
-
   function applyAction(ops) {
     if (applyInFlight || ops.length === 0) {
       return;
     }
     applyInFlight = true;
-    pendingActionOps = ops;
     SaveLoadFlow.showBusy(describeOps(ops));
     SaveClient.applyEdits(ops, false, editProgress)
       .then(function(payload) {
-        pendingActionOps = null;
         actions.push(ops);
         redoStack = [];
         finishApply(payload, "Edit applied.");
@@ -270,29 +264,17 @@ var EditorTool = (function() {
   }
 
   function failApply(error) {
-    // Not a failure: the worker judged the edit too large to apply safely
-    // in its long-lived instance (grown body might not fit the wasm memory
-    // ceiling, depending on allocation history). The session is untouched;
-    // commit the edit and run it through the fresh-worker rebuild, where
-    // the replay applies it with force.
-    if (error && error.message && error.message.indexOf("__bigEditRestart__") !== -1
-        && pendingActionOps) {
-      actions.push(pendingActionOps);
-      // A redone action comes off the top of the redo stack it was redone
-      // from; a brand-new edit invalidates the whole stack instead.
-      if (redoStack.length && redoStack[redoStack.length - 1] === pendingActionOps) {
-        redoStack.pop();
-      } else {
-        redoStack = [];
-      }
-      pendingActionOps = null;
-      recoverSession("Large edit — rebuilding the session to fit it");
-      return;
+    var text = (error && error.message) || String(error);
+    // A wasm memory death reads as a cryptic trap ("unreachable", "memory
+    // access out of bounds"); translate it into the actionable truth.
+    if (error && error.sessionLost
+        && /unreachable|out of bounds|out of memory|allocation|crashed/i.test(text)) {
+      text = "this edit is too large for the browser's 4GB memory limit — "
+        + "use the desktop app for edits this large";
     }
-    pendingActionOps = null;
-    var message = "Edit failed: " + (error && error.message || error);
-    // Semantic refusals (uneditable object, unknown name, ...) leave the
-    // session intact: just report them.
+    var message = "Edit failed: " + text;
+    // Semantic refusals (uneditable object, unknown name, edit-too-big, ...)
+    // leave the session intact: just report them.
     if (!error || !error.sessionLost) {
       applyInFlight = false;
       SaveLoadFlow.hideProgress();
@@ -301,9 +283,9 @@ var EditorTool = (function() {
       updateToolbar();
       return;
     }
-    // The wasm session is gone (out-of-memory trap on a huge save). Recover
-    // with a fresh worker: reload the original file, then replay the
-    // committed actions one at a time.
+    // The wasm session died with the failed edit. The edit itself is
+    // abandoned -- never retried; the reload below only brings back the
+    // map and the earlier committed edits instead of leaving a dead page.
     recoverSession(message);
   }
 
@@ -398,8 +380,8 @@ var EditorTool = (function() {
       return Promise.resolve();
     }
     SaveLoadFlow.showBusy("Recovering — re-applying edit " + (i + 1) + " of " + backup.length + "…");
-    // force: the replay runs in a fresh worker, which is exactly what the
-    // big-edit check would ask for -- don't loop through it again.
+    // force: exact-history replay skips the growth dry-run -- these ops
+    // already applied once.
     return SaveClient.applyEdits(backup[i], false, editProgress, true).then(function(payload) {
       SaveLoadFlow.hideProgress();
       SaveLoadFlow.applyPayload(payload);
@@ -453,13 +435,9 @@ var EditorTool = (function() {
     }
     var ops = redoStack[redoStack.length - 1];
     applyInFlight = true;
-    // Armed so a big redo takes the fresh-worker restart path in failApply
-    // (same as a fresh edit) instead of dead-ending on the marker error.
-    pendingActionOps = ops;
     SaveLoadFlow.showBusy("Redoing…");
     SaveClient.applyEdits(ops, false, editProgress)
       .then(function(payload) {
-        pendingActionOps = null;
         redoStack.pop();
         actions.push(ops);
         finishApply(payload, "Edit redone.");

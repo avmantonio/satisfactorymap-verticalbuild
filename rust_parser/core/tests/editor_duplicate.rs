@@ -458,20 +458,18 @@ fn planned_growth_covers_every_op_of_an_action() {
     assert!(session::planned_growth(&store, std::slice::from_ref(&bad)).is_err());
 }
 
-/// The fresh-worker restart fires only near the wasm ceiling: mid-size
-/// instances stream a >slack paste in place, and a post-load full worker
-/// whose heap is mostly the FREED object model gets credit for that reuse;
-/// a heap whose live bytes genuinely crowd the ceiling restarts.
+/// The fresh-worker restart marker fires only on certain doom -- a grown
+/// body that can never exist in a 4GiB heap. Everything below that line is
+/// attempted in place (trap recovery is the backstop).
 #[test]
-fn streamed_apply_fitness_is_memory_aware() {
+fn restart_is_reserved_for_impossible_bodies() {
     let gb = |n: u64| n << 30;
-    // Mid-size save in a lean worker: streams in place.
-    assert!(session::fits_streamed_apply(1200 << 20, 900 << 20, 150 << 20, 100 << 20));
-    // Giant save right after load: 3.6GB heap but only ~1.6GB live (the
-    // dropped model is reusable) -- a 100MB paste streams in place.
-    assert!(session::fits_streamed_apply(3600 << 20, 1600 << 20, 1000 << 20, 100 << 20));
-    // Same heap size but genuinely live near the ceiling: fresh worker.
-    assert!(!session::fits_streamed_apply(3600 << 20, 3300 << 20, gb(3), 200 << 20));
+    // Giant-save paste with a big growth: attempted in place.
+    assert!(session::grown_body_can_exist(gb(1), 800 << 20));
+    // Even a near-3GB body with a large paste: attempted.
+    assert!(session::grown_body_can_exist(gb(3), 500 << 20));
+    // A grown body that can't exist under 4GiB at all: restart.
+    assert!(!session::grown_body_can_exist(gb(3), gb(1)));
     // Overflow-proof on absurd inputs.
-    assert!(!session::fits_streamed_apply(u64::MAX, 0, u64::MAX, u64::MAX));
+    assert!(!session::grown_body_can_exist(u64::MAX, u64::MAX));
 }
