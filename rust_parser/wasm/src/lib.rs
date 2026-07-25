@@ -368,6 +368,7 @@ impl SaveSession {
             if growth > spare
                 && !session::fits_streamed_apply(
                     linear_memory_bytes(),
+                    live_heap_bytes() as u64,
                     store.data.len() as u64,
                     growth as u64,
                 )

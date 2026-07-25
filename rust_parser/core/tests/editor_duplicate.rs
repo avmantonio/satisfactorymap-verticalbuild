@@ -458,14 +458,20 @@ fn planned_growth_covers_every_op_of_an_action() {
     assert!(session::planned_growth(&store, std::slice::from_ref(&bad)).is_err());
 }
 
-/// The fresh-worker restart fires only near the wasm ceiling: a mid-size
-/// instance streams a >slack paste in place; a ~3.5GB one restarts.
+/// The fresh-worker restart fires only near the wasm ceiling: mid-size
+/// instances stream a >slack paste in place, and a post-load full worker
+/// whose heap is mostly the FREED object model gets credit for that reuse;
+/// a heap whose live bytes genuinely crowd the ceiling restarts.
 #[test]
 fn streamed_apply_fitness_is_memory_aware() {
-    // 1.2GB instance, 150MB body, 100MB growth: streams in place.
-    assert!(session::fits_streamed_apply(1200 << 20, 150 << 20, 100 << 20));
-    // Near the ceiling (3.5GB instance, 2.5GB body): fresh worker.
-    assert!(!session::fits_streamed_apply(3500 << 20, 2500 << 20, 100 << 20));
+    let gb = |n: u64| n << 30;
+    // Mid-size save in a lean worker: streams in place.
+    assert!(session::fits_streamed_apply(1200 << 20, 900 << 20, 150 << 20, 100 << 20));
+    // Giant save right after load: 3.6GB heap but only ~1.6GB live (the
+    // dropped model is reusable) -- a 100MB paste streams in place.
+    assert!(session::fits_streamed_apply(3600 << 20, 1600 << 20, 1000 << 20, 100 << 20));
+    // Same heap size but genuinely live near the ceiling: fresh worker.
+    assert!(!session::fits_streamed_apply(3600 << 20, 3300 << 20, gb(3), 200 << 20));
     // Overflow-proof on absurd inputs.
-    assert!(!session::fits_streamed_apply(u64::MAX, u64::MAX, u64::MAX));
+    assert!(!session::fits_streamed_apply(u64::MAX, 0, u64::MAX, u64::MAX));
 }

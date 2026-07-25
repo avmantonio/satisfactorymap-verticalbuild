@@ -137,18 +137,28 @@ pub fn planned_growth(store: &SaveStore, ops: &[EditOp]) -> PResult<usize> {
 
 /// Can an edit whose growth exceeds the body's spare capacity still be
 /// applied in THIS wasm instance (apply_plan's streamed fallback), or does
-/// it need a fresh worker? Worst case assumes no freed-block reuse at all:
-/// the compressed snapshot (~len/8 with fast zlib) and the grown body
-/// (+slack) land as NEW allocations on top of the current linear memory,
-/// all of it under the 4GiB wasm ceiling with margin left for the payload
-/// rebuild that follows. Anything under ~3GB of combined footprint passes,
-/// so the fresh-worker restart is reserved for saves genuinely near the
-/// ceiling instead of firing on every >slack paste.
-pub fn fits_streamed_apply(mem_bytes: u64, body_len: u64, growth: u64) -> bool {
+/// it need a fresh worker? The streamed apply allocates the compressed
+/// snapshot (~len/8 with fast zlib) and the grown body (+slack); linear
+/// memory that is already allocated but free again -- e.g. the dropped
+/// object model in a post-load full worker -- is reusable (the allocator
+/// coalesces; the 3/4 factor discounts fragmentation, and the old body's
+/// own block, freed mid-apply, is not counted at all). Only what can't be
+/// covered by reuse must come from growing linear memory, which together
+/// with a margin for the payload rebuild has to stay under the 4GiB
+/// ceiling. Mid-size saves always pass; the fresh-worker restart is
+/// reserved for saves genuinely near the ceiling.
+pub fn fits_streamed_apply(mem_bytes: u64, live_bytes: u64, body_len: u64, growth: u64) -> bool {
     const CEILING: u64 = 4 << 30;
     const MARGIN: u64 = 512 << 20;
-    let needed = body_len + growth + crate::decompress::BODY_EDIT_SLACK as u64 + body_len / 8;
-    mem_bytes.saturating_add(needed).saturating_add(MARGIN) <= CEILING
+    // MARGIN (payload rebuild etc.) counts as an allocation like the rest --
+    // it reuses freed heap just as well, so it belongs in `needed`, not
+    // stacked on top of linear memory (which would bar any big instance no
+    // matter how empty its heap is).
+    let needed = body_len + growth + crate::decompress::BODY_EDIT_SLACK as u64 + body_len / 8
+        + MARGIN;
+    let reusable = mem_bytes.saturating_sub(live_bytes) / 4 * 3;
+    let heap_growth = needed.saturating_sub(reusable);
+    mem_bytes.saturating_add(heap_growth) <= CEILING
 }
 
 /// Compress a pristine body for retention (wasm keeps the undo baseline as
