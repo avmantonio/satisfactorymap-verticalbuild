@@ -425,31 +425,21 @@ pub fn describe_instance(store: &SaveStore, index: &MapIndex, instance_name: &st
         }
     }
 
-    // Mixed-mark pipe network detection (rated members only).
+    // Mixed-mark pipe detection, scoped to the hovered segment's LINE (walk
+    // ends at splitting/merging junctions), not the whole FGPipeNetwork --
+    // a Mk2 trunk legitimately feeding two Mk1 branches through a junction
+    // is not a bottleneck, matching how conveyor chains end at splitters.
     if queries::pipe_flow_limit_per_minute(type_path.as_deref()).is_some() {
-        for connector_suffix in PIPE_CONNECTOR_SUFFIXES {
-            connector_key.clear();
-            connector_key.extend_from_slice(instance_name.as_bytes());
-            connector_key.extend_from_slice(connector_suffix.as_bytes());
-            let Some(connector_object) = index.parse_object_by_name(store, &connector_key) else {
-                continue;
-            };
-            let network_id = props::int(&connector_object.properties, data, b"mPipeNetworkID");
-            let member_names =
-                network_id.and_then(|id| index.pipe_network_id_to_members.get(&id));
-            // `if memberNames:` -- the break sits inside this truthy gate.
-            if let Some(member_names) = member_names {
-                if !member_names.is_empty() {
-                    if let Some(network_bottleneck) = queries::pipe_network_bottleneck(
-                        store,
-                        index,
-                        member_names,
-                        type_path.as_deref(),
-                    ) {
-                        result.insert("lineBottleneck".into(), network_bottleneck);
-                    }
-                    break;
-                }
+        let member_names =
+            queries::pipe_line_member_names(store, index, instance_name.as_bytes());
+        if !member_names.is_empty() {
+            if let Some(line_bottleneck) = queries::pipe_network_bottleneck(
+                store,
+                index,
+                &member_names,
+                type_path.as_deref(),
+            ) {
+                result.insert("lineBottleneck".into(), line_bottleneck);
             }
         }
     }

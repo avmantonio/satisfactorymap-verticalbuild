@@ -388,7 +388,76 @@ pub fn conveyor_chain_bottleneck(
     )
 }
 
-/// sav_map_data._pipeNetworkBottleneck.
+/// Rated members of the hovered segment's pipe LINE (not the whole
+/// FGPipeNetwork): walks mConnectedComponent links outward from `start`,
+/// continuing through rated pipes/pumps and through junctions acting as
+/// plain couplings (<= 2 connected ports), and stopping at junctions that
+/// actually split or merge the flow (>= 3 connected ports) and at anything
+/// unrated (machines, valves, tanks). Mirrors conveyor bottleneck scoping,
+/// where the game's chain actors end at splitters/mergers -- a Mk2 feeding
+/// two Mk1 branches through a junction is three separate lines, not one
+/// mixed-mark network.
+pub fn pipe_line_member_names(
+    store: &SaveStore,
+    index: &MapIndex,
+    start_instance_name: &[u8],
+) -> Vec<String> {
+    let data: &[u8] = &store.data;
+    // Connected peer OWNER instances of one member (component objects are
+    // named <owner>.<Connection*>; a port without a peer has no
+    // mConnectedComponent).
+    let connected_peers = |instance: &[u8]| -> Vec<Vec<u8>> {
+        let mut peers = Vec::new();
+        let mut key: Vec<u8> = Vec::new();
+        for suffix in PIPE_CONNECTOR_SUFFIXES {
+            key.clear();
+            key.extend_from_slice(instance);
+            key.extend_from_slice(suffix.as_bytes());
+            let Some(component) = index.parse_object_by_name(store, &key) else { continue };
+            let Some(peer) = props::object_ref(&component.properties, data, b"mConnectedComponent")
+            else {
+                continue;
+            };
+            let peer_path = peer.path_name.bytes(data);
+            if peer_path.is_empty() {
+                continue;
+            }
+            if let Some(dot) = peer_path.iter().rposition(|&b| b == b'.') {
+                peers.push(peer_path[..dot].to_vec());
+            }
+        }
+        peers
+    };
+
+    let mut members: Vec<String> = Vec::new();
+    let mut visited: HashSet<Vec<u8>> = HashSet::new();
+    let mut queue: Vec<Vec<u8>> = vec![start_instance_name.to_vec()];
+    while let Some(instance) = queue.pop() {
+        if !visited.insert(instance.clone()) {
+            continue;
+        }
+        let type_path = match index.header_by_name(store, &instance) {
+            Some(Header::Actor(a)) => a.type_path.to_string(data),
+            _ => continue,
+        };
+        if pipe_flow_limit_per_minute(Some(&type_path)).is_some() {
+            members.push(props::lossy(&instance));
+            queue.extend(connected_peers(&instance));
+        } else if short_class_name(&type_path).contains("PipelineJunction") {
+            let peers = connected_peers(&instance);
+            if peers.len() <= 2 {
+                queue.extend(peers); // plain coupling: pass through
+            }
+            // >= 3 connected ports: the line ends here, like a belt
+            // chain ends at a splitter/merger.
+        }
+        // Anything else (machine, valve, tank, ...) terminates the line.
+    }
+    members
+}
+
+/// sav_map_data._pipeNetworkBottleneck, rescoped from the whole FGPipeNetwork
+/// to the hovered segment's line (see pipe_line_member_names).
 pub fn pipe_network_bottleneck(
     store: &SaveStore,
     index: &MapIndex,
@@ -402,7 +471,7 @@ pub fn pipe_network_bottleneck(
         &member_names,
         hovered_type_path,
         &pipe_flow_limit_per_minute,
-        "network",
+        "line",
         "m³/min",
     )
 }
