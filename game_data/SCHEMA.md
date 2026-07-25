@@ -391,20 +391,10 @@ world-partition cell exports as the `sav_data/` tables; positions are
 world-space centimeters, keys are the actor path names as a save spells
 them.
 
-## resourceDeposits.json
-
-```json
-"Desc_OreUranium_C": {
-  "Persistent_Level:PersistentLevel.BP_ResourceDeposit121_38": [176318.0, -194103.0, 23274.0],
-  ...
-}
-```
-
-Every small minable ore chunk (`BP_ResourceDeposit_C`, ~2,660), grouped by
-`mOverrideResourceClass`. Same producer/conventions as `consumables.json`.
-The `"random"` bucket (~75% of deposits) has no override in the level data
--- the game rolls each one's resource at runtime per save, so their type is
-only knowable from a save, not from game files.
+(Resource deposits — the small minable ore chunks — were evaluated and
+deliberately NOT extracted: ~75% of them have no cooked resource type; each
+save rolls its own `mResourceDepositTableIndex` lazily as cells stream in,
+verified by comparing rolled indexes across independent vanilla worlds.)
 
 ## creatures.json
 
