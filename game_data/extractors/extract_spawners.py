@@ -70,11 +70,17 @@ NAMES_OUTPUT_PATH = os.path.join(OUTPUT_DIR, "creatures.json")
 
 CLASS_NAME_PATTERN = re.compile(r"'([^']+)'$")  # "BlueprintGeneratedClass'Char_Hog_C'"
 
-# The only creature that is spawner-placed yet has neither an
-# FGCreatureDescriptor nor any World_Data localization entry -- it is
-# genuinely unnamed in-game, so this fallback name is ours.
+# Creatures with neither an FGCreatureDescriptor nor any World_Data
+# localization entry -- genuinely unnamed in-game, so these fallback names
+# (and icon reuse) are ours: {class: (displayName, iconAssetPath|None)}.
 NO_DESCRIPTOR_NAMES = {
-    "Char_Beetle_C": "Beetle",
+    # Spawner-placed, no descriptor, no icon anywhere.
+    "Char_Beetle_C": ("Beetle", None),
+    # World actor like the small hatcher (151 placed vs 398), but the game's
+    # single hatcher descriptor/string ("Tropical Crab Hatcher") covers only
+    # Char_CrabHatcher_C; the icon genuinely depicts both.
+    "Char_BigCrabHatcher_C": ("Big Crab Hatcher",
+                              "/FactoryGame/Character/Creature/CreatureDescriptors/UI/IconDesc_Hatcher_256"),
 }
 
 
@@ -223,11 +229,13 @@ def main():
 
     displayStrings = loadDisplayStrings(contentRoot)
     creatures = extractCreatureNames(contentRoot, displayStrings)
-    # Spawned creatures without a descriptor still deserve a name row.
+    # Classes without a descriptor still deserve a name row (whether
+    # spawner-placed like the Beetle or free world actors like big hatchers).
+    for creature, (displayName, icon) in NO_DESCRIPTOR_NAMES.items():
+        if creature not in creatures:
+            creatures[creature] = {"displayName": displayName, "icon": icon}
     for creature in spawners:
-        if creature not in creatures and creature in NO_DESCRIPTOR_NAMES:
-            creatures[creature] = {"displayName": NO_DESCRIPTOR_NAMES[creature], "icon": None}
-        elif creature not in creatures and creature != "unknown":
+        if creature not in creatures and creature != "unknown":
             print(f"WARNING: spawned creature {creature} has no descriptor and no "
                   f"fallback display name")
     creatures = dict(sorted(creatures.items()))

@@ -411,8 +411,8 @@ Official display name + icon per creature class, also produced by
 (`<Content>/FactoryGame/Character/Creature/CreatureDescriptors/`), and the
 name strings from the `World_Data` string-table source CSV at
 `<Content>/Localization/StringTables/World_Data.csv`. Covers every class
-`creatureSpawners.json` uses plus the Crab Hatcher (a world actor, not
-spawner-spawned).
+`creatureSpawners.json` uses plus the two Crab
+Hatcher variants (world actors, not spawner-spawned).
 
 - The StringTables CSVs are loose files in `FactoryGame-Windows.pak`, not
   assets in the `.utoc` -- a normal FModel package export skips them, so a
@@ -424,9 +424,12 @@ spawner-spawned).
   English strings, quirks included:
   the Space Giraffe's real in-game name is "Unknown File Error #6265616e",
   and the Red Forest Spitter variants share display names with the normal
-  Forest ones (their descriptors point at the same localization keys). The
-  one exception is `Char_Beetle_C`: no descriptor, no localization entry,
-  genuinely unnamed in-game -- its "Beetle" is this repo's own fallback. If
+  Forest ones (their descriptors point at the same localization keys). Two
+  classes have no descriptor and no localization entry -- genuinely
+  unnamed in-game -- so their names are this repo's own fallbacks:
+  `Char_Beetle_C` ("Beetle") and `Char_BigCrabHatcher_C` ("Big Crab
+  Hatcher"; the game names only the small variant, and the shared hatcher
+  icon depicts both). If
   the pak or DLL is unavailable, names degrade to strings derived from the
   localization keys, with warnings.
 - `icon` follows the same asset-path convention as `items.json`; `null` for
