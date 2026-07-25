@@ -1,7 +1,7 @@
 //! Embeds the item-icon manifest: the Python _itemIconFilename checked
 //! os.path.exists per call, which a wasm build can't do -- so the set of
 //! extracted icon files is snapshotted at compile time instead (icons only
-//! change when game_data/copy_icons.py reruns, which implies a rebuild
+//! change when game_data/extractors/copy_icons.py reruns, which implies a rebuild
 //! anyway).
 
 use std::io::Write;

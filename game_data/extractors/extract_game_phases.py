@@ -7,7 +7,7 @@
 # the same extraction dump copy_icons.py reads PNGs from:
 #   <Content>/FactoryGame/GamePhases/GP_Project_Assembly_Phase_<N>.json
 #
-# Usage: py game_data/extract_game_phases.py [path/to/extraction/.../Content]
+# Usage: py game_data/extractors/extract_game_phases.py [path/to/extraction/.../Content]
 #
 # Re-run whenever the extraction dump is refreshed (new game patch).
 # sav_map_data._loadGamePhases() picks the generated file over its fallback
@@ -20,7 +20,7 @@ from pathlib import Path
 
 DEFAULT_CONTENT_ROOT = Path(r"C:\Users\plane.DESKTOP-SAH3OHV\Documents\SatisExtract\FactoryGame\Content")
 GAME_PHASES_SUBDIR = Path("FactoryGame/GamePhases")
-OUTPUT_PATH = Path(__file__).parent / "generated" / "gamePhases.json"
+OUTPUT_PATH = Path(__file__).parent.parent / "generated" / "gamePhases.json"
 
 PHASE_FILENAME_RE = re.compile(r"^GP_Project_Assembly_Phase_(\d+)$")
 # e.g. "BlueprintGeneratedClass'Desc_SpaceElevatorPart_1_C'"

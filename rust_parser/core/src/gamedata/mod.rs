@@ -8,7 +8,7 @@
 //!   submodule's Python literals by game_data/extract_sav_data_tables.py
 //!   (committed; key order preserved from the Python dicts).
 //! - game_data/generated/*.json + game_data/category*.json: extracted from
-//!   the game's Docs.json by game_data/extract_docs_json.py (gitignored,
+//!   the game's Docs.json by game_data/extractors/extract_docs_json.py (gitignored,
 //!   regenerable; documented in game_data/SCHEMA.md).
 
 use indexmap::IndexMap;

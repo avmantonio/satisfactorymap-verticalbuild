@@ -10,7 +10,7 @@
 # Satisfactory\CommunityResources\Docs\en-US.json). Re-run whenever it is
 # updated (new game patch).
 #
-# Usage: py game_data/extract_docs_json.py [path/to/docs.json]
+# Usage: py game_data/extractors/extract_docs_json.py [path/to/docs.json]
 #
 # Category rule (kept simple on purpose so new NativeClass groups in future
 # game updates fall into a sane bucket without needing this script to know
@@ -52,8 +52,8 @@ import re
 import sys
 from pathlib import Path
 
-DOCS_JSON_PATH = Path(__file__).parent / "docs.json"
-OUTPUT_DIR = Path(__file__).parent / "generated"
+DOCS_JSON_PATH = Path(__file__).parent.parent / "docs.json"
+OUTPUT_DIR = Path(__file__).parent.parent / "generated"
 
 SKIPPED_NATIVE_CLASS_SUFFIXES = ("FGCustomizationRecipe'",)
 RECIPE_NATIVE_CLASS_SUFFIX = "FGRecipe'"

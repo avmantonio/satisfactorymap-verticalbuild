@@ -488,7 +488,7 @@ pub fn collect_hard_drives(scan: &SaveScan) -> Value {
 use crate::mapdata::consts::ITEM_PICKUP_TYPE_PATH;
 
 /// _itemIconFilename: the ClassName-keyed icon file under
-/// map/static/map/icons/items/ (see game_data/copy_icons.py), or null when no
+/// map/static/map/icons/items/ (see game_data/extractors/copy_icons.py), or null when no
 /// icon was extracted. Python checked os.path.exists per call; here the
 /// icons dir is snapshotted at compile time (core/build.rs) so the check
 /// also works on wasm.
