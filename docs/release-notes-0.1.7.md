@@ -19,6 +19,12 @@ game's own files.
 
 ## UI fixes
 
+- **Copying on very large saves no longer crashes the editor.** On saves
+  above roughly a gigabyte of decompressed data, any copy/paste could die
+  with "Edit failed: unreachable" in the browser: growing the save to fit
+  the copied objects briefly needed twice the save's memory, blowing the
+  browser's 4 GB WebAssembly limit. Save data now carries built-in growth
+  headroom so copies apply in place.
 - **Hypertube entrances are back on the map** — and with them, copies of
   daisy-chained builds keep their power wires. Entrances were treated as
   line-only geometry, but an entrance with its default tube shape carries no

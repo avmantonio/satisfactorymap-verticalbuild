@@ -18,6 +18,17 @@ struct Chunk {
     uncomp_len: usize,
 }
 
+/// Extra capacity allocated with every decompressed body so editor inserts
+/// (copies grow the body) extend IN PLACE instead of reallocating. A
+/// reallocation of a body at exact capacity means a second full-body-sized
+/// contiguous block lives while the first is copied out -- ~2x the body
+/// transiently, which is exactly what trapped the 4GB-capped wasm build when
+/// copying on a save with a 1.3GB body. 64MB covers ~50k copied objects;
+/// pastes larger than the slack fall back to the reallocation (and may still
+/// OOM on huge saves in the browser -- the desktop app is uncapped). Also
+/// covers the 4-byte "Missing final array count" quirk pad.
+pub const BODY_EDIT_SLACK: usize = 64 << 20;
+
 /// Mirrors decompressSaveFile(offset, data) including its confirm checks.
 /// `progress(bytes_of_file_consumed, total_file_bytes)` fires as chunks finish.
 pub fn decompress_save_file(
@@ -82,14 +93,15 @@ pub fn decompress_save_file(
     // the actionable error instead -- the desktop app has no such limit. The
     // +8 leaves room for the editor's quirk-padding append.
     #[cfg(target_pointer_width = "32")]
-    if total_uncomp as u64 + 8 > isize::MAX as u64 {
+    if total_uncomp as u64 + BODY_EDIT_SLACK as u64 > isize::MAX as u64 {
         return Err(perr!(
             "This save decompresses to {:.2} GB. The browser build can load saves up to about 2 GB; use the desktop app for larger ones.",
             total_uncomp as f64 / 1e9
         ));
     }
 
-    let mut out: Vec<u8> = vec![0u8; total_uncomp];
+    let mut out: Vec<u8> = Vec::with_capacity(total_uncomp + BODY_EDIT_SLACK);
+    out.resize(total_uncomp, 0);
 
     // Carve the output into per-chunk slices for parallel inflation.
     let mut slices: Vec<(&Chunk, &mut [u8])> = Vec::with_capacity(chunks.len());

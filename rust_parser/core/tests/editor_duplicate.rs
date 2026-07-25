@@ -359,3 +359,44 @@ fn explicit_wire_is_a_rider_not_a_copy_target() {
     let slot3 = *scan3.by_instance_name.get(wire.as_bytes()).unwrap();
     assert_eq!(wire_locations(&store3, slot3.0, slot3.1), locations_before);
 }
+
+/// Copies grow the body in place: bodies carry BODY_EDIT_SLACK spare
+/// capacity so an insert never reallocates (a realloc means ~2x the body
+/// alive at once -- what used to trap the 4GB wasm heap on GB-scale saves).
+#[test]
+fn insert_growth_stays_in_place() {
+    let store = load("All_080726-163150.sav");
+    let tables = ClassTables::embedded();
+    assert!(
+        store.data.capacity() >= store.data.len() + (60 << 20),
+        "body allocated without edit slack: len={} cap={}",
+        store.data.len(),
+        store.data.capacity()
+    );
+    let ptr_before = store.data.as_ptr() as usize;
+    let (_, _, name) = {
+        let mut found = None;
+        for level in &store.levels {
+            for header in &level.headers {
+                if let Header::Actor(a) = header {
+                    if a.type_path.to_string(&store.data).contains("ConstructorMk1") {
+                        found = Some((0usize, 0usize, a.instance_name.to_string(&store.data)));
+                    }
+                }
+            }
+        }
+        found.expect("constructor present")
+    };
+    let op = EditOp::DuplicateActors {
+        names: vec![name],
+        delta: [2000.0, 0.0, 0.0],
+        rotate_yaw_deg: 0.0,
+        pivot: None,
+        seed: 3,
+    };
+    let store2 = session::fold_ops(store, &[op], &tables, None).unwrap();
+    assert_eq!(
+        store2.data.as_ptr() as usize, ptr_before,
+        "insert reallocated the body instead of growing in place"
+    );
+}

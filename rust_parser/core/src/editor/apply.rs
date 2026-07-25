@@ -113,6 +113,10 @@ pub fn apply_plan(body: &mut Vec<u8>, mut plan: EditPlan) -> PResult<()> {
         plan.inserts.sort_by_key(|(at, _)| *at);
         let added: usize = plan.inserts.iter().map(|(_, b)| b.len()).sum();
         let old_len = body.len();
+        // Usually a no-op: bodies are allocated with BODY_EDIT_SLACK spare
+        // capacity so growth stays in place. If `added` exceeds the slack
+        // this reallocates -- transiently 2x the body, which a 4GB-capped
+        // wasm heap may not survive on GB-scale saves.
         body.reserve_exact(added);
         body.resize(old_len + added, 0);
         // Shift the pre-existing segments right-to-left so nothing is

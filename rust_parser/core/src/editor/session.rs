@@ -124,7 +124,10 @@ pub fn compress_body(body: &[u8]) -> (Vec<u8>, usize) {
 
 pub fn decompress_body(compressed: &[u8], raw_len: usize) -> PResult<Vec<u8>> {
     let mut dec = ZlibDecoder::new(compressed);
-    let mut out = Vec::with_capacity(raw_len);
+    // Same edit headroom as a fresh decompress: replayed bodies get edited
+    // again, and in-place insert growth must not realloc (see
+    // decompress::BODY_EDIT_SLACK).
+    let mut out = Vec::with_capacity(raw_len + crate::decompress::BODY_EDIT_SLACK);
     dec.read_to_end(&mut out).map_err(|e| perr!("Pristine body decompression failed: {}", e))?;
     if out.len() != raw_len {
         return Err(perr!("Pristine body length mismatch: {} != {}", out.len(), raw_len));
