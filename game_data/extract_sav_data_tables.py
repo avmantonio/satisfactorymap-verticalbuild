@@ -1,19 +1,24 @@
-"""One-time/offline converter: dumps the static Python data tables from the
-parser/ submodule (GreyHak's sat_sav_parse sav_data package) to JSON under
-game_data/sav_data/, where the Rust payload builder embeds them. Unlike
-game_data/generated/ (gitignored, regenerable from your game install), these
-files are committed: they are world data curated upstream/by SCIM, and they
-must outlive the parser/ submodule's removal.
+"""LEGACY one-time/offline converter: dumped the static Python data tables
+from the parser/ submodule (GreyHak's sat_sav_parse sav_data package) to JSON
+under game_data/sav_data/, where the Rust payload builder embeds them.
 
-Regeneration requires the parser/ git submodule, which is removed from the
-repo once the client-side port is complete -- re-add it (or check out an old
-commit) to regenerate after a game update:
+MOSTLY SUPERSEDED: powerSlugs / somersloops / mercerSpheres / crashSites /
+freeDroppedItems / resourcePurity now regenerate from the FModel extraction
+dump via game_data/extractors/extract_collectables.py (validated 1:1 against
+the tables this script produced), with the curated metadata carried over.
+Only readableNameCorrections.json and typePaths.json still originate here --
+they are small curated tables edited by hand in place; this script remains
+only as provenance for them.
+
+Regeneration via this script requires the parser/ git submodule, which was
+removed once the client-side port completed -- re-adding it:
 
     git submodule add https://github.com/GreyHak/sat_sav_parse parser
     py game_data/extract_sav_data_tables.py
 
 Run with --check to verify the committed JSON matches the Python literals
-without rewriting anything.
+without rewriting anything (will now fail for the tables listed above --
+extract_collectables.py's --check is their gate).
 
 Shapes (tuples become JSON arrays, Purity enums become their names):
   resourcePurity.json     {pathName: [descClass, purityName, [x,y,z], coreName|null]}
