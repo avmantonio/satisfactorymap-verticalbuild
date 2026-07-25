@@ -6,6 +6,4 @@ Add lizard doggo spawn points: those have to be fetched from somewhere and shown
 
 Buildings icons: add icons of buildings instead of colored dots in the filter list, maybe put them on the background of their color on the map for both visibility (icons are pretty hard to see rn) and for understanding the color codes.
 
-Stacking belt issue
-
-Stackable poles no tooltip
+Hidden objects are not copied because they are not selected. Example: sign poles never show in copied buildings.

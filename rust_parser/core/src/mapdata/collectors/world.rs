@@ -192,11 +192,22 @@ pub fn collect_resource_nodes(scan: &SaveScan) -> Value {
         let bucket = match resource_buckets.get_mut(&bucket_key) {
             Some(b) => b,
             None => {
-                let label = format!(
+                let mut label = format!(
                     "{}{}",
                     readable_label(resource_type),
                     if is_well { " (Resource Well)" } else { "" }
                 );
+                // Node labels read as ores: the game names only some ore
+                // items with an "Ore" suffix (Iron Ore vs bare Uranium /
+                // Bauxite / Limestone...). Normalize every solid-node label
+                // to carry it; oil and geysers are the non-ore nodes.
+                if !is_well
+                    && !label.contains("Ore")
+                    && resource_type != "Desc_LiquidOil_C"
+                    && resource_type != "Desc_Geyser_C"
+                {
+                    label.push_str(" Ore");
+                }
                 resource_buckets.insert(
                     bucket_key.clone(),
                     NodeBucket {
@@ -488,7 +499,7 @@ pub fn collect_hard_drives(scan: &SaveScan) -> Value {
 use crate::mapdata::consts::ITEM_PICKUP_TYPE_PATH;
 
 /// _itemIconFilename: the ClassName-keyed icon file under
-/// map/static/map/icons/items/ (see game_data/copy_icons.py), or null when no
+/// map/static/map/icons/items/ (see game_data/extractors/copy_icons.py), or null when no
 /// icon was extracted. Python checked os.path.exists per call; here the
 /// icons dir is snapshotted at compile time (core/build.rs) so the check
 /// also works on wasm.

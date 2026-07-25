@@ -6,7 +6,7 @@
 # diff ~4.9 after a straight resize, no extra cropping/offset needed), just at
 # native resolution instead of an upscale, so this is a drop-in replacement.
 #
-# Usage: py game_data/extract_map_image.py path/to/extraction/Content
+# Usage: py game_data/extractors/extract_map_image.py path/to/extraction/Content
 #
 # The path argument is the "Content" folder of the extraction, same as
 # copy_icons.py -- the tiles sit at
@@ -18,7 +18,7 @@ from pathlib import Path
 from PIL import Image
 
 SLICED_MAP_SUBPATH = Path("FactoryGame/Interface/UI/Assets/MapTest/SlicedMap")
-OUTPUT_FILE = Path(__file__).parent / "generated" / "map_highres.png"
+OUTPUT_FILE = Path(__file__).parent.parent / "generated" / "map_highres.png"
 
 # Map_X-Y.png tile grid position -> (column, row), confirmed by comparing
 # adjacent tile edge pixels (matching edges have near-zero diff; mismatched
@@ -57,7 +57,7 @@ def fuseMapImage(contentRoot: Path) -> None:
 
 def main() -> None:
    if len(sys.argv) < 2:
-      sys.exit("Usage: py game_data/extract_map_image.py path/to/extraction/Content")
+      sys.exit("Usage: py game_data/extractors/extract_map_image.py path/to/extraction/Content")
    contentRoot = Path(sys.argv[1])
    if not contentRoot.is_dir():
       sys.exit(f"Content root not found: {contentRoot}")

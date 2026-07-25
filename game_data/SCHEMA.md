@@ -1,10 +1,10 @@
 # Generated data files
 
-Produced by `game_data/extract_docs_json.py` from `game_data/docs.json`. Regenerate after
+Produced by `game_data/extractors/extract_docs_json.py` from `game_data/docs.json`. Regenerate after
 every game update / Docs.json refresh:
 
 ```
-py game_data/extract_docs_json.py
+py game_data/extractors/extract_docs_json.py
 ```
 
 All three files are keyed by `ClassName` (the short in-game class, e.g.
@@ -322,12 +322,12 @@ SchematicManager records as "purchased". Consumed by
 
 The Space Elevator / Project Assembly phases. NOT produced by
 `extract_docs_json.py` -- the `FGGamePhase` assets aren't reflected in
-Docs.json at all. Produced by `game_data/extract_game_phases.py` from an
+Docs.json at all. Produced by `game_data/extractors/extract_game_phases.py` from an
 FModel-style JSON export of the game paks (the same extraction dump
 `copy_icons.py` reads, `<Content>/FactoryGame/GamePhases/*.json`):
 
 ```
-py game_data/extract_game_phases.py [path/to/extraction/.../Content]
+py game_data/extractors/extract_game_phases.py [path/to/extraction/.../Content]
 ```
 
 - `cost` amounts are BASE values -- the game-mode
@@ -341,3 +341,104 @@ py game_data/extract_game_phases.py [path/to/extraction/.../Content]
 - `sav_map_data.py` keeps an equivalent hand-written fallback table
   (`_FALLBACK_GAME_PHASES`, phases 1-5 only) for when this file hasn't been
   generated; the generated file wins when present.
+
+## creatureSpawners.json
+
+```json
+"Char_SpaceRabbit_C": {
+  "Persistent_Level:PersistentLevel.BP_CreatureSpawner55": [12268.03, 277067.7, -5502.55],
+  ...
+}
+```
+
+Every creature spawner placed on the map (~2,277), grouped by the creature
+class it spawns -- `Char_SpaceRabbit_C` is the lizard doggo -- plus the two
+Crab Hatcher buckets (`Char_CrabHatcher_C` x398, `Char_BigCrabHatcher_C`
+x151): hatchers are not marker-spawned, the creature actors themselves are
+placed in the level (they spawn baby crabs at runtime), so their entries are
+where the creature stands rather than where a marker spawns one. Produced by
+`game_data/extractors/extract_spawners.py` from the same FModel extraction dump as
+`gamePhases.json` (the world-partition cell exports under
+`<Content>/FactoryGame/Map/GameLevel01/` carry each spawner's
+per-instance `mCreatureClass` and root-capsule world position):
+
+```
+py game_data/extractors/extract_spawners.py [path/to/extraction/.../Content]
+```
+
+- Positions are world-space centimeters, exactly matching the
+  `BP_CreatureSpawner_C` actor headers every save contains (validated
+  against a save's headers -- the save has the same ~2,277 spawners
+  regardless of exploration, it just doesn't know their creature class:
+  that only exists in the cooked level data).
+- Key is the actor's instance path name exactly as the save spells it
+  (verified: the 2,277 names here and the 2,277 spawner actors in a save
+  are the same set), so joining against save actors is a direct dict
+  lookup.
+- `"unknown"` would collect spawners whose export lacks `mCreatureClass`;
+  currently none.
+
+## consumables.json
+
+```json
+"Desc_Berry_C": {
+  "Persistent_Level:PersistentLevel.BP_BerryBush10": [-49533.0, -197440.0, 2321.22],
+  ...
+}
+```
+
+Every consumable plant on the map (~5,300), grouped by the item it yields:
+`Desc_Berry_C` (Paleberry, from `BP_BerryBush_C`), `Desc_Nut_C` (Beryl Nut,
+`BP_NutBush_C`), `Desc_Shroom_C` (Bacon Agaric, `BP_Shroom_01_C`). Produced
+by `game_data/extractors/extract_collectables.py` from the same
+world-partition cell exports as the `sav_data/` tables; positions are
+world-space centimeters, keys are the actor path names as a save spells
+them.
+
+(Resource deposits — the small minable ore chunks — were evaluated and
+deliberately NOT extracted: ~75% of them have no cooked resource type; each
+save rolls its own `mResourceDepositTableIndex` lazily as cells stream in,
+verified by comparing rolled indexes across independent vanilla worlds.)
+
+## creatures.json
+
+```json
+"Char_SpaceRabbit_C": {
+  "displayName": "Lizard Doggo",
+  "icon": "/FactoryGame/Character/Creature/CreatureDescriptors/UI/IconDesc_LizardDoggo_256"
+}
+```
+
+Official display name + icon per creature class, also produced by
+`game_data/extractors/extract_spawners.py` -- the class-to-name join comes from the
+`FGCreatureDescriptor` assets in the extraction dump
+(`<Content>/FactoryGame/Character/Creature/CreatureDescriptors/`), and the
+name strings from the `World_Data` string-table source CSV at
+`<Content>/Localization/StringTables/World_Data.csv`. Covers every class
+`creatureSpawners.json` uses plus the two Crab
+Hatcher variants (world actors, not spawner-spawned).
+
+- The StringTables CSVs are loose files in `FactoryGame-Windows.pak`, not
+  assets in the `.utoc` -- a normal FModel package export skips them, so a
+  dump refresh must also export `FactoryGame/Content/Localization/
+  StringTables` with FModel's raw-data export (both containers share one
+  path tree, so it lands in the same `<Content>` layout).
+- Creatures are NOT in Docs.json at all (they have no item/build
+  descriptor) -- hence the string-table route. These are the game's literal
+  English strings, quirks included:
+  the Space Giraffe's real in-game name is "Unknown File Error #6265616e",
+  and the Red Forest Spitter variants share display names with the normal
+  Forest ones (their descriptors point at the same localization keys). Two
+  classes have no descriptor and no localization entry -- genuinely
+  unnamed in-game -- so their names are this repo's own fallbacks:
+  `Char_Beetle_C` ("Beetle") and `Char_BigCrabHatcher_C` ("Big Crab
+  Hatcher"; the game names only the small variant, and the shared hatcher
+  icon depicts both). If
+  the pak or DLL is unavailable, names degrade to strings derived from the
+  localization keys, with warnings.
+- `icon` follows the same asset-path convention as `items.json`; `null` for
+  the Beetle (no descriptor exists for it). `copy_icons.py` copies these to
+  `map/static/map/icons/creatures/<Char_*_C>.png`. Source-data oddity passed
+  through untouched: the two Aquatic Spitter descriptors reference each
+  other's icon texture by name (`Small` -> `IconDesc_SpitterAquaAlpha_256`,
+  `Alpha` -> `IconDesc_SpitterAqua_256`).

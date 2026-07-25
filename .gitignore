@@ -15,13 +15,13 @@ map/uploads/
 game_data/docs.json
 
 # Everything derived from game files: the JSONs generated from docs.json by
-# game_data/extract_docs_json.py, gamePhases.json from
-# game_data/extract_game_phases.py, and map_highres.png from
-# game_data/extract_map_image.py. game_data/SCHEMA.md (hand-written) sits one
+# game_data/extractors/extract_docs_json.py, gamePhases.json from
+# game_data/extractors/extract_game_phases.py, and map_highres.png from
+# game_data/extractors/extract_map_image.py. game_data/SCHEMA.md (hand-written) sits one
 # level up on purpose so this whole folder stays regenerable/disposable.
 game_data/generated/
 
-# Icon PNGs (regenerate via game_data/copy_icons.py; kept under map/static/
+# Icon PNGs (regenerate via game_data/extractors/copy_icons.py; kept under map/static/
 # so Flask can serve them). See README.md's "Generating icons" section.
 map/static/map/icons/
 

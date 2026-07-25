@@ -29,6 +29,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+        # Force revalidation on every request (304 when unchanged). Without
+        # any Cache-Control, browsers heuristically cache for ~10% of a
+        # file's age -- and worker-internal fetches (the wasm) aren't
+        # revalidated even by a page hard-refresh, so after a rebuild the
+        # app could silently keep running the previous parser build.
+        self.send_header("Cache-Control", "no-cache")
         super().end_headers()
 
 

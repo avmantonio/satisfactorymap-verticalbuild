@@ -17,12 +17,18 @@
 // Progress phase strings match what the Flask server's /api/load-progress
 // used to emit, so data.js's progress UI is unchanged.
 
-importScripts("pkg/sav_wasm.js");
+// The worker's own URL carries the build-version query save_client.js
+// forwarded (?v=<hash>, see build_site.py's stampAssetVersion); passing it
+// through to the pkg/ URLs makes a rebuild a guaranteed HTTP-cache miss for
+// the wasm too -- these worker-internal fetches are otherwise served from
+// cache even across page hard-refreshes. Empty when serving unstamped
+// sources, leaving the URLs exactly as before.
+importScripts("pkg/sav_wasm.js" + self.location.search);
 
 const PHASE_LABELS = ["Decompressing", "Parsing", "Building map data"];
 
 let wasmExports = null;
-let wasmReady = wasm_bindgen("pkg/sav_wasm_bg.wasm").then(function(exports) {
+let wasmReady = wasm_bindgen("pkg/sav_wasm_bg.wasm" + self.location.search).then(function(exports) {
    wasmExports = exports;
 });
 let session = null;

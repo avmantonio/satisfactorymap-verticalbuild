@@ -7,7 +7,7 @@
 # unrelated meshes/textures/blueprints) be deleted afterwards -- only the
 # handful of PNGs actually used by the map need to survive.
 #
-# Usage: py game_data/copy_icons.py [path/to/extraction/.../Content]
+# Usage: py game_data/extractors/copy_icons.py [path/to/extraction/.../Content]
 #
 # The path argument is the "Content" folder of the extraction -- the icon
 # fields are asset paths rooted at "/FactoryGame/...", which resolve to
@@ -19,8 +19,8 @@ import sys
 from pathlib import Path
 
 DEFAULT_CONTENT_ROOT = Path(r"C:\Users\plane.DESKTOP-SAH3OHV\Documents\SatisExtract\FactoryGame\Content")
-GENERATED_DIR = Path(__file__).parent / "generated"
-ICONS_DIR = Path(__file__).parent.parent / "map" / "static" / "map" / "icons"
+GENERATED_DIR = Path(__file__).parent.parent / "generated"
+ICONS_DIR = Path(__file__).parent.parent.parent / "map" / "static" / "map" / "icons"
 
 # (generated JSON file, destination subfolder under map/static/map/icons/) --
 # resources.json shares "items" with items.json (raw resources sit alongside
@@ -29,6 +29,9 @@ ICON_SOURCES = (
    ("items.json", "items"),
    ("resources.json", "items"),
    ("buildings.json", "buildings"),
+   # Creature icons for the spawner layer (see extract_spawners.py) -- same
+   # {ClassName: {"icon": ...}} shape, keyed by Char_*_C.
+   ("creatures.json", "creatures"),
 )
 
 # A handful of real per-concept icons live in Docs.json under a field

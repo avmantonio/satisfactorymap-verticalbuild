@@ -152,6 +152,7 @@ fn collect_power_lines(scan: &SaveScan) -> Value {
             continue;
         };
         let Some(first) = entries.first() else { continue };
+        let mut locations: Vec<[f64; 3]> = Vec::new();
         for prop in &first.props {
             if prop.name.wide || prop.name.bytes(data) != b"Locations" {
                 continue;
@@ -159,21 +160,37 @@ fn collect_power_lines(scan: &SaveScan) -> Value {
             let PropertyValue::Struct(StructValue::Vector(destination)) = &prop.value else {
                 continue;
             };
-            let src = [actor.position[0] as f64, actor.position[1] as f64, actor.position[2] as f64];
-            let [src_x, src_y] = project_xy(src[0], src[1]);
-            let [dst_x, dst_y] = project_xy(destination[0], destination[1]);
-            polylines.push(Value::Array(vec![
-                jnum(src_x),
-                jnum(src_y),
-                jnum(world_z_to_meters(src[2])),
-                jnum(dst_x),
-                jnum(dst_y),
-                jnum(world_z_to_meters(destination[2])),
-            ]));
-            ids.push(Value::String(props::lossy(
-                scan.header(object_slot).instance_name().bytes(data),
-            )));
+            locations.push(*destination);
         }
+        if locations.is_empty() {
+            continue;
+        }
+        // ONE polyline per wire, threaded through the actor position:
+        // [loc0, actor, loc1] for the normal two-endpoint wire -- identical
+        // segments to the old one-polyline-per-endpoint output, which made
+        // the sidebar count read ~2x the number of wires. Endpoints beyond
+        // the second (never seen in practice) thread back through the actor
+        // so every drawn segment still has the actor at one end.
+        let src = [actor.position[0] as f64, actor.position[1] as f64, actor.position[2] as f64];
+        let mut flat: Vec<Value> = Vec::new();
+        let push_point = |flat: &mut Vec<Value>, p: &[f64; 3]| {
+            let [x, y] = project_xy(p[0], p[1]);
+            flat.push(jnum(x));
+            flat.push(jnum(y));
+            flat.push(jnum(world_z_to_meters(p[2])));
+        };
+        push_point(&mut flat, &locations[0]);
+        for location in &locations[1..] {
+            push_point(&mut flat, &src);
+            push_point(&mut flat, location);
+        }
+        if locations.len() == 1 {
+            push_point(&mut flat, &src);
+        }
+        polylines.push(Value::Array(flat));
+        ids.push(Value::String(props::lossy(
+            scan.header(object_slot).instance_name().bytes(data),
+        )));
     }
     json!({"polylines": polylines, "ids": ids, "pointStride": 3})
 }
@@ -194,6 +211,10 @@ pub fn collect_lines(scan: &SaveScan) -> Value {
         let obj = line_data.as_object_mut().expect("line bucket");
         match type_path {
             Some(tp) => {
+                // typePath rides along so the frontend can register the line
+                // row in the building search catalog (see filters.js's
+                // lineRow) -- same field the belt/pipe groups already carry.
+                obj.insert("typePath".into(), Value::String(tp.to_string()));
                 obj.insert("category".into(), Value::String(categorize_type_path(tp).to_string()));
                 obj.insert(
                     "subcategory".into(),

@@ -4,11 +4,12 @@
 //! crate therefore requires game_data extracted (same prerequisite the app
 //! itself has always had).
 //!
-//! - game_data/sav_data/*.json: world data converted from the parser
-//!   submodule's Python literals by game_data/extract_sav_data_tables.py
-//!   (committed; key order preserved from the Python dicts).
+//! - game_data/sav_data/*.json: committed world tables regenerated from the
+//!   game's level exports by game_data/extractors/extract_collectables.py
+//!   (key order load-bearing and preserved across regenerations), plus two
+//!   hand-curated files (readableNameCorrections.json, typePaths.json).
 //! - game_data/generated/*.json + game_data/category*.json: extracted from
-//!   the game's Docs.json by game_data/extract_docs_json.py (gitignored,
+//!   the game's Docs.json by game_data/extractors/extract_docs_json.py (gitignored,
 //!   regenerable; documented in game_data/SCHEMA.md).
 
 use indexmap::IndexMap;

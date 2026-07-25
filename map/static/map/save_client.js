@@ -11,6 +11,22 @@ const SaveClient = (() => {
    // transports; only request()/loadSave differ. window.__TAURI__ is injected
    // by the native shell (withGlobalTauri) and absent in the browser.
    const IS_TAURI = typeof window !== "undefined" && !!window.__TAURI__;
+
+   // Build-version query of this script's own URL (build_site.py stamps
+   // ?v=<hash> on every asset tag in index.html), forwarded to the worker
+   // (and by it to the pkg/ wasm URLs) so a rebuild is a guaranteed
+   // cache miss there too. Worker-internal fetches are served straight from
+   // the HTTP cache even across page hard-refreshes; without this the app
+   // could keep running a previous build's parser. Empty when serving
+   // unstamped sources -- URLs are then exactly as before.
+   const ASSET_QUERY = (() => {
+      try {
+         const src = document.currentScript && document.currentScript.src;
+         return src ? new URL(src).search : "";
+      } catch (e) {
+         return "";
+      }
+   })();
    // Numeric parse/build phases -> the same labels worker.js emits, so the
    // progress UI in data.js is identical on both transports.
    const PHASE_LABELS = ["Decompressing", "Parsing", "Building map data"];
@@ -79,7 +95,7 @@ const SaveClient = (() => {
    }
 
    function spawnWorker() {
-      worker = new Worker("worker.js");
+      worker = new Worker("worker.js" + ASSET_QUERY);
       attachHandlers(worker);
    }
 
@@ -124,7 +140,7 @@ const SaveClient = (() => {
                reject(new Error("Lean handoff superseded"));
                return;
             }
-            const next = new Worker("worker.js");
+            const next = new Worker("worker.js" + ASSET_QUERY);
             handoffWorker = next;
             next.onmessage = (event) => {
                const msg = event.data;

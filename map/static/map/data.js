@@ -181,6 +181,7 @@
     MapApp.currentFile = null;
     currentFile = null;
     currentPath = null;
+    currentUrl = null;
     Tooltip.unpin();
     Tooltip.hide();
     MapApp.setHighlight(null, null);
@@ -207,10 +208,14 @@
     showBusy: showBusy,
     busyProgress: busyProgress,
     hideBusy: hideBusy,
-    canReload: function() { return currentFile !== null || currentPath !== null; },
+    canReload: function() { return currentFile !== null || currentPath !== null || currentUrl !== null; },
     reloadCurrentFile: function() {
-      // Desktop (Tauri) reloads by path; the browser re-reads the File.
-      return currentPath !== null ? loadLocalPath(currentPath) : loadLocalFile(currentFile);
+      // Desktop (Tauri) reloads by path; the browser re-reads the File, or
+      // re-downloads when the save came from a ?url= link.
+      if (currentPath !== null) {
+        return loadLocalPath(currentPath);
+      }
+      return currentFile !== null ? loadLocalFile(currentFile) : loadRemoteUrl(currentUrl);
     },
   };
 
@@ -220,6 +225,9 @@
   // Desktop (Tauri) counterpart: the last loaded save's native path, for the
   // same recovery-by-reload flow (there is no File object there).
   var currentPath = null;
+  // ?url= counterpart: the remote address the save was downloaded from, for
+  // the same recovery-by-reload flow (re-downloads).
+  var currentUrl = null;
 
   function loadLocalFile(file) {
     if (!file) {
@@ -253,6 +261,8 @@
         // pinned-tooltip restore survives re-loading the same file.
         MapApp.currentFile = "local:" + file.name + ":" + file.size + ":" + file.lastModified;
         currentFile = file;
+        currentPath = null;
+        currentUrl = null;
         EditorTool.onSaveLoaded(file.name);
         applyPayload(payload);
         if (pinnedSelection) {
@@ -301,6 +311,7 @@
         MapApp.currentFile = "tauri:" + path;
         currentPath = path;
         currentFile = null;
+        currentUrl = null;
         EditorTool.onSaveLoaded(name);
         applyPayload(payload);
         if (pinnedSelection) {
@@ -313,6 +324,103 @@
         loadInFlight = false;
         resetUploadZone();
         setStatus("Failed to load save: " + (error && error.message || error));
+        throw error;
+      });
+  }
+
+  // GET the save with a streamed download so the progress bar moves on big
+  // files. Content-Length is the encoded (possibly compressed) size while
+  // the reader yields decoded bytes, so the percentage can overshoot --
+  // showProgress clamps to 100. Falls back to a plain arrayBuffer() when
+  // streaming isn't available or the length is unknown.
+  function downloadSave(url) {
+    return fetch(url).then(function(response) {
+      if (!response.ok) {
+        throw new Error("HTTP " + response.status + " " + response.statusText);
+      }
+      var total = parseInt(response.headers.get("Content-Length"), 10);
+      if (!response.body || !response.body.getReader || !(total > 0)) {
+        return response.arrayBuffer();
+      }
+      var reader = response.body.getReader();
+      var chunks = [];
+      var received = 0;
+      function pump() {
+        return reader.read().then(function(step) {
+          if (step.done) {
+            var merged = new Uint8Array(received);
+            var offset = 0;
+            chunks.forEach(function(chunk) { merged.set(chunk, offset); offset += chunk.length; });
+            return merged.buffer;
+          }
+          chunks.push(step.value);
+          received += step.value.length;
+          showProgress("Downloading", (received / total) * 100);
+          return pump();
+        });
+      }
+      return pump();
+    });
+  }
+
+  // ?url=<address> in the query string loads a save straight from a link, so
+  // a hosted .sav (e.g. a dedicated server's autosave exposed over HTTP) can
+  // be shared as a plain URL with no manual file picking -- see issue #8.
+  // No .sav-extension requirement here: such endpoints often have none
+  // (".../savegame"); the parser rejects non-saves either way. The remote
+  // host must allow cross-origin requests -- the save still downloads
+  // directly into the browser and never touches this site's servers.
+  function loadRemoteUrl(url) {
+    if (!url) {
+      return Promise.resolve();
+    }
+    if (loadInFlight) {
+      return Promise.resolve();
+    }
+    loadInFlight = true;
+    var name = "remote save";
+    try {
+      name = decodeURIComponent(new URL(url, window.location.href).pathname.split("/").pop()) || name;
+    } catch (e) { /* unparseable URL: fetch below reports it */ }
+    uploadDropZone.classList.add("uploading");
+    uploadDropText.textContent = "Downloading " + name + "…";
+    var pinnedSelection = Tooltip.getPinnedSelection();
+    showProgress("Downloading", 0);
+
+    return downloadSave(url)
+      .then(function(buffer) {
+        return SaveClient.loadSave(buffer, function(phase, current, total) {
+          var percent = total > 0 ? (current / total) * 100 : 0;
+          showProgress(phase, percent);
+        });
+      })
+      .then(function(payload) {
+        hideProgress();
+        loadInFlight = false;
+        resetUploadZone();
+        MapApp.currentFile = "url:" + url;
+        currentUrl = url;
+        currentFile = null;
+        currentPath = null;
+        EditorTool.onSaveLoaded(name);
+        applyPayload(payload);
+        if (pinnedSelection) {
+          restorePinnedSelection(pinnedSelection);
+        }
+        setStatus("Loaded: " + payload.sessionName + " (" + payload.saveDatetime + ")");
+      })
+      .catch(function(error) {
+        hideProgress();
+        loadInFlight = false;
+        resetUploadZone();
+        var message = String((error && error.message) || error);
+        // fetch() rejects with a bare TypeError on any network-layer failure;
+        // for a cross-origin save URL the overwhelmingly common cause is the
+        // remote host not sending CORS headers, so say so.
+        if (error instanceof TypeError) {
+          message += " -- the file's server must allow cross-origin (CORS) requests for the browser to download it.";
+        }
+        setStatus("Failed to load save from URL: " + message);
         throw error;
       });
   }
@@ -532,5 +640,12 @@
       e.preventDefault();
       loadLocalFile(e.dataTransfer && e.dataTransfer.files[0]);
     });
+
+    // Auto-load a linked save (see loadRemoteUrl). Kicked off last so a
+    // failed download still leaves every normal load path fully wired.
+    var linkedUrl = new URLSearchParams(window.location.search).get("url");
+    if (linkedUrl) {
+      loadRemoteUrl(linkedUrl);
+    }
   });
 })();

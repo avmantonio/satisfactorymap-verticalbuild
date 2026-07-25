@@ -3,6 +3,7 @@
 //! MINERS, ...) live in gamedata::get().type_paths; everything here is
 //! hardcoded in the Python module itself.
 
+use crate::gamedata;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
@@ -119,6 +120,14 @@ pub fn line_rendered_type_paths() -> &'static HashSet<&'static str> {
         set.extend(RAILROAD_SEGMENTS);
         set.extend(HYPERTUBE_SEGMENTS);
         set.extend(VEHICLE_PATH_SEGMENTS);
+        // Power lines are line-rendered too (collect_power_lines), but were
+        // never in this set -- an oversight inherited from the Python
+        // original, where they're collected by a separate function. Without
+        // this, every wire actor ALSO got a dot bucket from collectBuildings:
+        // a duplicate "Power Line" sidebar row that made wires selectable,
+        // contradicting the editor's wires-travel-with-their-poles invariant
+        // (see editor/apply.rs's owner_moved).
+        set.extend(gamedata::get().type_paths.power_line.iter().map(String::as_str));
         set
     })
 }
