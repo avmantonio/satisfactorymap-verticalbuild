@@ -135,6 +135,22 @@ pub fn planned_growth(store: &SaveStore, ops: &[EditOp]) -> PResult<usize> {
     Ok(grow)
 }
 
+/// Can an edit whose growth exceeds the body's spare capacity still be
+/// applied in THIS wasm instance (apply_plan's streamed fallback), or does
+/// it need a fresh worker? Worst case assumes no freed-block reuse at all:
+/// the compressed snapshot (~len/8 with fast zlib) and the grown body
+/// (+slack) land as NEW allocations on top of the current linear memory,
+/// all of it under the 4GiB wasm ceiling with margin left for the payload
+/// rebuild that follows. Anything under ~3GB of combined footprint passes,
+/// so the fresh-worker restart is reserved for saves genuinely near the
+/// ceiling instead of firing on every >slack paste.
+pub fn fits_streamed_apply(mem_bytes: u64, body_len: u64, growth: u64) -> bool {
+    const CEILING: u64 = 4 << 30;
+    const MARGIN: u64 = 512 << 20;
+    let needed = body_len + growth + crate::decompress::BODY_EDIT_SLACK as u64 + body_len / 8;
+    mem_bytes.saturating_add(needed).saturating_add(MARGIN) <= CEILING
+}
+
 /// Compress a pristine body for retention (wasm keeps the undo baseline as
 /// ~1/15th-size zlib instead of a full second body). Returns (zlib bytes,
 /// raw length).

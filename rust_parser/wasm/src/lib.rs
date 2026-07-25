@@ -139,9 +139,21 @@ const SESSION_LOST: &str =
     "No usable save state (a failed edit was not recovered) -- reload the save file";
 
 /// Marker error apply_edits returns (session left healthy) when an edit
-/// grows the body past its spare capacity: the client rebuilds in a fresh
-/// worker and replays with force=true (editor.js failApply).
+/// grows the body past what even the streamed apply can fit in this
+/// instance: the client rebuilds in a fresh worker and replays with
+/// force=true (editor.js failApply).
 const BIG_EDIT_RESTART: &str = "__bigEditRestart__";
+
+/// Current wasm linear-memory size -- the footprint the streamed-apply
+/// fitness check weighs against the 4GB ceiling.
+#[cfg(target_arch = "wasm32")]
+fn linear_memory_bytes() -> u64 {
+    core::arch::wasm32::memory_size(0) as u64 * 65536
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn linear_memory_bytes() -> u64 {
+    0 // host builds (cargo check/test): no ceiling to respect
+}
 
 impl SaveSession {
     fn store(&self) -> Result<&SaveStore, JsError> {
@@ -332,15 +344,16 @@ impl SaveSession {
         // this works directly on the lean store and semantic refusals
         // (uneditable object, unknown name, chained belt) surface as clean
         // errors with the session left healthy.
-        // Edits that grow the body past its spare capacity are only reliable
-        // on a fresh instance: linear memory never shrinks, so whether the
-        // grown body still fits under the 4GB ceiling in THIS instance
-        // depends on allocation history (the same paste can trap once and
-        // succeed after recovery). The estimate covers EVERY op of the
-        // action -- a mixed paste is [duplicateActors, duplicateLightweight]
-        // and either half can overflow the slack alone. Signal the client to
-        // rebuild in a fresh worker and replay with force=true instead of
-        // gambling; the session stays fully healthy.
+        // Growth beyond the body's spare capacity is normally fine HERE:
+        // apply_plan's streamed fallback rebuilds through a compressed
+        // snapshot at ~1x peak. The estimate covers EVERY op of the action
+        // (a mixed paste is [duplicateActors, duplicateLightweight] and
+        // either half can overflow the slack alone). Only when even the
+        // streamed apply's worst case would not fit under the 4GB wasm
+        // ceiling -- linear memory never shrinks, so allocation history
+        // counts against it -- do we signal the client to rebuild in a
+        // fresh worker and replay with force=true instead of gambling; the
+        // session stays fully healthy either way.
         if force {
             // Recovery replay in a fresh worker: keep only the op-0 dry-run.
             drop(
@@ -352,7 +365,13 @@ impl SaveSession {
             let growth = session::planned_growth(store, &new_ops)
                 .map_err(|e| JsError::new(&e.msg))?;
             let spare = store.data.capacity() - store.data.len();
-            if growth > spare {
+            if growth > spare
+                && !session::fits_streamed_apply(
+                    linear_memory_bytes(),
+                    store.data.len() as u64,
+                    growth as u64,
+                )
+            {
                 return Err(JsError::new(BIG_EDIT_RESTART));
             }
         }

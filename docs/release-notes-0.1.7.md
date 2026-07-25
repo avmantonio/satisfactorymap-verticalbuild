@@ -24,9 +24,11 @@ game's own files.
   with "Edit failed: unreachable" in the browser: growing the save to fit
   the copied objects briefly needed twice the save's memory, blowing the
   browser's 4 GB WebAssembly limit. Small and medium copies now grow the
-  save in place (built-in headroom), and pastes too large for that
-  headroom automatically rebuild the session in a fresh worker — a
-  progress bar instead of a crash, and the paste lands applied.
+  save in place (built-in headroom); bigger ones rebuild through a
+  compressed snapshot without ever leaving the session, and only when even
+  that wouldn't fit under the 4 GB limit does the editor rebuild in a
+  fresh worker and re-apply your edits — a progress bar instead of a
+  crash, and the paste lands applied.
 - **Copy a build from one save into another — right in the browser.** Copy,
   load the other save (same tab), paste. Copies up to 50,000 objects also go
   through the OS clipboard, so they paste in another browser tab too; bigger

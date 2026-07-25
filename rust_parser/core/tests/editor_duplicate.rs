@@ -457,3 +457,15 @@ fn planned_growth_covers_every_op_of_an_action() {
     };
     assert!(session::planned_growth(&store, std::slice::from_ref(&bad)).is_err());
 }
+
+/// The fresh-worker restart fires only near the wasm ceiling: a mid-size
+/// instance streams a >slack paste in place; a ~3.5GB one restarts.
+#[test]
+fn streamed_apply_fitness_is_memory_aware() {
+    // 1.2GB instance, 150MB body, 100MB growth: streams in place.
+    assert!(session::fits_streamed_apply(1200 << 20, 150 << 20, 100 << 20));
+    // Near the ceiling (3.5GB instance, 2.5GB body): fresh worker.
+    assert!(!session::fits_streamed_apply(3500 << 20, 2500 << 20, 100 << 20));
+    // Overflow-proof on absurd inputs.
+    assert!(!session::fits_streamed_apply(u64::MAX, u64::MAX, u64::MAX));
+}
