@@ -32,8 +32,10 @@ game's own files.
   through the OS clipboard, so they paste in another browser tab too; bigger
   copies stay inside the tab — mirroring them onto the OS clipboard could
   stall the whole machine — so for those, cross-save means the same-tab flow
-  above. Copies too large for the browser's memory to carry between saves
-  say so and point at the desktop app, which has no such limits.
+  above. Above 150,000 objects the browser refuses the copy outright
+  (nothing is copied — a selection that size can't paste reliably inside
+  the browser's 4 GB limit) and points at the desktop app, which has no
+  such limits.
 - **Hypertube entrances are back on the map** — and with them, copies of
   daisy-chained builds keep their power wires. Entrances were treated as
   line-only geometry, but an entrance with its default tube shape carries no

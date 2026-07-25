@@ -491,12 +491,13 @@ var EditorTool = (function() {
   // the OS clipboard: pushing a multi-MB string through the synchronous OS
   // clipboard (which clipboard-history listeners then also chew on) can
   // stall the whole machine -- the blob stays tab-held (heldBlob), where
-  // cross-SAVE paste still works. Above EXTRACT_MAX_OBJECTS extraction is
-  // skipped outright: the byte payload would blow the 200MB blob ceiling
-  // anyway. The desktop app is exempt from both: its native clipboard slots
-  // take big blobs without the OS-clipboard string round-trip.
+  // cross-SAVE paste still works. Above COPY_MAX_OBJECTS the copy is
+  // REFUSED outright: the blob would blow the 200MB ceiling, and pasting a
+  // selection that size gambles with the 4GB wasm heap -- refusing up
+  // front beats a copy that looks fine and then can't deliver. The desktop
+  // app is exempt from both: native clipboard slots, no wasm ceiling.
   var CROSS_TAB_MAX_OBJECTS = 50000;
-  var EXTRACT_MAX_OBJECTS = 150000;
+  var COPY_MAX_OBJECTS = 150000;
 
   // Prefix the blob JSON with its write time (cheap string splice -- the
   // blob can be tens of MB, never reparse it). resolvePaste compares this
@@ -509,17 +510,22 @@ var EditorTool = (function() {
     if (!targets || (targets.actorNames.length + targets.lightweight.length) === 0) {
       return;
     }
-    clipboard = targets;
-    heldBlob = null; // a new copy replaces whatever an older one held
     var n = targets.actorNames.length + targets.lightweight.length;
     var label = n.toLocaleString() + " object" + (n === 1 ? "" : "s");
-    SaveLoadFlow.setStatus("Copied " + label + " — Ctrl+V or right-click to paste.");
-    if (!window.__TAURI__ && n > EXTRACT_MAX_OBJECTS) {
-      SaveLoadFlow.setStatus("Copied " + label + " — paste with Ctrl+V while this save is open. "
-        + "Too many objects for the browser to carry across saves or tabs — "
-        + "use the desktop app for copies this large.");
+    if (!window.__TAURI__ && n > COPY_MAX_OBJECTS) {
+      // Refused, and the previous copy is dropped too: keeping it would
+      // make the next Ctrl+V silently paste stale contents right after a
+      // copy the user just watched happen.
+      clipboard = null;
+      heldBlob = null;
+      SaveLoadFlow.setStatus("Copy refused: " + label + " is more than the browser can handle ("
+        + COPY_MAX_OBJECTS.toLocaleString() + " max) — nothing was copied. "
+        + "The desktop app copies selections of any size.");
       return;
     }
+    clipboard = targets;
+    heldBlob = null; // a new copy replaces whatever an older one held
+    SaveLoadFlow.setStatus("Copied " + label + " — Ctrl+V or right-click to paste.");
     // Extract the portable blob (raw object bytes + version metadata): the
     // desktop app writes it to a native clipboard slot; the browser keeps
     // it tab-held and only mirrors small copies to the OS clipboard for
