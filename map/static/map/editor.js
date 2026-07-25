@@ -466,6 +466,20 @@ var EditorTool = (function() {
     var n = targets.actorNames.length + targets.lightweight.length;
     SaveLoadFlow.setStatus("Copied " + n.toLocaleString() + " object" + (n === 1 ? "" : "s")
       + " — Ctrl+V or right-click to paste.");
+    // In the browser, extremely large selections skip the cross-tab mirror
+    // below outright: extracting the byte payload and pushing a
+    // multi-hundred-MB string through the synchronous OS clipboard (which
+    // clipboard-history listeners then also chew on) can stall the whole
+    // machine, and the 200MB blob ceiling would refuse the result anyway.
+    // Same-tab paste only needs the name list set above. The desktop app is
+    // exempt: its native clipboard slots take big blobs without the OS
+    // clipboard string round-trip.
+    if (!window.__TAURI__ && n > 150000) {
+      SaveLoadFlow.setStatus("Copied " + n.toLocaleString()
+        + " objects — paste with Ctrl+V in this tab. Cross-tab copy is capped in the browser; "
+        + "use the desktop app for pastes this large.");
+      return;
+    }
     // Also put a portable blob (raw object bytes + version metadata) on the
     // OS clipboard so another tab -- even another save -- can paste it.
     // Extracting 100k+ objects takes a noticeable moment in the worker, so
