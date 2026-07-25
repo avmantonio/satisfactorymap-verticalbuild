@@ -19,6 +19,11 @@ game's own files.
 
 ## UI fixes
 
+- **Pipe bottleneck warnings are now scoped like belt ones.** A Mk2 pipe
+  feeding two Mk1 pipes through a junction no longer warns — the detector
+  follows the pipe line and stops at junctions that actually split or merge
+  the flow (junctions used as plain couplings don't cut the line, so a Mk1
+  segment inside a Mk2 run is still flagged).
 - Turning a whole sidebar group on or off is now remembered as exactly that:
   group toggles persist at the group level instead of as per-row states.
 - Lift-placed splitters and mergers fold into their base attachment rows
