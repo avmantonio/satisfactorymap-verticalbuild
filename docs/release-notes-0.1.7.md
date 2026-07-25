@@ -26,11 +26,14 @@ game's own files.
   browser's 4 GB WebAssembly limit. Small and medium copies now grow the
   save in place (built-in headroom), and pastes too large for that
   headroom automatically rebuild the session in a fresh worker — a
-  progress bar instead of a crash, and the paste lands applied. Browser
-  copies above 150k
-  objects skip the cross-tab clipboard mirror (which could stall the whole
-  machine) — same-tab paste still works, and the desktop app handles
-  cross-save pastes of any size.
+  progress bar instead of a crash, and the paste lands applied.
+- **Copy a build from one save into another — right in the browser.** Copy,
+  load the other save (same tab), paste. Copies up to 50,000 objects also go
+  through the OS clipboard, so they paste in another browser tab too; bigger
+  copies stay inside the tab — mirroring them onto the OS clipboard could
+  stall the whole machine — so for those, cross-save means the same-tab flow
+  above. Copies too large for the browser's memory to carry between saves
+  say so and point at the desktop app, which has no such limits.
 - **Hypertube entrances are back on the map** — and with them, copies of
   daisy-chained builds keep their power wires. Entrances were treated as
   line-only geometry, but an entrance with its default tube shape carries no
