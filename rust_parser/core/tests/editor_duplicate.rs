@@ -400,3 +400,60 @@ fn insert_growth_stays_in_place() {
         "insert reallocated the body instead of growing in place"
     );
 }
+
+/// The wasm big-edit guard estimates growth for the WHOLE action: a mixed
+/// paste is [duplicateActors, duplicateLightweight], and checking only the
+/// first op would let the lightweight half overflow the slack unguarded.
+#[test]
+fn planned_growth_covers_every_op_of_an_action() {
+    let store = load("All_080726-163150.sav");
+    let constructor = actors_of_type(&store, "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/")
+        .first()
+        .expect("constructor present")
+        .2
+        .clone();
+    let mut lw_type: Option<String> = None;
+    for level in &store.levels {
+        for object in level.parsed_objects() {
+            if let ActorSpecific::Lightweight { items, .. } = &object.actor_specific {
+                if let Some(group) = items.first() {
+                    lw_type = Some(group.type_path.to_string(&store.data));
+                }
+            }
+        }
+    }
+    let Some(lw_type) = lw_type else {
+        eprintln!("save has no lightweight buildables; skipping");
+        return;
+    };
+
+    let ops = vec![
+        EditOp::DuplicateActors {
+            names: vec![constructor],
+            delta: [2000.0, 0.0, 0.0],
+            rotate_yaw_deg: 0.0,
+            pivot: None,
+            seed: 7,
+        },
+        EditOp::DuplicateLightweight {
+            items: vec![LwRef { type_path: lw_type, index: 0 }],
+            delta: [2000.0, 0.0, 0.0],
+            rotate_yaw_deg: 0.0,
+            pivot: None,
+        },
+    ];
+    let actors_only = sav_core::editor::apply::plan_op(&store, &ops[0]).unwrap().inserted_bytes();
+    let lw_only = sav_core::editor::apply::plan_op(&store, &ops[1]).unwrap().inserted_bytes();
+    assert!(actors_only > 0 && lw_only > 0);
+    assert_eq!(session::planned_growth(&store, &ops).unwrap(), actors_only + lw_only);
+
+    // Op-0 failures still surface (the healthy-session semantic dry-run).
+    let bad = EditOp::DuplicateActors {
+        names: vec!["NoSuchInstance_1".into()],
+        delta: [0.0, 0.0, 0.0],
+        rotate_yaw_deg: 0.0,
+        pivot: None,
+        seed: 7,
+    };
+    assert!(session::planned_growth(&store, std::slice::from_ref(&bad)).is_err());
+}

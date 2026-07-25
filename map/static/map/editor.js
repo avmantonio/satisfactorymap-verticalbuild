@@ -278,8 +278,14 @@ var EditorTool = (function() {
     if (error && error.message && error.message.indexOf("__bigEditRestart__") !== -1
         && pendingActionOps) {
       actions.push(pendingActionOps);
+      // A redone action comes off the top of the redo stack it was redone
+      // from; a brand-new edit invalidates the whole stack instead.
+      if (redoStack.length && redoStack[redoStack.length - 1] === pendingActionOps) {
+        redoStack.pop();
+      } else {
+        redoStack = [];
+      }
       pendingActionOps = null;
-      redoStack = [];
       recoverSession("Large edit — rebuilding the session to fit it");
       return;
     }
@@ -304,8 +310,10 @@ var EditorTool = (function() {
   var recovering = false;
 
   function recoverSession(message) {
-    if (recovering || !SaveLoadFlow.canReload()) {
-      recovering = false;
+    if (recovering) {
+      return; // a rebuild is already running and owns the edit state
+    }
+    if (!SaveLoadFlow.canReload()) {
       applyInFlight = false;
       SaveLoadFlow.hideProgress();
       SaveLoadFlow.hideBusy();
@@ -316,7 +324,10 @@ var EditorTool = (function() {
       return;
     }
     recovering = true;
-    applyInFlight = false;
+    // applyInFlight stays TRUE for the whole rebuild: the busy overlay only
+    // blocks the mouse, and a keyboard undo/redo/paste interleaved with the
+    // replay would desync the map from the actions list.
+    applyInFlight = true;
     SaveLoadFlow.showBusy("Recovering — reloading save…");
     SaveLoadFlow.setStatus(message + " — recovering (reloading save)…");
     var backup = actions.slice();
@@ -325,10 +336,11 @@ var EditorTool = (function() {
     SaveLoadFlow.reloadCurrentFile() // resets EditorTool via onSaveLoaded
       .then(function() {
         clipboard = savedClipboard;
-        return replaySequentially(backup, 0);
+        return replayAll(backup, savedClipboard);
       })
       .then(function() {
         recovering = false;
+        applyInFlight = false;
         SaveLoadFlow.hideBusy();
         SaveLoadFlow.setStatus(message + " — recovered; your " + actions.length
           + " earlier edit" + (actions.length === 1 ? " was" : "s were") + " re-applied.");
@@ -349,6 +361,36 @@ var EditorTool = (function() {
         redoStack = [];
         updateToolbar();
       });
+  }
+
+  // Recovery replay: the whole committed history in ONE forced apply -- one
+  // lean fold + one payload rebuild + one repaint, instead of one per action
+  // (each repaint is a seconds-long main-thread stall on 600k-object saves).
+  // If the batch fails (one op inside it broke, or it died mid-way) the
+  // session is rebuilt once more and the actions replay one at a time, so
+  // everything before the bad op still lands and the reported count is honest.
+  function replayAll(backup, savedClipboard) {
+    if (backup.length === 0) {
+      return Promise.resolve();
+    }
+    SaveLoadFlow.showBusy("Recovering — re-applying " + backup.length
+      + " edit" + (backup.length === 1 ? "" : "s") + "…");
+    var flat = [];
+    backup.forEach(function(a) { flat.push.apply(flat, a); });
+    return SaveClient.applyEdits(flat, false, editProgress, true).then(function(payload) {
+      SaveLoadFlow.hideProgress();
+      SaveLoadFlow.applyPayload(payload);
+      Array.prototype.push.apply(actions, backup);
+      updateToolbar();
+    }, function(batchError) {
+      console.warn("Batched recovery replay failed — retrying one edit at a time:", batchError);
+      SaveClient.reset();
+      SaveLoadFlow.showBusy("Recovering — reloading save…");
+      return SaveLoadFlow.reloadCurrentFile().then(function() {
+        clipboard = savedClipboard;
+        return replaySequentially(backup, 0);
+      });
+    });
   }
 
   function replaySequentially(backup, i) {
@@ -411,9 +453,13 @@ var EditorTool = (function() {
     }
     var ops = redoStack[redoStack.length - 1];
     applyInFlight = true;
+    // Armed so a big redo takes the fresh-worker restart path in failApply
+    // (same as a fresh edit) instead of dead-ending on the marker error.
+    pendingActionOps = ops;
     SaveLoadFlow.showBusy("Redoing…");
     SaveClient.applyEdits(ops, false, editProgress)
       .then(function(payload) {
+        pendingActionOps = null;
         redoStack.pop();
         actions.push(ops);
         finishApply(payload, "Edit redone.");

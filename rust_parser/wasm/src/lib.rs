@@ -327,28 +327,35 @@ impl SaveSession {
         }
         let tables = ClassTables::embedded();
 
-        // Dry-run the first op's plan while nothing is torn down: planning is
+        // Dry-run planning while nothing is torn down: planning is
         // model-independent (objects re-parse on demand from their spans), so
         // this works directly on the lean store and semantic refusals
         // (uneditable object, unknown name, chained belt) surface as clean
         // errors with the session left healthy.
-        let first_plan = sav_core::editor::apply::plan_op(self.store()?, &new_ops[0])
-            .map_err(|e| JsError::new(&e.msg))?;
         // Edits that grow the body past its spare capacity are only reliable
         // on a fresh instance: linear memory never shrinks, so whether the
         // grown body still fits under the 4GB ceiling in THIS instance
         // depends on allocation history (the same paste can trap once and
-        // succeed after recovery). Signal the client to rebuild in a fresh
-        // worker and replay with force=true instead of gambling; the
-        // session stays fully healthy.
-        if !force {
+        // succeed after recovery). The estimate covers EVERY op of the
+        // action -- a mixed paste is [duplicateActors, duplicateLightweight]
+        // and either half can overflow the slack alone. Signal the client to
+        // rebuild in a fresh worker and replay with force=true instead of
+        // gambling; the session stays fully healthy.
+        if force {
+            // Recovery replay in a fresh worker: keep only the op-0 dry-run.
+            drop(
+                sav_core::editor::apply::plan_op(self.store()?, &new_ops[0])
+                    .map_err(|e| JsError::new(&e.msg))?,
+            );
+        } else {
             let store = self.store()?;
+            let growth = session::planned_growth(store, &new_ops)
+                .map_err(|e| JsError::new(&e.msg))?;
             let spare = store.data.capacity() - store.data.len();
-            if first_plan.inserted_bytes() > spare {
+            if growth > spare {
                 return Err(JsError::new(BIG_EDIT_RESTART));
             }
         }
-        drop(first_plan);
 
         // Free the index and stale payload up front -- everything below is
         // memory-critical on 600k-object saves.

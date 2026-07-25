@@ -112,6 +112,29 @@ fn step_owned_impl(
     }
 }
 
+/// Estimated body growth (inserted bytes) of applying `ops` as ONE action,
+/// each op planned against the CURRENT store. UI actions' ops are mutually
+/// independent -- a mixed paste is [duplicateActors, duplicateLightweight],
+/// a box delete [deleteActors, deleteLightweight] -- so planning them all
+/// against the pre-action state gives the right total. The first op must
+/// plan (that's the dry-run that surfaces semantic refusals while the
+/// session is still healthy); a later op that fails to plan just adds
+/// nothing -- the fold surfaces its real error. Used by the wasm big-edit
+/// guard: growth past the body's spare capacity means restart-in-a-fresh-
+/// worker, and checking only the first op would let the other half of a
+/// mixed paste overflow unguarded.
+pub fn planned_growth(store: &SaveStore, ops: &[EditOp]) -> PResult<usize> {
+    let mut grow = 0usize;
+    for (i, op) in ops.iter().enumerate() {
+        match crate::editor::apply::plan_op(store, op) {
+            Ok(plan) => grow += plan.inserted_bytes(),
+            Err(e) if i == 0 => return Err(e),
+            Err(_) => {}
+        }
+    }
+    Ok(grow)
+}
+
 /// Compress a pristine body for retention (wasm keeps the undo baseline as
 /// ~1/15th-size zlib instead of a full second body). Returns (zlib bytes,
 /// raw length).
