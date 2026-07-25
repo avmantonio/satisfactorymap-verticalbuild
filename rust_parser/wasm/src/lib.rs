@@ -138,6 +138,11 @@ pub struct SaveSession {
 const SESSION_LOST: &str =
     "No usable save state (a failed edit was not recovered) -- reload the save file";
 
+/// Marker error apply_edits returns (session left healthy) when an edit
+/// grows the body past its spare capacity: the client rebuilds in a fresh
+/// worker and replays with force=true (editor.js failApply).
+const BIG_EDIT_RESTART: &str = "__bigEditRestart__";
+
 impl SaveSession {
     fn store(&self) -> Result<&SaveStore, JsError> {
         self.store.as_ref().map(|a| a.as_ref()).ok_or_else(|| JsError::new(SESSION_LOST))
@@ -301,6 +306,7 @@ impl SaveSession {
     pub fn apply_edits(
         &mut self,
         ops_json: &str,
+        force: bool,
         on_progress: &js_sys::Function,
     ) -> Result<Vec<u8>, JsError> {
         let call = |phase: u8, current: u64, total: u64| {
@@ -326,10 +332,23 @@ impl SaveSession {
         // this works directly on the lean store and semantic refusals
         // (uneditable object, unknown name, chained belt) surface as clean
         // errors with the session left healthy.
-        drop(
-            sav_core::editor::apply::plan_op(self.store()?, &new_ops[0])
-                .map_err(|e| JsError::new(&e.msg))?,
-        );
+        let first_plan = sav_core::editor::apply::plan_op(self.store()?, &new_ops[0])
+            .map_err(|e| JsError::new(&e.msg))?;
+        // Edits that grow the body past its spare capacity are only reliable
+        // on a fresh instance: linear memory never shrinks, so whether the
+        // grown body still fits under the 4GB ceiling in THIS instance
+        // depends on allocation history (the same paste can trap once and
+        // succeed after recovery). Signal the client to rebuild in a fresh
+        // worker and replay with force=true instead of gambling; the
+        // session stays fully healthy.
+        if !force {
+            let store = self.store()?;
+            let spare = store.data.capacity() - store.data.len();
+            if first_plan.inserted_bytes() > spare {
+                return Err(JsError::new(BIG_EDIT_RESTART));
+            }
+        }
+        drop(first_plan);
 
         // Free the index and stale payload up front -- everything below is
         // memory-critical on 600k-object saves.

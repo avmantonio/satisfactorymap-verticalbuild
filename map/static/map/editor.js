@@ -215,14 +215,20 @@ var EditorTool = (function() {
     SaveLoadFlow.busyProgress(phase, percent);
   }
 
+  // The ops of the in-flight applyAction, so failApply can commit them for
+  // the fresh-instance replay when the worker signals a big edit.
+  var pendingActionOps = null;
+
   function applyAction(ops) {
     if (applyInFlight || ops.length === 0) {
       return;
     }
     applyInFlight = true;
+    pendingActionOps = ops;
     SaveLoadFlow.showBusy(describeOps(ops));
     SaveClient.applyEdits(ops, false, editProgress)
       .then(function(payload) {
+        pendingActionOps = null;
         actions.push(ops);
         redoStack = [];
         finishApply(payload, "Edit applied.");
@@ -257,6 +263,20 @@ var EditorTool = (function() {
   }
 
   function failApply(error) {
+    // Not a failure: the worker judged the edit too large to apply safely
+    // in its long-lived instance (grown body might not fit the wasm memory
+    // ceiling, depending on allocation history). The session is untouched;
+    // commit the edit and run it through the fresh-worker rebuild, where
+    // the replay applies it with force.
+    if (error && error.message && error.message.indexOf("__bigEditRestart__") !== -1
+        && pendingActionOps) {
+      actions.push(pendingActionOps);
+      pendingActionOps = null;
+      redoStack = [];
+      recoverSession("Large edit — rebuilding the session to fit it");
+      return;
+    }
+    pendingActionOps = null;
     var message = "Edit failed: " + (error && error.message || error);
     // Semantic refusals (uneditable object, unknown name, ...) leave the
     // session intact: just report them.
@@ -329,7 +349,9 @@ var EditorTool = (function() {
       return Promise.resolve();
     }
     SaveLoadFlow.showBusy("Recovering — re-applying edit " + (i + 1) + " of " + backup.length + "…");
-    return SaveClient.applyEdits(backup[i], false, editProgress).then(function(payload) {
+    // force: the replay runs in a fresh worker, which is exactly what the
+    // big-edit check would ask for -- don't loop through it again.
+    return SaveClient.applyEdits(backup[i], false, editProgress, true).then(function(payload) {
       SaveLoadFlow.hideProgress();
       SaveLoadFlow.applyPayload(payload);
       actions.push(backup[i]);

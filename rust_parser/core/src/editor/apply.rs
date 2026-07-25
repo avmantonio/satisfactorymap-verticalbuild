@@ -28,6 +28,15 @@ impl EditPlan {
     pub(crate) fn patch(&mut self, at: usize, bytes: impl Into<Vec<u8>>) {
         self.patches.push((at, bytes.into()));
     }
+
+    /// Total bytes the plan's inserts add to the body. The wasm session
+    /// compares this against the body's spare capacity to decide whether an
+    /// edit should be applied in a fresh instance instead (wasm linear
+    /// memory never shrinks, so growing past capacity in a long-lived
+    /// instance risks tripping the 4GB ceiling on heap-layout luck).
+    pub fn inserted_bytes(&self) -> usize {
+        self.inserts.iter().map(|(_, b)| b.len()).sum()
+    }
 }
 
 /// Pre-flight for both apply paths: validate the WHOLE plan before touching

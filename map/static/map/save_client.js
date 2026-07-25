@@ -443,14 +443,16 @@ const SaveClient = (() => {
       memStats() {
          return request({ op: "memStats" });
       },
-      // applyEdits(ops, fromPristine, onProgress) -> Promise<payload object>.
+      // applyEdits(ops, fromPristine, onProgress, force) -> Promise<payload>.
       // ops: array of edit-op objects (see rust editor/ops.rs). fromPristine
-      // replaces the whole op list (undo); otherwise ops append.
-      applyEdits(ops, fromPristine, onProgress) {
+      // replaces the whole op list (undo); otherwise ops append. force skips
+      // the big-edit fresh-instance check (recovery replay runs in a fresh
+      // worker already).
+      applyEdits(ops, fromPristine, onProgress, force) {
          activeProgress = onProgress || null;
          stateVersion++;
          abortHandoff();
-         return request({ op: "applyEdits", ops, fromPristine }).then((payloadBytes) => {
+         return request({ op: "applyEdits", ops, fromPristine, force: !!force }).then((payloadBytes) => {
             activeProgress = null;
             // Every edit cycle grows and fragments the wasm heap a little;
             // swapping to a fresh lean worker after each one keeps repeated
