@@ -24,9 +24,9 @@ struct Chunk {
 /// contiguous block lives while the first is copied out -- ~2x the body
 /// transiently, which is exactly what trapped the 4GB-capped wasm build when
 /// copying on a save with a 1.3GB body. 64MB covers ~50k copied objects;
-/// pastes larger than the slack fall back to the reallocation (and may still
-/// OOM on huge saves in the browser -- the desktop app is uncapped). Also
-/// covers the 4-byte "Missing final array count" quirk pad.
+/// past the slack, wasm builds rebuild through apply_plan's compressed
+/// snapshot (~1x peak) and native builds take the plain realloc (plenty of
+/// RAM). Also covers the 4-byte "Missing final array count" quirk pad.
 pub const BODY_EDIT_SLACK: usize = 64 << 20;
 
 /// Mirrors decompressSaveFile(offset, data) including its confirm checks.
@@ -91,7 +91,8 @@ pub fn decompress_save_file(
     // panics with "capacity overflow" (an uncatchable wasm trap -> the app
     // showed a raw "unreachable") the moment the body exceeds ~2.14GB. Return
     // the actionable error instead -- the desktop app has no such limit. The
-    // +8 leaves room for the editor's quirk-padding append.
+    // BODY_EDIT_SLACK term keeps the allocation below (body + edit headroom)
+    // inside the same bound.
     #[cfg(target_pointer_width = "32")]
     if total_uncomp as u64 + BODY_EDIT_SLACK as u64 > isize::MAX as u64 {
         return Err(perr!(

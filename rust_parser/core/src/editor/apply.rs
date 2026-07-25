@@ -29,11 +29,10 @@ impl EditPlan {
         self.patches.push((at, bytes.into()));
     }
 
-    /// Total bytes the plan's inserts add to the body. The wasm session
-    /// compares this against the body's spare capacity to decide whether an
-    /// edit should be applied in a fresh instance instead (wasm linear
-    /// memory never shrinks, so growing past capacity in a long-lived
-    /// instance risks tripping the 4GB ceiling on heap-layout luck).
+    /// Total bytes the plan's inserts add to the body. Feeds
+    /// session::planned_growth, whose sum backs the wasm session's
+    /// too-big-edit refusal (a grown body that could never exist under the
+    /// 4GiB ceiling is refused up front; see grown_body_can_exist).
     pub fn inserted_bytes(&self) -> usize {
         self.inserts.iter().map(|(_, b)| b.len()).sum()
     }
@@ -148,9 +147,9 @@ pub fn apply_plan(body: &mut Vec<u8>, mut plan: EditPlan) -> PResult<()> {
         let added: usize = plan.inserts.iter().map(|(_, b)| b.len()).sum();
         let old_len = body.len();
         // Usually a no-op: bodies are allocated with BODY_EDIT_SLACK spare
-        // capacity so growth stays in place. If `added` exceeds the slack
-        // this reallocates -- transiently 2x the body, which a 4GB-capped
-        // wasm heap may not survive on GB-scale saves.
+        // capacity so growth stays in place. Beyond the slack this
+        // reallocates (transiently ~2x the body) -- native builds only; on
+        // wasm the streamed dispatch above never lets it get here.
         body.reserve_exact(added);
         body.resize(old_len + added, 0);
         // Shift the pre-existing segments right-to-left so nothing is
@@ -627,8 +626,9 @@ fn plan_move_actors(
         move_one(li, oi, &object)?;
     }
 
-    // Wires whose BOTH endpoint owners moved follow along rigidly (wires
-    // aren't map-selectable, so they never appear in `names` themselves).
+    // Wires whose BOTH endpoint owners moved follow along rigidly (a wire
+    // named in `names` was skipped above, so it moves exactly here or not
+    // at all).
     let owner_moved = |endpoint: &ObjectRef| -> bool {
         if endpoint.path_name.is_empty() {
             return false;

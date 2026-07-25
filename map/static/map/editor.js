@@ -314,6 +314,7 @@ var EditorTool = (function() {
     SaveLoadFlow.setStatus(message + " — recovering (reloading save)…");
     var backup = actions.slice();
     var savedClipboard = clipboard; // survives the reload: same save, same names
+    var savedRedo = redoStack.slice(); // the failed edit changed nothing, so undone edits stay redoable
     SaveClient.reset();
     SaveLoadFlow.reloadCurrentFile() // resets EditorTool via onSaveLoaded
       .then(function() {
@@ -323,6 +324,7 @@ var EditorTool = (function() {
       .then(function() {
         recovering = false;
         applyInFlight = false;
+        redoStack = savedRedo;
         SaveLoadFlow.hideBusy();
         SaveLoadFlow.setStatus(message + " — recovered; your " + actions.length
           + " earlier edit" + (actions.length === 1 ? " was" : "s were") + " re-applied.");
