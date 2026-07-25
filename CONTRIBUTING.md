@@ -84,9 +84,9 @@ same `dist/` still serves in the browser via `serve_site.py`.
 | `rust_parser/wasm/` | `sav_wasm`: the wasm-bindgen boundary the worker loads |
 | `rust_parser/tauri/` | `sav_tauri`: native desktop shell (Tauri v2) over `sav_core`, mirrors the wasm binding |
 | `game_data/` | extraction scripts + hand-curated game metadata (`categoryLabels.json`, `categoryOverrides.json`, `SCHEMA.md`) |
-| `game_data/sav_data/` | *(committed)* static world tables (resource nodes, slugs, crash sites...) converted from the upstream parser project |
+| `game_data/sav_data/` | *(committed)* static world tables (resource nodes, slugs, crash sites...) regenerated from the game's level data by `extractors/extract_collectables.py` |
 | `game_data/docs.json` | *(not committed)* the game's own data dump, input to `extract_docs_json.py` |
-| `game_data/generated/` | *(generated)* item/building/recipe/schematic JSONs + `map_highres.png` |
+| `game_data/generated/` | *(generated)* item/building/recipe/schematic JSONs, creature spawner/name tables, `map_highres.png` |
 | `tools/` | `build_site.py` / `serve_site.py` / `benchmark.py` / `fetch_test_saves.py` / `e2e_editor.py` / `release.py` |
 | `dist/` | *(generated)* the assembled static site |
 
@@ -115,60 +115,49 @@ extracted first.
 
 ## Generating game data
 
-Buildings render as boxes sized from `game_data/generated/buildings.json` (see
-`game_data/SCHEMA.md`), extracted from the game's own data dump.
-Buildings missing size data there (a small number of logic-only buildables)
-fall back to a plain circle marker on the map.
-
-Get the dump from your game install at
-`Satisfactory\CommunityResources\Docs\en-US.json`, copy it to
-`game_data/docs.json`, then regenerate the JSONs under `game_data/generated/`
-(also whenever the game updates):
+Everything game-derived regenerates with one command, fed by two inputs:
 
 ```bash
-py game_data/extract_docs_json.py
+py game_data/extract_all.py path\to\en-US.json path\to\extraction\Content
 ```
 
-`gamePhases.json` (Space Elevator phase costs) is not part of that dump — it
-comes from the same FModel extraction as the icons below (optional; there's a
-built-in fallback table):
+1. **`en-US.json`** — the game's own reflection dump, straight from the
+   install at `Satisfactory\CommunityResources\Docs\en-US.json` (copied to
+   `game_data/docs.json`; omit the argument to reuse the existing copy).
+2. **The FModel extraction** (its `Content` folder). One shared path tree,
+   but it mixes the game's TWO archives, and exports from BOTH are needed
+   (in [FModel](https://fmodel.app/), pointed at the game's `Paks` folder):
+   - **`.utoc`/`.ucas` (cooked assets)** — right-click
+     `FactoryGame/Content/FactoryGame` → *Save Folder's Packages Properties
+     (.json)* and *Save Folder's Packages Textures*. Provides the
+     GamePhases, creature descriptors, the `Map/GameLevel01` world cells,
+     the sliced map render and every icon PNG.
+   - **`.pak` (loose files)** — right-click
+     `FactoryGame/Content/Localization/StringTables` → *Export Folder's
+     Packages Raw Data*. Provides the string-table source CSVs (the official
+     display strings, e.g. creature names in `World_Data.csv`). A normal
+     package export **skips** these — they aren't assets.
 
-```bash
-py game_data/extract_game_phases.py path/to/extraction/Content
-```
+   The orchestrator preflights every required path and tells you exactly
+   which FModel export is missing before running anything. Add `--pack` to
+   also refresh `game_data.zip` at the end.
 
-## Generating the map image
+The individual steps live in `game_data/extractors/` and stay runnable on
+their own (all take the extraction's `Content` folder as argument, except
+the first which reads `game_data/docs.json`):
 
-`game_data/generated/map_highres.png` is fused from the game's own 4-corner
-sliced map render, taken from a full game asset extraction (e.g. via
-[FModel](https://fmodel.app/)):
+| Script | Output |
+|---|---|
+| `extract_docs_json.py` | `items`/`resources`/`buildings`/`recipes`/`buildingCategories`/`schematics.json` — see `game_data/SCHEMA.md` |
+| `extract_game_phases.py` | `gamePhases.json` (Space Elevator phase costs; optional, has a built-in fallback table) |
+| `extract_spawners.py` | `creatureSpawners.json` (every creature spawner with position + creature class, e.g. all Lizard Doggo spawns) and `creatures.json` (official display name + icon per creature class, from the StringTables CSVs) |
+| `extract_collectables.py` | the **committed** world tables in `game_data/sav_data/`: power slugs, somersloops, mercer spheres, crash sites (incl. their unlock cost/power requirements, derived from `mUnlockCost` + docs.json labels), free dropped items, resource purity — fully regenerated from the world cells (replacing the old GreyHak-derived tables, validated 1:1 against them; run after `extract_docs_json.py`). Pickup item classes are cooked into the actors but FModel can't decode that struct — they merge from the previous table, and `--items-from-save some.sav` reads them from a save if a game update adds pickups (the save must have physically visited them: saves only serialize actors whose world cell has streamed in near a player). Review its git diff after a game update |
+| `extract_map_image.py` | `map_highres.png`, fused from the game's 4-corner sliced map render (`FactoryGame/Interface/UI/Assets/MapTest/SlicedMap`) |
+| `copy_icons.py` | the icon PNGs under `map/static/map/icons/`, copied last — it reads the generated JSONs above to know which few hundred of the dump's tens of thousands of files are needed |
 
-```bash
-py game_data/extract_map_image.py path/to/extraction/Content
-```
-
-The path argument is the extraction's `Content` folder, same as
-`copy_icons.py`. The tiles live at
-`FactoryGame/Interface/UI/Assets/MapTest/SlicedMap/Map_X-Y.png` within it;
-the script stitches the four of them together.
-
-## Generating icons
-
-Item/building icons under `map/static/map/icons/` are copied out of a full
-game asset extraction (e.g. via [FModel](https://fmodel.app/)) keyed by
-`ClassName`, using the generated JSON above to know which PNGs are needed:
-
-```bash
-py game_data/copy_icons.py path/to/extraction/Content
-```
-
-The path argument is the extraction's `Content` folder. This only copies the
-handful of PNGs actually referenced by `items.json`/`resources.json`/
-`buildings.json` (a few hundred files), not the full extraction dump (tens of
-thousands of unrelated assets), so the extraction itself can be deleted
-afterwards. Run `game_data/extract_docs_json.py` first if
-`game_data/generated/` is missing/stale — `copy_icons.py` reads the icon
-paths from there.
+Buildings missing size data in `buildings.json` (a small number of
+logic-only buildables) fall back to a plain circle marker on the map. The
+extraction dump can be deleted once the pipeline has run.
 
 ## Sharing the generated data
 

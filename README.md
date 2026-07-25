@@ -78,8 +78,11 @@ Everything — site, parser, desktop app, data extraction — is covered in
 The Rust parser is a port of
 [GreyHak/sat_sav_parse](https://github.com/GreyHak/sat_sav_parse), validated
 field-by-field against the Python reference with bit-exact differential
-gates. The static world tables in `game_data/sav_data/` were converted from
-that project. This project wouldn't exist without GreyHak's format work.
+gates. The static world tables in `game_data/sav_data/` were originally
+converted from that project; they now regenerate from the game's own level
+data (validated 1:1 against the originals — see
+`game_data/extractors/extract_collectables.py`). This project wouldn't
+exist without GreyHak's format work.
 
 ## License & trademark
 
