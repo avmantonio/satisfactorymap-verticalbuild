@@ -26,6 +26,11 @@ link (the dump adds one limestone node the old table missed); the [id, ...]
 field of the detailed tables is the world-partition cell name the actor
 lives in (confirmed 522/522).
 
+The two other files in game_data/sav_data/ are NOT touched by this script:
+readableNameCorrections.json and typePaths.json are small hand-curated
+tables (originally converted from GreyHak's sat_sav_parse sav_data package,
+see git history for extract_sav_data_tables.py), edited in place.
+
 Fully automated -- nothing curated survives in the output:
   - The metadata dict (4th element) of somersloops/mercerSpheres is written
     empty (the upstream access/sentry notes were never consumed by the map).
