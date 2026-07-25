@@ -18,6 +18,17 @@ per-instance properties, and its root component's world transform):
                          geysers keep the synthetic Desc_Geyser_C class and
                          an absent mPurity means the RP_Normal default)
 
+Two more tables go to game_data/generated/ instead (gitignored: fully
+regenerable, no merge state, not consumed by the app yet):
+
+  consumables.json       BP_BerryBush_C / BP_NutBush_C / BP_Shroom_01_C,
+                         keyed by the consumable item class they yield
+                         (Desc_Berry_C = Paleberry, Desc_Nut_C = Beryl Nut,
+                         Desc_Shroom_C = Bacon Agaric)
+  resourceDeposits.json  BP_ResourceDeposit_C (small minable ore chunks),
+                         keyed by mOverrideResourceClass -- "random" for the
+                         ~75% whose resource is rolled at runtime per save
+
 Validated against the previous (reveal-save-derived / upstream-curated)
 tables before this became the generator: identical key sets, positions and
 rotations for every slug, somersloop, mercer sphere and crash site; all 607
@@ -94,8 +105,18 @@ DETAIL_CLASSES = {
 PICKUP_CLASS = "FGItemPickup_Spawnable"
 NODE_CLASSES = ("BP_ResourceNode_C", "BP_FrackingSatellite_C", "BP_ResourceNodeGeyser_C")
 PURITY_NAMES = {"RP_Inpure": "IMPURE", "RP_Normal": "NORMAL", "RP_Pure": "PURE"}
+# Consumable plant -> the item it yields (stable trio; names per docs.json:
+# Paleberry / Beryl Nut / Bacon Agaric).
+CONSUMABLE_CLASSES = {
+    "BP_BerryBush_C": "Desc_Berry_C",
+    "BP_NutBush_C": "Desc_Nut_C",
+    "BP_Shroom_01_C": "Desc_Shroom_C",
+}
+DEPOSIT_CLASS = "BP_ResourceDeposit_C"
 NEEDLES = (b"BP_Crystal", b"BP_WAT", b"BP_DropPod", b"FGItemPickup_Spawnable",
-           b"BP_ResourceNode", b"BP_Fracking")
+           b"BP_ResourceNode", b"BP_Fracking", b"BP_ResourceDeposit",
+           b"BP_BerryBush", b"BP_NutBush", b"BP_Shroom")
+GENERATED_DIR = os.path.join(REPO_ROOT, "game_data", "generated")
 
 # Item classes for pickup instances the existing table doesn't know, verified
 # outside the cooked data (which never stores them).
@@ -283,6 +304,8 @@ def collectActors(contentRoot):
     detail = {}  # pathName -> (tableName, cell, quat, pos, unlockCost, fromCell)
     pickups = {}  # pathName -> (num, pos, mesh, fromCell)
     nodes = {}   # pathName -> (desc, purity, pos, core, fromCell)
+    consumables = {}  # pathName -> (itemClass, pos, fromCell)
+    deposits = {}  # pathName -> (descOrRandom, pos, fromCell)
     for dirPath, _, fileNames in os.walk(levelRoot):
         for fileName in fileNames:
             if not fileName.endswith(".json"):
@@ -305,7 +328,9 @@ def collectActors(contentRoot):
                 isDetail = objType in DETAIL_CLASSES
                 isPickup = objType == PICKUP_CLASS
                 isNode = objType in NODE_CLASSES
-                if not (isSlug or isDetail or isPickup or isNode):
+                isConsumable = objType in CONSUMABLE_CLASSES
+                isDeposit = objType == DEPOSIT_CLASS
+                if not (isSlug or isDetail or isPickup or isNode or isConsumable or isDeposit):
                     continue
                 outer = (obj.get("Outer") or {}).get("ObjectName", "")
                 levelIdentity = outer.removeprefix("Level'").removesuffix("'")
@@ -351,11 +376,18 @@ def collectActors(contentRoot):
                     core = quotedName(props.get("mCore"))
                     if pathName not in nodes or (fromCell and not nodes[pathName][4]):
                         nodes[pathName] = (desc, purity, pos, core, fromCell)
+                elif isConsumable:
+                    if pathName not in consumables or (fromCell and not consumables[pathName][2]):
+                        consumables[pathName] = (CONSUMABLE_CLASSES[objType], pos, fromCell)
+                elif isDeposit:
+                    desc = quotedName(props.get("mOverrideResourceClass")) or "random"
+                    if pathName not in deposits or (fromCell and not deposits[pathName][2]):
+                        deposits[pathName] = (desc, pos, fromCell)
                 else:
                     num = (props.get("mPickupItems") or {}).get("NumItems", 0)
                     if pathName not in pickups or (fromCell and not pickups[pathName][3]):
                         pickups[pathName] = (num, pos, mesh, fromCell)
-    return slugs, detail, pickups, nodes
+    return slugs, detail, pickups, nodes, consumables, deposits
 
 
 def loadItemLabels(warnings):
@@ -395,12 +427,25 @@ def deriveRequirement(unlockCost, itemLabels, warnings):
     return {}
 
 
-def loadExisting(name):
-    path = os.path.join(SAV_DATA_DIR, name)
+def loadExisting(name, directory=SAV_DATA_DIR):
+    path = os.path.join(directory, name)
     if not os.path.isfile(path):
         return {}
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def groupByBucket(records, existing):
+    """{pathName: (bucket, pos, ...)} -> {bucket: {pathName: pos}}, keeping
+    the existing table's bucket and key order where present."""
+    grouped = {}
+    for pathName, rec in records.items():
+        grouped.setdefault(rec[0], {})[pathName] = rec[1]
+    out = {}
+    for bucket in orderedKeys(existing, grouped):
+        old = existing.get(bucket, {})
+        out[bucket] = {k: grouped[bucket][k] for k in orderedKeys(old, grouped[bucket])}
+    return out
 
 
 def orderedKeys(existing, new):
@@ -411,7 +456,7 @@ def orderedKeys(existing, new):
     return kept + added
 
 
-def buildTables(slugs, detail, pickups, nodes, saveItems=None):
+def buildTables(slugs, detail, pickups, nodes, consumables, deposits, saveItems=None):
     warnings = []
 
     existingSlugs = loadExisting("powerSlugs.json")
@@ -483,7 +528,10 @@ def buildTables(slugs, detail, pickups, nodes, saveItems=None):
     for k in oldPurity:
         if k not in nodes:
             warnings.append(f"resourcePurity: {k} disappeared from the dump")
-    return slugsOut, detailOut, itemsOut, purityOut, warnings
+
+    consumablesOut = groupByBucket(consumables, loadExisting("consumables.json", GENERATED_DIR))
+    depositsOut = groupByBucket(deposits, loadExisting("resourceDeposits.json", GENERATED_DIR))
+    return slugsOut, detailOut, itemsOut, purityOut, consumablesOut, depositsOut, warnings
 
 
 def valuesClose(a, b, tol=1e-3):
@@ -519,20 +567,26 @@ def main():
         saveItems = readPickupItemsFromSave(savPath)
         print(f"{len(saveItems)} pickup items read from {savPath}")
 
-    slugs, detail, pickups, nodes = collectActors(contentRoot)
-    slugsOut, detailOut, itemsOut, purityOut, warnings = buildTables(slugs, detail, pickups, nodes, saveItems)
+    slugs, detail, pickups, nodes, consumables, deposits = collectActors(contentRoot)
+    slugsOut, detailOut, itemsOut, purityOut, consumablesOut, depositsOut, warnings = buildTables(
+        slugs, detail, pickups, nodes, consumables, deposits, saveItems)
     for w in warnings:
         print(f"WARNING: {w}")
 
-    outputs = {"powerSlugs.json": slugsOut, "freeDroppedItems.json": itemsOut,
-               "resourcePurity.json": purityOut, **detailOut}
+    outputs = {"powerSlugs.json": (SAV_DATA_DIR, slugsOut),
+               "freeDroppedItems.json": (SAV_DATA_DIR, itemsOut),
+               "resourcePurity.json": (SAV_DATA_DIR, purityOut),
+               **{name: (SAV_DATA_DIR, table) for name, table in detailOut.items()},
+               "consumables.json": (GENERATED_DIR, consumablesOut),
+               "resourceDeposits.json": (GENERATED_DIR, depositsOut)}
     failures = []
-    for name, table in outputs.items():
-        path = os.path.join(SAV_DATA_DIR, name)
+    for name, (directory, table) in outputs.items():
+        path = os.path.join(directory, name)
         if check:
-            if not valuesClose(loadExisting(name), table, tol=1.0):
+            if not valuesClose(loadExisting(name, directory), table, tol=1.0):
                 failures.append(name)
             continue
+        os.makedirs(directory, exist_ok=True)
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             json.dump(table, f, ensure_ascii=False, indent=1)
             f.write("\n")
@@ -544,11 +598,14 @@ def main():
           f"crashSites {len(detailOut['crashSites.json'])}, "
           f"droppedItems {sum(len(v) for v in itemsOut.values())} in {len(itemsOut)} item classes, "
           f"resourceNodes {len(purityOut)}")
+    print(f"consumables {({b: len(v) for b, v in consumablesOut.items()})}, "
+          f"deposits {sum(len(v) for v in depositsOut.values())} "
+          f"({({b: len(v) for b, v in depositsOut.items()})})")
     if check:
         if failures:
             print(f"MISMATCH: {', '.join(failures)}")
             sys.exit(1)
-        print("OK: all 6 tables match the dump")
+        print(f"OK: all {len(outputs)} tables match the dump")
 
 
 if __name__ == "__main__":
