@@ -19,6 +19,16 @@ game's own files.
 
 ## UI fixes
 
+- **Hypertube entrances are back on the map** — and with them, copies of
+  daisy-chained builds keep their power wires. Entrances were treated as
+  line-only geometry, but an entrance with its default tube shape carries no
+  spline in the save, leaving it invisible and unselectable — so wires
+  between chained entrances could never travel with a copy. They now render
+  as regular powered buildings again.
+- **Power lines are selectable** — they highlight in box selections and can
+  be deleted individually. For move and copy they act as riders: a wire
+  travels exactly when both the things it connects travel, so a selected
+  wire can never be dragged off a pole or pasted dangling.
 - **Pipe bottleneck warnings are now scoped like belt ones.** A Mk2 pipe
   feeding two Mk1 pipes through a junction no longer warns — the detector
   follows the pipe line and stops at junctions that actually split or merge

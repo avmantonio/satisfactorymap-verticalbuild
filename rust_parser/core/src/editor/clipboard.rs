@@ -144,7 +144,7 @@ pub fn extract_clipboard_with_meta(
 
     let mut object_version: Option<i32> = None;
     if !names.is_empty() {
-        let set = expand_duplicate_set(store, &scan, names)?;
+        let set = expand_duplicate_set(store, &scan, names, true)?;
         let level_idx = set.iter().next().map(|&(li, _)| li).unwrap_or(0);
         if set.iter().any(|&(li, _)| li != level_idx) {
             return Err(perr!("Cannot copy objects from different world levels together"));

@@ -494,6 +494,17 @@ fn plan_move_actors(
             continue;
         }
         let header = &store.levels[li].headers[oi];
+        // Wires are riders even when explicitly selected (they're
+        // box-selectable): a wire moves only via the both-owners-moved pass
+        // below -- moving one on its own would tear it off a pole it is
+        // still attached to.
+        if let Header::Actor(a) = header {
+            let tp = a.type_path.bytes(data);
+            if crate::object::POWER_LINES.iter().any(|c| c.as_bytes() == tp) {
+                moved_slots.remove(&(li, oi));
+                continue;
+            }
+        }
         let object = fetch(store, li, oi)?;
         if let Some(reason) = move_refusal(store, header, &object) {
             return Err(perr!("Cannot move {}: {}", name, reason));
@@ -604,14 +615,18 @@ fn plan_move_lightweight(
 // Duplication
 // ---------------------------------------------------------------------------
 
-/// Expand the requested actor names into the full copy set: each actor plus
-/// its components, plus every power line whose BOTH endpoints are owned by
-/// actors in the set (wires aren't map-selectable, so connected copies
-/// would otherwise always lose their wiring).
+/// Expand the requested actor names into the full copy/delete set: each
+/// actor plus its components, plus every power line whose BOTH endpoints
+/// are owned by actors in the set. With `prune_unanchored_wires` (the copy
+/// paths), wires are pure riders: explicitly selected ones without both
+/// owners in the set are dropped, since their copies would dangle. Delete
+/// passes false -- removing a lone wire is legitimate (and how the map's
+/// single-wire delete works).
 pub(crate) fn expand_duplicate_set(
     store: &SaveStore,
     scan: &SaveScan,
     names: &[String],
+    prune_unanchored_wires: bool,
 ) -> PResult<BTreeSet<(usize, usize)>> {
     let data: &[u8] = &store.data;
     let mut set: BTreeSet<(usize, usize)> = BTreeSet::new();
@@ -663,7 +678,7 @@ pub(crate) fn expand_duplicate_set(
 
     // Wires: owner actor of an endpoint component "….Build_X_C_123.Conn" is
     // everything before the last '.'.
-    let owner_in_set = |endpoint: &ObjectRef| -> bool {
+    let owner_in_set = |actor_names: &BTreeSet<Vec<u8>>, endpoint: &ObjectRef| -> bool {
         if endpoint.path_name.is_empty() {
             return false;
         }
@@ -673,6 +688,34 @@ pub(crate) fn expand_duplicate_set(
         };
         actor_names.contains(&path[..dot])
     };
+    // Wires are riders even when explicitly selected (they're
+    // box-selectable): drop any named wire whose endpoint owners aren't both
+    // in the set -- a copy of it would dangle (tombstoned endpoints), and
+    // the rider scan below re-adds every wire that legitimately travels.
+    let mut pruned: Vec<(usize, usize)> = Vec::new();
+    for &(li, oi) in set.iter().filter(|_| prune_unanchored_wires) {
+        let Header::Actor(a) = &store.levels[li].headers[oi] else { continue };
+        let tp = a.type_path.bytes(data);
+        if !crate::object::POWER_LINES.iter().any(|c| c.as_bytes() == tp) {
+            continue;
+        }
+        let object = fetch(store, li, oi)?;
+        if let ActorSpecific::PowerLine(a, b) = &object.actor_specific {
+            if !(owner_in_set(&actor_names, a) && owner_in_set(&actor_names, b)) {
+                pruned.push((li, oi));
+            }
+        }
+    }
+    for (li, oi) in pruned {
+        set.remove(&(li, oi));
+        if let Some((_, components)) = &fetch(store, li, oi)?.actor_reference_associations {
+            for comp in components {
+                if let Some(&slot) = scan.by_instance_name.get(comp.path_name.bytes(data)) {
+                    set.remove(&slot);
+                }
+            }
+        }
+    }
     let mut wires: Vec<(usize, usize)> = Vec::new();
     for (li, oi) in actor_slots_of_types(store, &crate::object::POWER_LINES) {
         if set.contains(&(li, oi)) {
@@ -680,7 +723,7 @@ pub(crate) fn expand_duplicate_set(
         }
         let object = fetch(store, li, oi)?;
         if let ActorSpecific::PowerLine(a, b) = &object.actor_specific {
-            if owner_in_set(a) && owner_in_set(b) {
+            if owner_in_set(&actor_names, a) && owner_in_set(&actor_names, b) {
                 wires.push((li, oi));
             }
         }
@@ -705,7 +748,7 @@ fn plan_duplicate_actors(
         return Err(perr!("rotate requires a pivot"));
     }
     let data: &[u8] = &store.data;
-    let set = expand_duplicate_set(store, scan, names)?;
+    let set = expand_duplicate_set(store, scan, names, true)?;
     if set.is_empty() {
         return Err(perr!("Nothing to copy"));
     }
@@ -949,7 +992,7 @@ fn plan_delete_actors(
     names: &[String],
 ) -> PResult<()> {
     let data: &[u8] = &store.data;
-    let set = expand_duplicate_set(store, scan, names)?;
+    let set = expand_duplicate_set(store, scan, names, false)?;
     if set.is_empty() {
         return Err(perr!("Nothing to delete"));
     }

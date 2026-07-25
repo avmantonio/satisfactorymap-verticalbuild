@@ -281,3 +281,81 @@ fn duplicate_replay_is_deterministic() {
     let b = session::rebuild(pristine.clone(), &store.file_header, &store.info, &tables, &ops, None).unwrap();
     assert_eq!(a.data, b.data);
 }
+
+/// Wires are riders even when explicitly selected (they are box-selectable
+/// since the selection got full power-line support): a wire named without
+/// both endpoint owners must not produce a dangling copy, and a wire named
+/// WITH its owners must not double the wire.
+#[test]
+fn explicit_wire_is_a_rider_not_a_copy_target() {
+    let store = load("All_080726-163150.sav");
+    let tables = ClassTables::embedded();
+    let data: &[u8] = &store.data;
+    let scan = SaveScan::new(&store);
+
+    let mut target: Option<(String, String, String)> = None;
+    'outer: for level in &store.levels {
+        for (oi, object) in level.parsed_objects().iter().enumerate() {
+            if let ActorSpecific::PowerLine(a, b) = &object.actor_specific {
+                let (pa, pb) = (a.path_name.to_string(data), b.path_name.to_string(data));
+                let (Some(da), Some(db)) = (pa.rfind('.'), pb.rfind('.')) else { continue };
+                let (owner_a, owner_b) = (pa[..da].to_string(), pb[..db].to_string());
+                if owner_a != owner_b
+                    && scan.by_instance_name.contains_key(owner_a.as_bytes())
+                    && scan.by_instance_name.contains_key(owner_b.as_bytes())
+                {
+                    target = Some((owner_a, owner_b, level.headers[oi].instance_name().to_string(data)));
+                    break 'outer;
+                }
+            }
+        }
+    }
+    let Some((owner_a, owner_b, wire)) = target else {
+        eprintln!("save has no two-owner wire; skipping");
+        return;
+    };
+
+    let count_wires = |s: &SaveStore| -> usize {
+        s.levels
+            .iter()
+            .flat_map(|l| l.parsed_objects())
+            .filter(|o| matches!(o.actor_specific, ActorSpecific::PowerLine(..)))
+            .count()
+    };
+    let wires_before = count_wires(&store);
+
+    // Wire alone: pruned to nothing.
+    let op = EditOp::DuplicateActors {
+        names: vec![wire.clone()],
+        delta: [3000.0, 0.0, 0.0],
+        rotate_yaw_deg: 0.0,
+        pivot: None,
+        seed: 7,
+    };
+    assert!(session::step(&store, &op, &tables).is_err(), "wire-only copy should be empty");
+
+    // Wire + both owners: same result as owners alone -- exactly one new wire.
+    let op = EditOp::DuplicateActors {
+        names: vec![owner_a.clone(), owner_b.clone(), wire.clone()],
+        delta: [3000.0, 0.0, 0.0],
+        rotate_yaw_deg: 0.0,
+        pivot: None,
+        seed: 7,
+    };
+    let store2 = session::step(&store, &op, &tables).unwrap();
+    assert_eq!(count_wires(&store2), wires_before + 1);
+
+    // Move guard: moving a wire alone changes nothing.
+    let wire_slot = *scan.by_instance_name.get(wire.as_bytes()).unwrap();
+    let locations_before = wire_locations(&store, wire_slot.0, wire_slot.1);
+    let op = EditOp::MoveActors {
+        names: vec![wire.clone()],
+        delta: [800.0, 0.0, 0.0],
+        rotate_yaw_deg: 0.0,
+        pivot: None,
+    };
+    let store3 = session::step(&store, &op, &tables).unwrap();
+    let scan3 = SaveScan::new(&store3);
+    let slot3 = *scan3.by_instance_name.get(wire.as_bytes()).unwrap();
+    assert_eq!(wire_locations(&store3, slot3.0, slot3.1), locations_before);
+}

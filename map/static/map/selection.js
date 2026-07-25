@@ -31,16 +31,20 @@ var SelectionTool = {};
 
   var MIN_DRAG_PX = 4; // Below this the gesture is a stray right-click, not a drag.
   // Line layers whose segments are real editable actors: belts/pipes
-  // (per-mark buckets "line:belt:Mk.6", ...), railroads, hypertubes, and
-  // vehicle paths ("line:vehiclePath:<mark>"). Their spline data is
-  // actor-local, so the edit engine's header-transform move/copy carries
-  // the geometry. Power lines stay out: wires already travel with their
-  // poles on copy/move, and selecting them directly would double-count.
+  // (per-mark buckets "line:belt:Mk.6", ...), railroads, hypertubes,
+  // vehicle paths ("line:vehiclePath:<mark>"), and power lines. Their
+  // spline data is actor-local, so the edit engine's header-transform
+  // move/copy carries the geometry. Power lines are selectable for
+  // visibility and single-wire deletion, but the engine treats them as
+  // RIDERS of their endpoint owners: they move/copy only when both owners
+  // do, and a selected wire without both owners is dropped from copies
+  // (editor/apply.rs expand_duplicate_set / the move wire pass).
   function isSelectableLineBucket(bucket) {
     return bucket.key.indexOf("line:belt:") === 0
       || bucket.key.indexOf("line:pipe:") === 0
       || bucket.key === "line:railroads"
       || bucket.key === "line:hypertubes"
+      || bucket.key === "line:powerLines"
       || bucket.key.indexOf("line:vehiclePath:") === 0;
   }
 

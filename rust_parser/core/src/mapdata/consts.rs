@@ -24,6 +24,16 @@ pub const HYPERTUBE_SEGMENTS: [&str; 2] = [
     "/Game/FactoryGame/Buildable/Factory/PipeHyperStart/Build_PipeHyperStart.Build_PipeHyperStart_C",
 ];
 
+/// The hypertube entrance is BOTH a spline segment (its tube part, drawn via
+/// HYPERTUBE_SEGMENTS when the save carries a non-default mSplineData) AND a
+/// powered machine. It must stay a dot-rendered building: an entrance whose
+/// spline equals the cooked default serializes NO mSplineData, so the line
+/// collector emits nothing for it -- treating it as line-only made such
+/// entrances invisible and unselectable, which silently dropped their power
+/// wires from copies of daisy-chained (pole-less) builds.
+pub const HYPERTUBE_ENTRANCE_TYPE_PATH: &str =
+    "/Game/FactoryGame/Buildable/Factory/PipeHyperStart/Build_PipeHyperStart.Build_PipeHyperStart_C";
+
 pub const VEHICLE_PATH_SEGMENTS: [&str; 5] = [
     "/Game/FactoryGame/Buildable/Vehicle/Explorer/Build_VehiclePath_Explorer.Build_VehiclePath_Explorer_C",
     "/Game/FactoryGame/Buildable/Vehicle/Golfcart/Build_VehiclePath_FactoryCart.Build_VehiclePath_FactoryCart_C",
@@ -120,6 +130,9 @@ pub fn line_rendered_type_paths() -> &'static HashSet<&'static str> {
         set.extend(RAILROAD_SEGMENTS);
         set.extend(HYPERTUBE_SEGMENTS);
         set.extend(VEHICLE_PATH_SEGMENTS);
+        // ... except the hypertube entrance, which is a powered machine and
+        // must keep its dot bucket (see HYPERTUBE_ENTRANCE_TYPE_PATH).
+        set.remove(HYPERTUBE_ENTRANCE_TYPE_PATH);
         // Power lines are line-rendered too (collect_power_lines), but were
         // never in this set -- an oversight inherited from the Python
         // original, where they're collected by a separate function. Without
