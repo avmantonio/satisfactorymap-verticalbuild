@@ -7,6 +7,13 @@ exports under <Content>/FactoryGame/Map/GameLevel01/ carry each placed
 BP_CreatureSpawner_C actor with its per-instance mCreatureClass and its root
 CollisionCapsule's world position.
 
+Crab Hatchers are the exception to the marker model: they are not spawned by
+BP_CreatureSpawner markers -- the Char_CrabHatcher_C / Char_BigCrabHatcher_C
+creature actors are placed directly in the level (398 + 151), and they spawn
+baby crabs themselves at runtime. They get their own buckets in the same
+table, keyed by their own class (the position is where the creature stands,
+not where a marker spawns one).
+
 Why game files and not a save: every save contains all ~2,277 spawner actors
 (they are world actors, present regardless of exploration), but a save does
 NOT say which creature a spawner spawns -- the save-side SpawnData "creature"
@@ -70,6 +77,10 @@ NAMES_OUTPUT_PATH = os.path.join(OUTPUT_DIR, "creatures.json")
 
 CLASS_NAME_PATTERN = re.compile(r"'([^']+)'$")  # "BlueprintGeneratedClass'Char_Hog_C'"
 
+# Placed directly as creature actors (no spawner marker involved); bucketed
+# under their own class in creatureSpawners.json.
+HATCHER_CLASSES = ("Char_CrabHatcher_C", "Char_BigCrabHatcher_C")
+
 # Creatures with neither an FGCreatureDescriptor nor any World_Data
 # localization entry -- genuinely unnamed in-game, so these fallback names
 # (and icon reuse) are ours: {class: (displayName, iconAssetPath|None)}.
@@ -117,7 +128,7 @@ def iterLevelExports(levelRoot):
             path = os.path.join(dirPath, fileName)
             with open(path, "rb") as f:
                 raw = f.read()
-            if b"Spawner" not in raw:
+            if b"Spawner" not in raw and b"CrabHatcher" not in raw:
                 continue
             exports = json.loads(raw)
             if isinstance(exports, list):
@@ -135,15 +146,19 @@ def extractSpawners(contentRoot):
     for path, exports in iterLevelExports(levelRoot):
         for obj in exports:
             objType = obj.get("Type", "")
-            if "Spawner" not in objType:
-                continue
-            if "CreatureSpawner" not in objType:
-                otherSpawnerTypes[objType] += 1
-                continue
+            isHatcher = objType in HATCHER_CLASSES
+            if not isHatcher:
+                if "Spawner" not in objType:
+                    continue
+                if "CreatureSpawner" not in objType:
+                    otherSpawnerTypes[objType] += 1
+                    continue
             outer = (obj.get("Outer") or {}).get("ObjectName", "")
             levelIdentity = outer.removeprefix("Level'").removesuffix("'")
             pathName = f"{levelIdentity}.{obj['Name']}"
-            creature = shortClassName((obj.get("Properties") or {}).get("mCreatureClass")) or "unknown"
+            creature = objType if isHatcher else (
+                shortClassName((obj.get("Properties") or {}).get("mCreatureClass")) or "unknown"
+            )
             position = rootPosition(obj, exports)
             if position is None:
                 missingPosition.append(pathName)

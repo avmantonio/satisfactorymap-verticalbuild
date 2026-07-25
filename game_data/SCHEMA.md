@@ -352,7 +352,11 @@ py game_data/extractors/extract_game_phases.py [path/to/extraction/.../Content]
 ```
 
 Every creature spawner placed on the map (~2,277), grouped by the creature
-class it spawns -- `Char_SpaceRabbit_C` is the lizard doggo. Produced by
+class it spawns -- `Char_SpaceRabbit_C` is the lizard doggo -- plus the two
+Crab Hatcher buckets (`Char_CrabHatcher_C` x398, `Char_BigCrabHatcher_C`
+x151): hatchers are not marker-spawned, the creature actors themselves are
+placed in the level (they spawn baby crabs at runtime), so their entries are
+where the creature stands rather than where a marker spawns one. Produced by
 `game_data/extractors/extract_spawners.py` from the same FModel extraction dump as
 `gamePhases.json` (the world-partition cell exports under
 `<Content>/FactoryGame/Map/GameLevel01/` carry each spawner's
