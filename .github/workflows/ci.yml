@@ -23,12 +23,12 @@ jobs:
           path: |
             game_data/generated
             map/static/map/icons
-          key: game-data-v1
+          key: game-data-v2
       - name: Fetch game data
         # sav_core embeds game_data/generated/*.json at compile time.
         if: steps.game-data.outputs.cache-hit != 'true'
         run: |
-          wget -q -O game_data.zip https://github.com/valentinps/satisfactorymap/releases/download/game-data-v1/game_data.zip
+          wget -q -O game_data.zip https://github.com/valentinps/satisfactorymap/releases/download/game-data-v2/game_data.zip
           python3 game_data/package_game_data.py unpack game_data.zip
       - name: Cache test saves
         uses: actions/cache@v4
@@ -59,11 +59,11 @@ jobs:
           path: |
             game_data/generated
             map/static/map/icons
-          key: game-data-v1
+          key: game-data-v2
       - name: Fetch game data
         if: steps.game-data.outputs.cache-hit != 'true'
         run: |
-          wget -q -O game_data.zip https://github.com/valentinps/satisfactorymap/releases/download/game-data-v1/game_data.zip
+          wget -q -O game_data.zip https://github.com/valentinps/satisfactorymap/releases/download/game-data-v2/game_data.zip
           python3 game_data/package_game_data.py unpack game_data.zip
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
