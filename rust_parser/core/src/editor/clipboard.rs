@@ -292,7 +292,7 @@ fn decode_foreign(
     combined.extend_from_slice(&body_blob);
 
     let mut hc = Cursor::new(&combined, 0);
-    let header = parse_one_header(&mut hc)?;
+    let header = parse_one_header(&mut hc, save_version)?;
     if hc.pos != body_start {
         return Err(perr!("Clipboard header record has trailing bytes"));
     }

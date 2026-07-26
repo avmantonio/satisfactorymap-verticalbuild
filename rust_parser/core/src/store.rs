@@ -134,6 +134,8 @@ pub enum InvItemProps {
     One,
     Two,
     Props { type_path: StrRef, props: PropList },
+    /// COMPAT EXPERIMENT: pre-1.0 (save version < 44) itemState reference pair.
+    LegacyRef { level: StrRef, path: StrRef },
 }
 
 #[derive(Debug)]

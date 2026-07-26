@@ -450,6 +450,14 @@ fn write_struct(out: &mut String, data: &[u8], sv: &StructValue) {
                     write_types(out, data, props);
                     out.push(']');
                 }
+                // COMPAT EXPERIMENT: pre-44 itemState reference pair.
+                InvItemProps::LegacyRef { level, path } => {
+                    out.push('[');
+                    write_quoted(out, data, *level);
+                    out.push_str(", ");
+                    write_quoted(out, data, *path);
+                    out.push(']');
+                }
             }
             out.push(']');
         }
