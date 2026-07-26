@@ -1,5 +1,7 @@
-//! The 17 payload collectors, one module per _payloadSteps entry. Each is an
-//! exact behavioral port of its Python namesake in map/sav_map_data.py.
+//! The 18 payload collectors, one module per _payloadSteps entry. Each is an
+//! exact behavioral port of its Python namesake in map/sav_map_data.py --
+//! except "spawners", which post-dates the Python implementation (static
+//! world data, no save input; see simple::collect_spawners).
 
 pub mod buildings;
 pub mod lines;
@@ -24,6 +26,7 @@ pub fn registry() -> Vec<(&'static str, Collector)> {
         ("droppedItems", world::collect_dropped_items),
         ("players", simple::collect_players),
         ("creatures", simple::collect_creatures),
+        ("spawners", simple::collect_spawners),
         ("hub", simple::collect_hub),
         ("gameSettings", simple::collect_game_settings),
         ("vehicles", simple::collect_vehicles),
@@ -39,13 +42,14 @@ pub fn registry() -> Vec<(&'static str, Collector)> {
 
 /// _payloadSteps key order -- payload keys must appear in this order
 /// regardless of which subset is requested.
-pub const STEP_ORDER: [&str; 17] = [
+pub const STEP_ORDER: [&str; 18] = [
     "buildingCategories",
     "resourceNodes",
     "collectables",
     "hardDrives",
     "players",
     "creatures",
+    "spawners",
     "vehicles",
     "trains",
     "droppedItems",

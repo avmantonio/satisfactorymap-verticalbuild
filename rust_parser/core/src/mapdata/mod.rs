@@ -24,8 +24,9 @@ use crate::store::SaveStore;
 use scan::SaveScan;
 use serde_json::{json, Value};
 
-/// sav_map_data._BUILD_STEP_COUNT: 17 payload steps + the save index.
-pub const BUILD_STEP_COUNT: u64 = 17 + 1;
+/// 18 payload steps (sav_map_data._BUILD_STEP_COUNT's 17 + the static
+/// spawners step) + the save index.
+pub const BUILD_STEP_COUNT: u64 = 18 + 1;
 
 /// sav_map_data.listSearchableItems.
 fn list_searchable_items() -> Value {

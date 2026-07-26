@@ -11,7 +11,8 @@
 // + game_data/categoryLabels.json via payload.menuOrder -- see
 // buildBuildingCategorySections. Resource Nodes, HUB, Entities, Collectables
 // (which nests Hard Drives alongside Power Slugs/Somersloops/Mercer Spheres),
-// and Dropped Items (loose ground stacks) are their own separate sections. renderGroup() supports the
+// Spawners (creature spawn markers, grouped by family), and Dropped Items
+// (loose ground stacks) are their own separate sections. renderGroup() supports the
 // subcategory nesting generically (see its doc comment).
 
 var Filters = {};
@@ -244,12 +245,34 @@ var Filters = {};
     return title.replace(/\s*\([\d,\/]+\)\s*$/, "");
   }
 
+  // Top-level categories hidden unless explicitly enabled: the world layers
+  // -- every resource node/well, every collectable, every creature spawner,
+  // every loose ground stack -- are thousands of pins that buried the
+  // player's own factory.
+  // An explicit choice scoped to the category still wins and persists (a
+  // per-bucket entry, or a stored group toggle at any level inside it), but
+  // Check-all's blanket "*" entry deliberately does NOT reach these: it
+  // predates whatever category was added since (or was stored to mean "my
+  // factory", not "the whole planet"), and letting it through re-buried the
+  // map on the next load. Check all still shows everything for the current
+  // session -- it flips the buckets directly, this only governs restore.
+  var DEFAULT_HIDDEN_CATEGORIES = {
+    "Resource Nodes": true,
+    "Resource Wells": true,
+    "Collectables": true,
+    "Spawners": true,
+    "Dropped Items": true,
+  };
+
   function savedGroupStateForStack() {
     for (var i = groupPathStack.length; i > 0; i--) {
       var key = "group:" + groupPathStack.slice(0, i).join("/");
       if (savedVisibility.hasOwnProperty(key)) {
         return savedVisibility[key];
       }
+    }
+    if (DEFAULT_HIDDEN_CATEGORIES[groupPathStack[0]]) {
+      return false;
     }
     if (savedVisibility.hasOwnProperty("*")) {
       return savedVisibility["*"];
@@ -1000,6 +1023,83 @@ var Filters = {};
     });
   }
 
+  // ---- Spawners (creature spawn markers -- static world data) --------------
+
+  // payload.spawners (see the rust core's collect_spawners) is the same for
+  // every save: creature spawn markers from the cooked level data, not save
+  // actors -- the save's own spawner actors never say which creature they
+  // spawn. Pins follow the collectables' design (real icon on a white pin
+  // circle), using the extracted creature icons keyed by class name
+  // (icons/creatures/<Char_*_C>.png -- see game_data/extractors/copy_icons.py).
+  var SPAWNER_ICON_BASE = "icons/creatures/";
+
+  // Creature families with several variants each get a collapsible subgroup
+  // (matched on the class name); everything else (Lizard Doggo, Flightless
+  // Birb, the Space Giraffe-Tick-Penguin-Whale Thing) is a loose row after
+  // them. First match wins; the patterns are mutually exclusive today.
+  var SPAWNER_FAMILIES = [
+    { title: "Hogs", pattern: /Hog/ },
+    { title: "Crab Hatchers", pattern: /Hatcher/ },
+    { title: "Stingers", pattern: /Stinger/ },
+    { title: "Spitters", pattern: /Spitter/ },
+  ];
+
+  function buildSpawnersSection(navList, detailPane, payload) {
+    var spawnerTypes = payload.spawners || [];
+    var rowsByFamily = SPAWNER_FAMILIES.map(function() { return []; });
+    var looseRows = [];
+    var total = 0;
+    spawnerTypes.forEach(function(spawnerType) {
+      var count = pointCount(spawnerType.points, 3);
+      if (count === 0) {
+        return;
+      }
+      total += count;
+      var url = SPAWNER_ICON_BASE + encodeURIComponent(spawnerType.typePath) + ".png";
+      // The bucket label says "Spawner" so a rectangle-selection list can't
+      // read as live creatures; the sidebar row shows just the species
+      // (displayLabel), already sitting under the "Spawners" heading.
+      var label = spawnerType.label + " Spawner";
+      var tooltipInfo = function(index) {
+        return { title: label, rows: [], position: worldPositionAt(spawnerType.points, index) };
+      };
+      var bucket = makeIconBucket("spawner:" + spawnerType.typePath, label, CREATURE_COLOR,
+        spawnerType.points, spawnerType.ids, "static", tooltipInfo, url, 1);
+      var row = { label: label, displayLabel: spawnerType.label, count: count,
+                  color: CREATURE_COLOR, buckets: [bucket], iconUrl: url };
+      for (var i = 0; i < SPAWNER_FAMILIES.length; i++) {
+        if (SPAWNER_FAMILIES[i].pattern.test(spawnerType.typePath)) {
+          rowsByFamily[i].push(row);
+          return;
+        }
+      }
+      looseRows.push(row);
+    });
+    if (total === 0) {
+      return;
+    }
+    renderTopLevelCategory(navList, detailPane, "Spawners (" + total + ")", "icon", CREATURE_COLOR, function(childrenDiv) {
+      var checkboxes = [];
+      var allBuckets = [];
+      SPAWNER_FAMILIES.forEach(function(family, familyIndex) {
+        var rows = rowsByFamily[familyIndex];
+        if (rows.length === 0) {
+          return;
+        }
+        var familyTotal = rows.reduce(function(s, r) { return s + r.count; }, 0);
+        var result = renderGroup(childrenDiv, family.title + " (" + familyTotal + ")", "icon",
+          CREATURE_COLOR, rows, { startCollapsed: true, iconUrl: rows[0].iconUrl });
+        checkboxes.push(result.checkbox);
+        allBuckets = allBuckets.concat(result.buckets);
+      });
+      looseRows.forEach(function(row) {
+        checkboxes.push(appendLeafRow(childrenDiv, row, "icon", CREATURE_COLOR));
+        allBuckets = allBuckets.concat(row.buckets);
+      });
+      return { buckets: allBuckets, checkboxes: checkboxes };
+    }, { iconUrl: CREATURE_ICON_URL });
+  }
+
   // ---- Dropped / ground items ----------------------------------------------
 
   // Fallback dot color for the rare dropped item whose ClassName has no
@@ -1490,6 +1590,7 @@ var Filters = {};
     buildHubSection(navList, detailPane, payload);
     buildEntitiesSection(navList, detailPane, payload);
     buildCollectablesSection(navList, detailPane, payload);
+    buildSpawnersSection(navList, detailPane, payload);
     buildDroppedItemsSection(navList, detailPane, payload);
 
     // Fit the nav panel to the category labels now that they all exist.
