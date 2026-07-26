@@ -281,3 +281,195 @@ fn duplicate_replay_is_deterministic() {
     let b = session::rebuild(pristine.clone(), &store.file_header, &store.info, &tables, &ops, None).unwrap();
     assert_eq!(a.data, b.data);
 }
+
+/// Wires are riders even when explicitly selected (they are box-selectable
+/// since the selection got full power-line support): a wire named without
+/// both endpoint owners must not produce a dangling copy, and a wire named
+/// WITH its owners must not double the wire.
+#[test]
+fn explicit_wire_is_a_rider_not_a_copy_target() {
+    let store = load("All_080726-163150.sav");
+    let tables = ClassTables::embedded();
+    let data: &[u8] = &store.data;
+    let scan = SaveScan::new(&store);
+
+    let mut target: Option<(String, String, String)> = None;
+    'outer: for level in &store.levels {
+        for (oi, object) in level.parsed_objects().iter().enumerate() {
+            if let ActorSpecific::PowerLine(a, b) = &object.actor_specific {
+                let (pa, pb) = (a.path_name.to_string(data), b.path_name.to_string(data));
+                let (Some(da), Some(db)) = (pa.rfind('.'), pb.rfind('.')) else { continue };
+                let (owner_a, owner_b) = (pa[..da].to_string(), pb[..db].to_string());
+                if owner_a != owner_b
+                    && scan.by_instance_name.contains_key(owner_a.as_bytes())
+                    && scan.by_instance_name.contains_key(owner_b.as_bytes())
+                {
+                    target = Some((owner_a, owner_b, level.headers[oi].instance_name().to_string(data)));
+                    break 'outer;
+                }
+            }
+        }
+    }
+    let Some((owner_a, owner_b, wire)) = target else {
+        eprintln!("save has no two-owner wire; skipping");
+        return;
+    };
+
+    let count_wires = |s: &SaveStore| -> usize {
+        s.levels
+            .iter()
+            .flat_map(|l| l.parsed_objects())
+            .filter(|o| matches!(o.actor_specific, ActorSpecific::PowerLine(..)))
+            .count()
+    };
+    let wires_before = count_wires(&store);
+
+    // Wire alone: pruned to nothing.
+    let op = EditOp::DuplicateActors {
+        names: vec![wire.clone()],
+        delta: [3000.0, 0.0, 0.0],
+        rotate_yaw_deg: 0.0,
+        pivot: None,
+        seed: 7,
+    };
+    assert!(session::step(&store, &op, &tables).is_err(), "wire-only copy should be empty");
+
+    // Wire + both owners: same result as owners alone -- exactly one new wire.
+    let op = EditOp::DuplicateActors {
+        names: vec![owner_a.clone(), owner_b.clone(), wire.clone()],
+        delta: [3000.0, 0.0, 0.0],
+        rotate_yaw_deg: 0.0,
+        pivot: None,
+        seed: 7,
+    };
+    let store2 = session::step(&store, &op, &tables).unwrap();
+    assert_eq!(count_wires(&store2), wires_before + 1);
+
+    // Move guard: moving a wire alone changes nothing.
+    let wire_slot = *scan.by_instance_name.get(wire.as_bytes()).unwrap();
+    let locations_before = wire_locations(&store, wire_slot.0, wire_slot.1);
+    let op = EditOp::MoveActors {
+        names: vec![wire.clone()],
+        delta: [800.0, 0.0, 0.0],
+        rotate_yaw_deg: 0.0,
+        pivot: None,
+    };
+    let store3 = session::step(&store, &op, &tables).unwrap();
+    let scan3 = SaveScan::new(&store3);
+    let slot3 = *scan3.by_instance_name.get(wire.as_bytes()).unwrap();
+    assert_eq!(wire_locations(&store3, slot3.0, slot3.1), locations_before);
+}
+
+/// Copies grow the body in place: bodies carry BODY_EDIT_SLACK spare
+/// capacity so an insert never reallocates (a realloc means ~2x the body
+/// alive at once -- what used to trap the 4GB wasm heap on GB-scale saves).
+#[test]
+fn insert_growth_stays_in_place() {
+    let store = load("All_080726-163150.sav");
+    let tables = ClassTables::embedded();
+    assert!(
+        store.data.capacity() >= store.data.len() + (60 << 20),
+        "body allocated without edit slack: len={} cap={}",
+        store.data.len(),
+        store.data.capacity()
+    );
+    let ptr_before = store.data.as_ptr() as usize;
+    let (_, _, name) = {
+        let mut found = None;
+        for level in &store.levels {
+            for header in &level.headers {
+                if let Header::Actor(a) = header {
+                    if a.type_path.to_string(&store.data).contains("ConstructorMk1") {
+                        found = Some((0usize, 0usize, a.instance_name.to_string(&store.data)));
+                    }
+                }
+            }
+        }
+        found.expect("constructor present")
+    };
+    let op = EditOp::DuplicateActors {
+        names: vec![name],
+        delta: [2000.0, 0.0, 0.0],
+        rotate_yaw_deg: 0.0,
+        pivot: None,
+        seed: 3,
+    };
+    let store2 = session::fold_ops(store, &[op], &tables, None).unwrap();
+    assert_eq!(
+        store2.data.as_ptr() as usize, ptr_before,
+        "insert reallocated the body instead of growing in place"
+    );
+}
+
+/// The wasm big-edit guard estimates growth for the WHOLE action: a mixed
+/// paste is [duplicateActors, duplicateLightweight], and checking only the
+/// first op would let the lightweight half overflow the slack unguarded.
+#[test]
+fn planned_growth_covers_every_op_of_an_action() {
+    let store = load("All_080726-163150.sav");
+    let constructor = actors_of_type(&store, "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/")
+        .first()
+        .expect("constructor present")
+        .2
+        .clone();
+    let mut lw_type: Option<String> = None;
+    for level in &store.levels {
+        for object in level.parsed_objects() {
+            if let ActorSpecific::Lightweight { items, .. } = &object.actor_specific {
+                if let Some(group) = items.first() {
+                    lw_type = Some(group.type_path.to_string(&store.data));
+                }
+            }
+        }
+    }
+    let Some(lw_type) = lw_type else {
+        eprintln!("save has no lightweight buildables; skipping");
+        return;
+    };
+
+    let ops = vec![
+        EditOp::DuplicateActors {
+            names: vec![constructor],
+            delta: [2000.0, 0.0, 0.0],
+            rotate_yaw_deg: 0.0,
+            pivot: None,
+            seed: 7,
+        },
+        EditOp::DuplicateLightweight {
+            items: vec![LwRef { type_path: lw_type, index: 0 }],
+            delta: [2000.0, 0.0, 0.0],
+            rotate_yaw_deg: 0.0,
+            pivot: None,
+        },
+    ];
+    let actors_only = sav_core::editor::apply::plan_op(&store, &ops[0]).unwrap().inserted_bytes();
+    let lw_only = sav_core::editor::apply::plan_op(&store, &ops[1]).unwrap().inserted_bytes();
+    assert!(actors_only > 0 && lw_only > 0);
+    assert_eq!(session::planned_growth(&store, &ops).unwrap(), actors_only + lw_only);
+
+    // Op-0 failures still surface (the healthy-session semantic dry-run).
+    let bad = EditOp::DuplicateActors {
+        names: vec!["NoSuchInstance_1".into()],
+        delta: [0.0, 0.0, 0.0],
+        rotate_yaw_deg: 0.0,
+        pivot: None,
+        seed: 7,
+    };
+    assert!(session::planned_growth(&store, std::slice::from_ref(&bad)).is_err());
+}
+
+/// The fresh-worker restart marker fires only on certain doom -- a grown
+/// body that can never exist in a 4GiB heap. Everything below that line is
+/// attempted in place (trap recovery is the backstop).
+#[test]
+fn restart_is_reserved_for_impossible_bodies() {
+    let gb = |n: u64| n << 30;
+    // Giant-save paste with a big growth: attempted in place.
+    assert!(session::grown_body_can_exist(gb(1), 800 << 20));
+    // Even a near-3GB body with a large paste: attempted.
+    assert!(session::grown_body_can_exist(gb(3), 500 << 20));
+    // A grown body that can't exist under 4GiB at all: restart.
+    assert!(!session::grown_body_can_exist(gb(3), gb(1)));
+    // Overflow-proof on absurd inputs.
+    assert!(!session::grown_body_can_exist(u64::MAX, u64::MAX));
+}

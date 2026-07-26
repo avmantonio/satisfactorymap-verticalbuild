@@ -138,6 +138,13 @@ pub struct SaveSession {
 const SESSION_LOST: &str =
     "No usable save state (a failed edit was not recovered) -- reload the save file";
 
+/// Refusal for edits whose grown body could never exist in a 4GiB wasm
+/// heap. Surfaced as a plain edit error with the session left healthy --
+/// no rebuild dance; the desktop app is the answer at that size.
+const EDIT_TOO_BIG: &str =
+    "this edit would grow the save past the browser's 4GB memory limit — \
+     use the desktop app for edits this large";
+
 impl SaveSession {
     fn store(&self) -> Result<&SaveStore, JsError> {
         self.store.as_ref().map(|a| a.as_ref()).ok_or_else(|| JsError::new(SESSION_LOST))
@@ -302,6 +309,7 @@ impl SaveSession {
     pub fn apply_edits(
         &mut self,
         ops_json: &str,
+        force: bool,
         on_progress: &js_sys::Function,
     ) -> Result<Vec<u8>, JsError> {
         let call = |phase: u8, current: u64, total: u64| {
@@ -322,15 +330,32 @@ impl SaveSession {
         }
         let tables = ClassTables::embedded();
 
-        // Dry-run the first op's plan while nothing is torn down: planning is
+        // Dry-run planning while nothing is torn down: planning is
         // model-independent (objects re-parse on demand from their spans), so
         // this works directly on the lean store and semantic refusals
         // (uneditable object, unknown name, chained belt) surface as clean
         // errors with the session left healthy.
-        drop(
-            sav_core::editor::apply::plan_op(self.store()?, &new_ops[0])
-                .map_err(|e| JsError::new(&e.msg))?,
-        );
+        // Growth beyond the body's spare capacity is applied HERE too:
+        // apply_plan's streamed fallback rebuilds through a compressed
+        // snapshot at ~1x peak. No memory estimates decide anything -- the
+        // only pre-emptive refusal is the one case attempting can't help:
+        // the grown body could never exist in a 4GiB heap at all (growth
+        // summed over EVERY op of the action -- a mixed paste is
+        // [duplicateActors, duplicateLightweight]).
+        if force {
+            // Recovery replay in a fresh worker: keep only the op-0 dry-run.
+            drop(
+                sav_core::editor::apply::plan_op(self.store()?, &new_ops[0])
+                    .map_err(|e| JsError::new(&e.msg))?,
+            );
+        } else {
+            let store = self.store()?;
+            let growth = session::planned_growth(store, &new_ops)
+                .map_err(|e| JsError::new(&e.msg))?;
+            if !session::grown_body_can_exist(store.data.len() as u64, growth as u64) {
+                return Err(JsError::new(EDIT_TOO_BIG));
+            }
+        }
 
         // Free the index and stale payload up front -- everything below is
         // memory-critical on 600k-object saves.

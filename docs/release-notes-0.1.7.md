@@ -30,6 +30,36 @@ the game's own files.
 
 ## UI fixes
 
+- **Copying on very large saves no longer crashes the editor.** On saves
+  above roughly a gigabyte of decompressed data, any copy/paste could die
+  with "Edit failed: unreachable" in the browser: growing the save to fit
+  the copied objects briefly needed twice the save's memory, blowing the
+  browser's 4 GB WebAssembly limit. Small and medium copies now grow the
+  save in place (built-in headroom); bigger ones rebuild through a
+  compressed snapshot at ~1x memory, so pastes big and small apply
+  directly in the session. An edit that genuinely cannot fit under the
+  4 GB limit fails up front with a clear message pointing at the desktop
+  app — and if the browser dies mid-edit anyway, the editor reloads and
+  restores your earlier edits instead of leaving a dead page.
+- **Copy a build from one save into another — right in the browser.** Copy,
+  load the other save (same tab), paste. Copies up to 50,000 objects also go
+  through the OS clipboard, so they paste in another browser tab too; bigger
+  copies stay inside the tab — mirroring them onto the OS clipboard could
+  stall the whole machine — so for those, cross-save means the same-tab flow
+  above. Above 150,000 objects the browser refuses the copy outright
+  (nothing is copied — a selection that size can't paste reliably inside
+  the browser's 4 GB limit) and points at the desktop app, which has no
+  such limits.
+- **Hypertube entrances are back on the map** — and with them, copies of
+  daisy-chained builds keep their power wires. Entrances were treated as
+  line-only geometry, but an entrance with its default tube shape carries no
+  spline in the save, leaving it invisible and unselectable — so wires
+  between chained entrances could never travel with a copy. They now render
+  as regular powered buildings again.
+- **Power lines are selectable** — they highlight in box selections and can
+  be deleted individually. For move and copy they act as riders: a wire
+  travels exactly when both the things it connects travel, so a selected
+  wire can never be dragged off a pole or pasted dangling.
 - **Pipe bottleneck warnings are now scoped like belt ones.** A Mk2 pipe
   feeding two Mk1 pipes through a junction no longer warns — the detector
   follows the pipe line and stops at junctions that actually split or merge

@@ -147,7 +147,7 @@ self.onmessage = async (event) => {
             const opsJson = JSON.stringify(msg.ops);
             const payload = msg.fromPristine
                ? session.apply_edits_from_pristine(opsJson, pristine, progressCb)
-               : session.apply_edits(opsJson, progressCb);
+               : session.apply_edits(opsJson, !!msg.force, progressCb);
             reply(id, payload, [payload.buffer]);
             return;
          }

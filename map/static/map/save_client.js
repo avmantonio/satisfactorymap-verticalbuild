@@ -81,9 +81,12 @@ const SaveClient = (() => {
          }
       };
       // A crashed worker (wasm panic / OOM) leaves indeterminate state:
-      // reject everything and respawn fresh.
+      // reject everything and respawn fresh. The session is gone with it,
+      // so flag sessionLost -- the editor recovers by reloading the save
+      // and replaying its edits instead of dead-ending on "Edit failed".
       w.onerror = (event) => {
          const error = new Error("Save worker crashed: " + (event.message || "unknown error"));
+         error.sessionLost = true;
          for (const entry of pending.values()) {
             entry.reject(error);
          }
@@ -443,14 +446,16 @@ const SaveClient = (() => {
       memStats() {
          return request({ op: "memStats" });
       },
-      // applyEdits(ops, fromPristine, onProgress) -> Promise<payload object>.
+      // applyEdits(ops, fromPristine, onProgress, force) -> Promise<payload>.
       // ops: array of edit-op objects (see rust editor/ops.rs). fromPristine
-      // replaces the whole op list (undo); otherwise ops append.
-      applyEdits(ops, fromPristine, onProgress) {
+      // replaces the whole op list (undo); otherwise ops append. force skips
+      // the growth dry-run refusal (recovery replay runs in a fresh
+      // worker already).
+      applyEdits(ops, fromPristine, onProgress, force) {
          activeProgress = onProgress || null;
          stateVersion++;
          abortHandoff();
-         return request({ op: "applyEdits", ops, fromPristine }).then((payloadBytes) => {
+         return request({ op: "applyEdits", ops, fromPristine, force: !!force }).then((payloadBytes) => {
             activeProgress = null;
             // Every edit cycle grows and fragments the wasm heap a little;
             // swapping to a fresh lean worker after each one keeps repeated

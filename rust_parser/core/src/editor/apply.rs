@@ -28,25 +28,32 @@ impl EditPlan {
     pub(crate) fn patch(&mut self, at: usize, bytes: impl Into<Vec<u8>>) {
         self.patches.push((at, bytes.into()));
     }
+
+    /// Total bytes the plan's inserts add to the body. Feeds
+    /// session::planned_growth, whose sum backs the wasm session's
+    /// too-big-edit refusal (a grown body that could never exist under the
+    /// 4GiB ceiling is refused up front; see grown_body_can_exist).
+    pub fn inserted_bytes(&self) -> usize {
+        self.inserts.iter().map(|(_, b)| b.len()).sum()
+    }
 }
 
-/// Mutate `body` per the plan. Length changes shift the tail with
-/// copy_within instead of building a second body; the leading u64
-/// uncompressedSize is refreshed at the end.
-pub fn apply_plan(body: &mut Vec<u8>, mut plan: EditPlan) -> PResult<()> {
-    // Pre-flight: validate the WHOLE plan before touching a byte. Two
-    // reasons. (1) A mid-apply error would leave the body half-mutated, and
-    // recovery from that is a full multi-second replay from the pristine
-    // copy. (2) The splice logic below assumes removes are disjoint and
-    // patches never target removed bytes -- a planner bug violating either
-    // used to corrupt silently (same-length wrong bytes pass the strict
-    // re-parse) or underflow; now it aborts loudly with the body intact.
+/// Pre-flight for both apply paths: validate the WHOLE plan before touching
+/// a byte. Two reasons. (1) A mid-apply error would leave the body
+/// half-mutated, and recovery from that is a full multi-second replay from
+/// the pristine copy. (2) The splice logic assumes removes are disjoint,
+/// patches never target removed bytes, and inserts never fall inside removed
+/// spans -- a planner bug violating any of these used to corrupt silently
+/// (same-length wrong bytes pass the strict re-parse) or underflow; now it
+/// aborts loudly with the body intact. Sorts removes and inserts in place.
+fn validate_plan(body_len: usize, plan: &mut EditPlan) -> PResult<()> {
     plan.removes.sort_by_key(|(at, _)| *at);
+    plan.inserts.sort_by_key(|(at, _)| *at);
     let mut prev_end = 0usize;
     for &(at, len) in &plan.removes {
         let end = at
             .checked_add(len)
-            .filter(|&e| e <= body.len())
+            .filter(|&e| e <= body_len)
             .ok_or_else(|| perr!("Edit plan remove out of range"))?;
         if at < prev_end {
             return Err(perr!("Edit plan removes overlap"));
@@ -60,16 +67,42 @@ pub fn apply_plan(body: &mut Vec<u8>, mut plan: EditPlan) -> PResult<()> {
     for (at, bytes) in &plan.patches {
         let end = at
             .checked_add(bytes.len())
-            .filter(|&e| e <= body.len())
+            .filter(|&e| e <= body_len)
             .ok_or_else(|| perr!("Edit patch out of range"))?;
         if overlaps_remove(*at, end) {
             return Err(perr!("Edit patch overlaps a removed span"));
         }
     }
-    for (at, _) in &plan.inserts {
-        if *at > body.len() {
+    for &(at, _) in &plan.inserts {
+        if at > body_len {
             return Err(perr!("Edit plan insert out of range"));
         }
+        // Inside a removed span (boundaries are fine): idx of the remove
+        // whose end is past `at`; if it starts strictly before `at`, the
+        // insert would land mid-removal.
+        let idx = plan.removes.partition_point(|&(r, len)| r + len <= at);
+        if idx < plan.removes.len() && plan.removes[idx].0 < at {
+            return Err(perr!("Edit plan inserts inside a removed span"));
+        }
+    }
+    Ok(())
+}
+
+/// Mutate `body` per the plan. Length changes shift the tail with
+/// copy_within instead of building a second body; the leading u64
+/// uncompressedSize is refreshed at the end.
+pub fn apply_plan(body: &mut Vec<u8>, mut plan: EditPlan) -> PResult<()> {
+    validate_plan(body.len(), &mut plan)?;
+
+    // Growth beyond the body's spare capacity forces a reallocation --
+    // transiently ~2x the body, which the 4GB-capped wasm heap cannot
+    // afford on GB-scale saves (BODY_EDIT_SLACK absorbs typical copies, but
+    // a 100k-object paste overflows it). The streamed path rebuilds through
+    // a compressed snapshot at ~1x peak instead; native builds keep the
+    // plain realloc (plenty of RAM, no compression detour).
+    let added: usize = plan.inserts.iter().map(|(_, b)| b.len()).sum();
+    if cfg!(target_arch = "wasm32") && added > 0 && body.capacity() < body.len() + added {
+        return apply_plan_streamed_validated(body, plan);
     }
 
     for (at, bytes) in &plan.patches {
@@ -113,6 +146,10 @@ pub fn apply_plan(body: &mut Vec<u8>, mut plan: EditPlan) -> PResult<()> {
         plan.inserts.sort_by_key(|(at, _)| *at);
         let added: usize = plan.inserts.iter().map(|(_, b)| b.len()).sum();
         let old_len = body.len();
+        // Usually a no-op: bodies are allocated with BODY_EDIT_SLACK spare
+        // capacity so growth stays in place. Beyond the slack this
+        // reallocates (transiently ~2x the body) -- native builds only; on
+        // wasm the streamed dispatch above never lets it get here.
         body.reserve_exact(added);
         body.resize(old_len + added, 0);
         // Shift the pre-existing segments right-to-left so nothing is
@@ -129,6 +166,82 @@ pub fn apply_plan(body: &mut Vec<u8>, mut plan: EditPlan) -> PResult<()> {
 
     let size = (body.len() - 8) as u64;
     body[0..8].copy_from_slice(&size.to_le_bytes());
+    Ok(())
+}
+
+/// apply_plan, but rebuilt through a compressed snapshot so peak memory
+/// stays ~one body no matter how much the inserts grow it: patches apply in
+/// place (size-neutral), the body is zlib-compressed (~15:1) and freed, and
+/// the new body streams out of the snapshot with removes skipped and
+/// inserts spliced in offset order. Produces byte-identical output to the
+/// in-place path (the test suite asserts parity); costs one compression
+/// round-trip, so it only runs when growth would otherwise realloc.
+pub fn apply_plan_streamed(body: &mut Vec<u8>, mut plan: EditPlan) -> PResult<()> {
+    validate_plan(body.len(), &mut plan)?;
+    apply_plan_streamed_validated(body, plan)
+}
+
+fn apply_plan_streamed_validated(body: &mut Vec<u8>, plan: EditPlan) -> PResult<()> {
+    use flate2::read::{ZlibDecoder, ZlibEncoder};
+    use flate2::Compression;
+    use std::io::Read;
+
+    for (at, bytes) in &plan.patches {
+        body[*at..at + bytes.len()].copy_from_slice(bytes);
+    }
+    let removed: usize = plan.removes.iter().map(|(_, len)| *len).sum();
+    let added: usize = plan.inserts.iter().map(|(_, b)| b.len()).sum();
+    let old_len = body.len();
+    let new_len = old_len - removed + added;
+
+    let mut compressed = Vec::with_capacity(old_len / 8);
+    ZlibEncoder::new(&body[..], Compression::fast())
+        .read_to_end(&mut compressed)
+        .map_err(|e| perr!("Edit snapshot compression failed: {}", e))?;
+    *body = Vec::new(); // free the old block before allocating the new one
+
+    let mut out: Vec<u8> = Vec::with_capacity(new_len + crate::decompress::BODY_EDIT_SLACK);
+    let mut dec = ZlibDecoder::new(&compressed[..]);
+    let mut copy_exact = |out: &mut Vec<u8>, n: usize, discard: bool| -> PResult<()> {
+        let copied = if discard {
+            std::io::copy(&mut (&mut dec).take(n as u64), &mut std::io::sink())
+        } else {
+            std::io::copy(&mut (&mut dec).take(n as u64), out)
+        }
+        .map_err(|e| perr!("Edit snapshot decompression failed: {}", e))?;
+        if copied != n as u64 {
+            return Err(perr!("Edit snapshot truncated: {} != {}", copied, n));
+        }
+        Ok(())
+    };
+
+    // Merge removes and inserts by pre-op offset (both sorted by
+    // validate_plan). An insert at a remove's start goes first -- same seam
+    // the in-place path produces.
+    let (mut pos, mut ri, mut ii) = (0usize, 0usize, 0usize);
+    while ri < plan.removes.len() || ii < plan.inserts.len() {
+        let r_at = plan.removes.get(ri).map_or(usize::MAX, |r| r.0);
+        let i_at = plan.inserts.get(ii).map_or(usize::MAX, |i| i.0);
+        if i_at <= r_at {
+            copy_exact(&mut out, i_at - pos, false)?;
+            pos = i_at;
+            out.extend_from_slice(&plan.inserts[ii].1);
+            ii += 1;
+        } else {
+            copy_exact(&mut out, r_at - pos, false)?;
+            pos = r_at;
+            copy_exact(&mut out, plan.removes[ri].1, true)?;
+            pos += plan.removes[ri].1;
+            ri += 1;
+        }
+    }
+    copy_exact(&mut out, old_len - pos, false)?;
+    if out.len() != new_len {
+        return Err(perr!("Edit rebuild length mismatch: {} != {}", out.len(), new_len));
+    }
+    let size = (out.len() - 8) as u64;
+    out[0..8].copy_from_slice(&size.to_le_bytes());
+    *body = out;
     Ok(())
 }
 
@@ -494,6 +607,17 @@ fn plan_move_actors(
             continue;
         }
         let header = &store.levels[li].headers[oi];
+        // Wires are riders even when explicitly selected (they're
+        // box-selectable): a wire moves only via the both-owners-moved pass
+        // below -- moving one on its own would tear it off a pole it is
+        // still attached to.
+        if let Header::Actor(a) = header {
+            let tp = a.type_path.bytes(data);
+            if crate::object::POWER_LINES.iter().any(|c| c.as_bytes() == tp) {
+                moved_slots.remove(&(li, oi));
+                continue;
+            }
+        }
         let object = fetch(store, li, oi)?;
         if let Some(reason) = move_refusal(store, header, &object) {
             return Err(perr!("Cannot move {}: {}", name, reason));
@@ -502,8 +626,9 @@ fn plan_move_actors(
         move_one(li, oi, &object)?;
     }
 
-    // Wires whose BOTH endpoint owners moved follow along rigidly (wires
-    // aren't map-selectable, so they never appear in `names` themselves).
+    // Wires whose BOTH endpoint owners moved follow along rigidly (a wire
+    // named in `names` was skipped above, so it moves exactly here or not
+    // at all).
     let owner_moved = |endpoint: &ObjectRef| -> bool {
         if endpoint.path_name.is_empty() {
             return false;
@@ -604,14 +729,18 @@ fn plan_move_lightweight(
 // Duplication
 // ---------------------------------------------------------------------------
 
-/// Expand the requested actor names into the full copy set: each actor plus
-/// its components, plus every power line whose BOTH endpoints are owned by
-/// actors in the set (wires aren't map-selectable, so connected copies
-/// would otherwise always lose their wiring).
+/// Expand the requested actor names into the full copy/delete set: each
+/// actor plus its components, plus every power line whose BOTH endpoints
+/// are owned by actors in the set. With `prune_unanchored_wires` (the copy
+/// paths), wires are pure riders: explicitly selected ones without both
+/// owners in the set are dropped, since their copies would dangle. Delete
+/// passes false -- removing a lone wire is legitimate (and how the map's
+/// single-wire delete works).
 pub(crate) fn expand_duplicate_set(
     store: &SaveStore,
     scan: &SaveScan,
     names: &[String],
+    prune_unanchored_wires: bool,
 ) -> PResult<BTreeSet<(usize, usize)>> {
     let data: &[u8] = &store.data;
     let mut set: BTreeSet<(usize, usize)> = BTreeSet::new();
@@ -663,7 +792,7 @@ pub(crate) fn expand_duplicate_set(
 
     // Wires: owner actor of an endpoint component "….Build_X_C_123.Conn" is
     // everything before the last '.'.
-    let owner_in_set = |endpoint: &ObjectRef| -> bool {
+    let owner_in_set = |actor_names: &BTreeSet<Vec<u8>>, endpoint: &ObjectRef| -> bool {
         if endpoint.path_name.is_empty() {
             return false;
         }
@@ -673,6 +802,34 @@ pub(crate) fn expand_duplicate_set(
         };
         actor_names.contains(&path[..dot])
     };
+    // Wires are riders even when explicitly selected (they're
+    // box-selectable): drop any named wire whose endpoint owners aren't both
+    // in the set -- a copy of it would dangle (tombstoned endpoints), and
+    // the rider scan below re-adds every wire that legitimately travels.
+    let mut pruned: Vec<(usize, usize)> = Vec::new();
+    for &(li, oi) in set.iter().filter(|_| prune_unanchored_wires) {
+        let Header::Actor(a) = &store.levels[li].headers[oi] else { continue };
+        let tp = a.type_path.bytes(data);
+        if !crate::object::POWER_LINES.iter().any(|c| c.as_bytes() == tp) {
+            continue;
+        }
+        let object = fetch(store, li, oi)?;
+        if let ActorSpecific::PowerLine(a, b) = &object.actor_specific {
+            if !(owner_in_set(&actor_names, a) && owner_in_set(&actor_names, b)) {
+                pruned.push((li, oi));
+            }
+        }
+    }
+    for (li, oi) in pruned {
+        set.remove(&(li, oi));
+        if let Some((_, components)) = &fetch(store, li, oi)?.actor_reference_associations {
+            for comp in components {
+                if let Some(&slot) = scan.by_instance_name.get(comp.path_name.bytes(data)) {
+                    set.remove(&slot);
+                }
+            }
+        }
+    }
     let mut wires: Vec<(usize, usize)> = Vec::new();
     for (li, oi) in actor_slots_of_types(store, &crate::object::POWER_LINES) {
         if set.contains(&(li, oi)) {
@@ -680,7 +837,7 @@ pub(crate) fn expand_duplicate_set(
         }
         let object = fetch(store, li, oi)?;
         if let ActorSpecific::PowerLine(a, b) = &object.actor_specific {
-            if owner_in_set(a) && owner_in_set(b) {
+            if owner_in_set(&actor_names, a) && owner_in_set(&actor_names, b) {
                 wires.push((li, oi));
             }
         }
@@ -705,7 +862,7 @@ fn plan_duplicate_actors(
         return Err(perr!("rotate requires a pivot"));
     }
     let data: &[u8] = &store.data;
-    let set = expand_duplicate_set(store, scan, names)?;
+    let set = expand_duplicate_set(store, scan, names, true)?;
     if set.is_empty() {
         return Err(perr!("Nothing to copy"));
     }
@@ -949,7 +1106,7 @@ fn plan_delete_actors(
     names: &[String],
 ) -> PResult<()> {
     let data: &[u8] = &store.data;
-    let set = expand_duplicate_set(store, scan, names)?;
+    let set = expand_duplicate_set(store, scan, names, false)?;
     if set.is_empty() {
         return Err(perr!("Nothing to delete"));
     }
@@ -1249,4 +1406,54 @@ pub fn apply_op(store: &SaveStore, body: &[u8], op: &EditOp) -> PResult<Vec<u8>>
     let mut out = body.to_vec();
     apply_plan(&mut out, plan)?;
     Ok(out)
+}
+
+#[cfg(test)]
+mod plan_apply_tests {
+    use super::*;
+
+    fn base_body() -> Vec<u8> {
+        let mut body: Vec<u8> = (0..=255u8).cycle().take(4096).collect();
+        body[0..8].copy_from_slice(&((4096u64 - 8).to_le_bytes()));
+        body
+    }
+
+    fn sample_plan() -> EditPlan {
+        let mut plan = EditPlan::default();
+        plan.patch(100, vec![0xAA; 16]);
+        plan.patch(3000, vec![0xBB; 4]);
+        plan.removes.push((512, 128));
+        plan.removes.push((1024, 64));
+        plan.inserts.push((512, vec![0x11; 300]));   // at a remove's start
+        plan.inserts.push((2048, vec![0x22; 500]));
+        plan.inserts.push((2048, vec![0x33; 100])); // same offset, keeps order
+        plan.inserts.push((4096, vec![0x44; 50]));  // at end-of-body
+        plan
+    }
+
+    /// The streamed (compress-free-rebuild) path must produce byte-identical
+    /// output to the in-place path for the same plan.
+    #[test]
+    fn streamed_matches_in_place() {
+        let mut in_place = base_body();
+        in_place.reserve_exact(4096); // headroom: stays on the in-place path
+        apply_plan(&mut in_place, sample_plan()).unwrap();
+
+        let mut streamed = base_body();
+        apply_plan_streamed(&mut streamed, sample_plan()).unwrap();
+
+        assert_eq!(in_place, streamed);
+        assert_eq!(in_place.len(), 4096 - 128 - 64 + 300 + 500 + 100 + 50);
+    }
+
+    /// Inserts inside a removed span are a planner bug both paths refuse.
+    #[test]
+    fn insert_inside_removed_span_refused() {
+        let mut plan = EditPlan::default();
+        plan.removes.push((512, 128));
+        plan.inserts.push((600, vec![1, 2, 3]));
+        let mut body = base_body();
+        assert!(apply_plan(&mut body, plan).is_err());
+        assert_eq!(body, base_body(), "body must be untouched after refusal");
+    }
 }

@@ -65,6 +65,13 @@ var EditorTool = (function() {
   var placement = null;
   var offsetTargets = null; // targets of the open offset dialog
   var clipboard = null;     // editTargets captured by Copy
+  // Last extracted copy blob, kept in this tab: { json, at: Date.now() }.
+  // Unlike `clipboard` (names scoped to the current session), the blob is a
+  // self-contained byte payload, so it deliberately SURVIVES loading another
+  // save -- that's what makes "copy, load the other save, paste" work in one
+  // tab without the OS clipboard. Browser only; the desktop app keeps blobs
+  // in native clipboard slots instead.
+  var heldBlob = null;
 
   // ---- Targets ---------------------------------------------------------------
 
@@ -257,9 +264,17 @@ var EditorTool = (function() {
   }
 
   function failApply(error) {
-    var message = "Edit failed: " + (error && error.message || error);
-    // Semantic refusals (uneditable object, unknown name, ...) leave the
-    // session intact: just report them.
+    var text = (error && error.message) || String(error);
+    // A wasm memory death reads as a cryptic trap ("unreachable", "memory
+    // access out of bounds"); translate it into the actionable truth.
+    if (error && error.sessionLost
+        && /unreachable|out of bounds|out of memory|allocation|crashed/i.test(text)) {
+      text = "this edit is too large for the browser's 4GB memory limit — "
+        + "use the desktop app for edits this large";
+    }
+    var message = "Edit failed: " + text;
+    // Semantic refusals (uneditable object, unknown name, edit-too-big, ...)
+    // leave the session intact: just report them.
     if (!error || !error.sessionLost) {
       applyInFlight = false;
       SaveLoadFlow.hideProgress();
@@ -268,17 +283,19 @@ var EditorTool = (function() {
       updateToolbar();
       return;
     }
-    // The wasm session is gone (out-of-memory trap on a huge save). Recover
-    // with a fresh worker: reload the original file, then replay the
-    // committed actions one at a time.
+    // The wasm session died with the failed edit. The edit itself is
+    // abandoned -- never retried; the reload below only brings back the
+    // map and the earlier committed edits instead of leaving a dead page.
     recoverSession(message);
   }
 
   var recovering = false;
 
   function recoverSession(message) {
-    if (recovering || !SaveLoadFlow.canReload()) {
-      recovering = false;
+    if (recovering) {
+      return; // a rebuild is already running and owns the edit state
+    }
+    if (!SaveLoadFlow.canReload()) {
       applyInFlight = false;
       SaveLoadFlow.hideProgress();
       SaveLoadFlow.hideBusy();
@@ -289,19 +306,25 @@ var EditorTool = (function() {
       return;
     }
     recovering = true;
-    applyInFlight = false;
+    // applyInFlight stays TRUE for the whole rebuild: the busy overlay only
+    // blocks the mouse, and a keyboard undo/redo/paste interleaved with the
+    // replay would desync the map from the actions list.
+    applyInFlight = true;
     SaveLoadFlow.showBusy("Recovering — reloading save…");
     SaveLoadFlow.setStatus(message + " — recovering (reloading save)…");
     var backup = actions.slice();
     var savedClipboard = clipboard; // survives the reload: same save, same names
+    var savedRedo = redoStack.slice(); // the failed edit changed nothing, so undone edits stay redoable
     SaveClient.reset();
     SaveLoadFlow.reloadCurrentFile() // resets EditorTool via onSaveLoaded
       .then(function() {
         clipboard = savedClipboard;
-        return replaySequentially(backup, 0);
+        return replayAll(backup, savedClipboard);
       })
       .then(function() {
         recovering = false;
+        applyInFlight = false;
+        redoStack = savedRedo;
         SaveLoadFlow.hideBusy();
         SaveLoadFlow.setStatus(message + " — recovered; your " + actions.length
           + " earlier edit" + (actions.length === 1 ? " was" : "s were") + " re-applied.");
@@ -324,12 +347,44 @@ var EditorTool = (function() {
       });
   }
 
+  // Recovery replay: the whole committed history in ONE forced apply -- one
+  // lean fold + one payload rebuild + one repaint, instead of one per action
+  // (each repaint is a seconds-long main-thread stall on 600k-object saves).
+  // If the batch fails (one op inside it broke, or it died mid-way) the
+  // session is rebuilt once more and the actions replay one at a time, so
+  // everything before the bad op still lands and the reported count is honest.
+  function replayAll(backup, savedClipboard) {
+    if (backup.length === 0) {
+      return Promise.resolve();
+    }
+    SaveLoadFlow.showBusy("Recovering — re-applying " + backup.length
+      + " edit" + (backup.length === 1 ? "" : "s") + "…");
+    var flat = [];
+    backup.forEach(function(a) { flat.push.apply(flat, a); });
+    return SaveClient.applyEdits(flat, false, editProgress, true).then(function(payload) {
+      SaveLoadFlow.hideProgress();
+      SaveLoadFlow.applyPayload(payload);
+      Array.prototype.push.apply(actions, backup);
+      updateToolbar();
+    }, function(batchError) {
+      console.warn("Batched recovery replay failed — retrying one edit at a time:", batchError);
+      SaveClient.reset();
+      SaveLoadFlow.showBusy("Recovering — reloading save…");
+      return SaveLoadFlow.reloadCurrentFile().then(function() {
+        clipboard = savedClipboard;
+        return replaySequentially(backup, 0);
+      });
+    });
+  }
+
   function replaySequentially(backup, i) {
     if (i >= backup.length) {
       return Promise.resolve();
     }
     SaveLoadFlow.showBusy("Recovering — re-applying edit " + (i + 1) + " of " + backup.length + "…");
-    return SaveClient.applyEdits(backup[i], false, editProgress).then(function(payload) {
+    // force: exact-history replay skips the growth dry-run -- these ops
+    // already applied once.
+    return SaveClient.applyEdits(backup[i], false, editProgress, true).then(function(payload) {
       SaveLoadFlow.hideProgress();
       SaveLoadFlow.applyPayload(payload);
       actions.push(backup[i]);
@@ -458,47 +513,100 @@ var EditorTool = (function() {
     startPlacement("move", targets);
   }
 
+  // Browser copy tiers. Above CROSS_TAB_MAX_OBJECTS the blob never touches
+  // the OS clipboard: pushing a multi-MB string through the synchronous OS
+  // clipboard (which clipboard-history listeners then also chew on) can
+  // stall the whole machine -- the blob stays tab-held (heldBlob), where
+  // cross-SAVE paste still works. Above COPY_MAX_OBJECTS the copy is
+  // REFUSED outright: the blob would blow the 200MB ceiling, and pasting a
+  // selection that size gambles with the 4GB wasm heap -- refusing up
+  // front beats a copy that looks fine and then can't deliver. The desktop
+  // app is exempt from both: native clipboard slots, no wasm ceiling.
+  var CROSS_TAB_MAX_OBJECTS = 50000;
+  var COPY_MAX_OBJECTS = 150000;
+
+  // Prefix the blob JSON with its write time (cheap string splice -- the
+  // blob can be tens of MB, never reparse it). resolvePaste compares this
+  // against heldBlob's timestamp to paste whichever copy is newest.
+  function stampClipboardTs(json) {
+    return json.charAt(0) === "{" ? '{"ts":' + Date.now() + "," + json.slice(1) : json;
+  }
+
   function copyTargets(targets) {
     if (!targets || (targets.actorNames.length + targets.lightweight.length) === 0) {
       return;
     }
-    clipboard = targets;
     var n = targets.actorNames.length + targets.lightweight.length;
-    SaveLoadFlow.setStatus("Copied " + n.toLocaleString() + " object" + (n === 1 ? "" : "s")
-      + " — Ctrl+V or right-click to paste.");
-    // Also put a portable blob (raw object bytes + version metadata) on the
-    // OS clipboard so another tab -- even another save -- can paste it.
-    // Extracting 100k+ objects takes a noticeable moment in the worker, so
-    // it runs under the busy overlay -- otherwise a big Copy looks like
-    // nothing happened until the status line quietly changes.
-    if (window.__TAURI__ || (navigator.clipboard && navigator.clipboard.writeText)) {
-      SaveLoadFlow.showBusy("Copying " + n.toLocaleString() + " object" + (n === 1 ? "" : "s") + "…");
-      SaveClient.extractClipboard(targets.actorNames, targets.lightweight)
-        .then(function(json) {
-          // Same 200MB ceiling resolvePaste enforces: writing a blob the
-          // paste side would refuse anyway just moves the confusion later.
-          if (json.length > 200e6) {
-            throw new Error("too many objects for the browser clipboard — use the desktop app");
-          }
+    var label = n.toLocaleString() + " object" + (n === 1 ? "" : "s");
+    if (!window.__TAURI__ && n > COPY_MAX_OBJECTS) {
+      // Refused, and the previous copy is dropped too: keeping it would
+      // make the next Ctrl+V silently paste stale contents right after a
+      // copy the user just watched happen.
+      clipboard = null;
+      heldBlob = null;
+      SaveLoadFlow.setStatus("Copy refused: " + label + " is more than the browser can handle ("
+        + COPY_MAX_OBJECTS.toLocaleString() + " max) — nothing was copied. "
+        + "The desktop app copies selections of any size.");
+      return;
+    }
+    clipboard = targets;
+    heldBlob = null; // a new copy replaces whatever an older one held
+    SaveLoadFlow.setStatus("Copied " + label + " — Ctrl+V or right-click to paste.");
+    // Extract the portable blob (raw object bytes + version metadata): the
+    // desktop app writes it to a native clipboard slot; the browser keeps
+    // it tab-held and only mirrors small copies to the OS clipboard for
+    // cross-tab paste. Extracting 100k+ objects takes a noticeable moment
+    // in the worker, so it runs under the busy overlay -- otherwise a big
+    // Copy looks like nothing happened until the status line quietly
+    // changes.
+    SaveLoadFlow.showBusy("Copying " + label + "…");
+    SaveClient.extractClipboard(targets.actorNames, targets.lightweight)
+      .then(function(json) {
+        // Same 200MB ceiling resolvePaste enforces: holding a blob the
+        // paste side would refuse anyway just moves the confusion later.
+        if (json.length > 200e6) {
+          throw new Error("too many objects for the browser's memory — use the desktop app "
+            + "to copy sections this large across saves");
+        }
+        if (window.__TAURI__) {
           // Desktop: write native-side, off WebView2's permission-gated
           // clipboard API.
-          return window.__TAURI__
-            ? SaveClient.writeClipboardText(json)
-            : navigator.clipboard.writeText(json);
-        })
-        .then(function() {
-          SaveLoadFlow.hideBusy();
-          SaveLoadFlow.setStatus("Copied " + n.toLocaleString() + " object" + (n === 1 ? "" : "s")
-            + " — paste with Ctrl+V here or in another tab.");
-        })
-        .catch(function(error) {
-          SaveLoadFlow.hideBusy();
-          console.warn("System-clipboard copy failed (same-tab paste still works):", error);
-          SaveLoadFlow.setStatus("Copied " + n.toLocaleString() + " object" + (n === 1 ? "" : "s")
-            + " — cross-tab copy failed (" + ((error && error.message) || error)
-            + "); paste works in this tab only.");
-        });
-    }
+          return SaveClient.writeClipboardText(json).then(function() {
+            return " — paste with Ctrl+V here or in another tab.";
+          });
+        }
+        heldBlob = { json: json, at: Date.now() };
+        if (n > CROSS_TAB_MAX_OBJECTS) {
+          return " — paste with Ctrl+V here, or load another save in this tab and paste it "
+            + "there. (Copies this big stay out of the OS clipboard, so other tabs can't see "
+            + "them — the desktop app has no such cap.)";
+        }
+        if (!(navigator.clipboard && navigator.clipboard.writeText)) {
+          return " — paste with Ctrl+V here, or load another save in this tab and paste it there.";
+        }
+        return navigator.clipboard.writeText(stampClipboardTs(json))
+          .then(function() {
+            return " — paste with Ctrl+V here or in another tab.";
+          })
+          .catch(function(error) {
+            // The tab-held blob still covers this tab, including across
+            // save loads; only other tabs miss out.
+            console.warn("System-clipboard copy failed (this-tab paste still works):", error);
+            return " — paste with Ctrl+V here, or load another save in this tab and paste it "
+              + "there (cross-tab copy failed: " + ((error && error.message) || error) + ").";
+          });
+      })
+      .then(function(suffix) {
+        SaveLoadFlow.hideBusy();
+        SaveLoadFlow.setStatus("Copied " + label + suffix);
+      })
+      .catch(function(error) {
+        SaveLoadFlow.hideBusy();
+        console.warn("Clipboard extraction failed (same-tab paste still works):", error);
+        SaveLoadFlow.setStatus("Copied " + label + " — paste with Ctrl+V while this save is "
+          + "open; carrying the copy across saves or tabs failed ("
+          + ((error && error.message) || error) + ").");
+      });
   }
 
   // OS-clipboard text a paste could use, or null. Desktop reads native-side:
@@ -516,34 +624,50 @@ var EditorTool = (function() {
     });
   }
 
-  // What a paste would use right now: the in-tab clipboard when set, else a
-  // cross-tab blob from the OS clipboard (written by copyTargets in any tab).
+  // Parse + validate clipboard text as a paste blob; null when it isn't one.
+  function parsePasteBlob(text) {
+    if (!text || text.length > 200e6 || text.indexOf("\"smapPaste\"") === -1) {
+      return null;
+    }
+    var blob;
+    try {
+      blob = JSON.parse(text);
+    } catch (error) {
+      return null;
+    }
+    if (!blob || (blob.smapPaste !== 1 && blob.smapPaste !== 2 && blob.smapPaste !== 3)
+        || !blob.anchor || !blob.bboxWorld) {
+      return null;
+    }
+    return blob;
+  }
+
+  // What a paste would use right now: the in-tab clipboard when set, else
+  // the newest of the OS-clipboard blob (written by copyTargets in any tab)
+  // and this tab's held blob (a copy that skipped the OS clipboard, or that
+  // outlived a save load here). OS blobs carry their write time (see
+  // stampClipboardTs); ones without it -- older app versions -- lose to any
+  // held copy.
   function resolvePaste() {
     if (clipboard) {
       return Promise.resolve({ mode: "internal" });
     }
     return readOsClipboardText().then(function(text) {
-      if (!text || text.length > 200e6 || text.indexOf("\"smapPaste\"") === -1) {
-        return null;
-      }
-      var blob;
-      try {
-        blob = JSON.parse(text);
-      } catch (error) {
-        return null;
-      }
-      if (!blob || (blob.smapPaste !== 1 && blob.smapPaste !== 2 && blob.smapPaste !== 3)
-          || !blob.anchor || !blob.bboxWorld) {
-        return null;
-      }
+      var osBlob = parsePasteBlob(text);
       // smapPaste 3 is a desktop-app pointer: the object bytes live in the
       // desktop process, not on the OS clipboard, so only it can paste them.
-      if (blob.smapPaste === 3 && !window.__TAURI__) {
+      if (osBlob && osBlob.smapPaste === 3 && !window.__TAURI__) {
         SaveLoadFlow.setStatus("These objects were copied in the desktop app — paste them there"
           + " (too many to travel through the browser clipboard).");
-        return null;
+        osBlob = null;
       }
-      return { mode: "external", blob: blob };
+      if (heldBlob && (!osBlob || (osBlob.ts || 0) < heldBlob.at)) {
+        var held = parsePasteBlob(heldBlob.json);
+        if (held) {
+          return { mode: "external", blob: held };
+        }
+      }
+      return osBlob ? { mode: "external", blob: osBlob } : null;
     });
   }
 
@@ -1086,6 +1210,10 @@ var EditorTool = (function() {
       currentFileName = fileName;
       actions = [];
       redoStack = [];
+      // heldBlob deliberately survives: its bytes are self-contained, so a
+      // copy made in the previous save pastes into this one (the documented
+      // cross-save flow). Only the name-scoped clipboard dies with the
+      // session.
       clipboard = null;
       cancelPlacement();
       closeOffsetDialog();

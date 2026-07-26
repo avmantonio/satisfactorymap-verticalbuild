@@ -32,7 +32,10 @@ up to **15 seconds at a time** — WebGL rendering instead of DOM markers
   combined inventory and object list.
 - **Edit your save** — move, copy/paste, rotate or delete whole factory
   sections (with undo), then download the edited `.sav` and load it in the
-  game.
+  game. Copies travel **between saves**, too: copy, load the other save in
+  the same tab, paste. Copies up to 50,000 objects also go through the OS
+  clipboard for pasting in another browser tab; beyond what the browser's
+  memory can carry, the desktop app takes over.
 - **Link straight to a map** — append `?url=<address-of-a-save>` to load a
   hosted `.sav` automatically (e.g. a dedicated server's autosave exposed
   over HTTP). The file downloads directly into your browser — never through

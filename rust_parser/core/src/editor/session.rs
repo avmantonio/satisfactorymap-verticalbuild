@@ -112,6 +112,47 @@ fn step_owned_impl(
     }
 }
 
+/// Estimated body growth (inserted bytes) of applying `ops` as ONE action,
+/// each op planned against the CURRENT store. UI actions' ops are mutually
+/// independent -- a mixed paste is [duplicateActors, duplicateLightweight],
+/// a box delete [deleteActors, deleteLightweight] -- so planning them all
+/// against the pre-action state gives the right total. The first op must
+/// plan (that's the dry-run that surfaces semantic refusals while the
+/// session is still healthy); a later op that fails to plan just adds
+/// nothing -- the fold surfaces its real error. Used by the wasm
+/// too-big-edit refusal (grown_body_can_exist): checking only the first op
+/// would let the other half of a mixed paste slip past the bound.
+pub fn planned_growth(store: &SaveStore, ops: &[EditOp]) -> PResult<usize> {
+    let mut grow = 0usize;
+    for (i, op) in ops.iter().enumerate() {
+        match crate::editor::apply::plan_op(store, op) {
+            Ok(plan) => grow += plan.inserted_bytes(),
+            Err(e) if i == 0 => return Err(e),
+            Err(_) => {}
+        }
+    }
+    Ok(grow)
+}
+
+/// Pre-empting an in-place apply is reserved for CERTAIN doom: the grown
+/// body itself -- one contiguous allocation -- can never exist in a 4GiB
+/// wasm heap, so the edit is refused up front (session healthy, desktop
+/// app suggested). Everything else is attempted right here: the streamed
+/// apply peaks at ~1x body, and if the heap genuinely can't take it the
+/// trap surfaces as the same too-big edit failure, with the client
+/// reloading only to restore the map and the earlier committed edits.
+/// (Two rounds of estimate heuristics -- worst-case, then free-heap-aware
+/// -- each kept pre-empting real saves whose pastes applied fine;
+/// predictions about allocator state lose to just asking it.)
+pub fn grown_body_can_exist(body_len: u64, growth: u64) -> bool {
+    const CEILING: u64 = 4 << 30;
+    const OVERHEAD: u64 = 64 << 20; // runtime + code + stacks, roughly
+    body_len
+        .saturating_add(growth)
+        .saturating_add(crate::decompress::BODY_EDIT_SLACK as u64)
+        <= CEILING - OVERHEAD
+}
+
 /// Compress a pristine body for retention (wasm keeps the undo baseline as
 /// ~1/15th-size zlib instead of a full second body). Returns (zlib bytes,
 /// raw length).
@@ -124,7 +165,10 @@ pub fn compress_body(body: &[u8]) -> (Vec<u8>, usize) {
 
 pub fn decompress_body(compressed: &[u8], raw_len: usize) -> PResult<Vec<u8>> {
     let mut dec = ZlibDecoder::new(compressed);
-    let mut out = Vec::with_capacity(raw_len);
+    // Same edit headroom as a fresh decompress: replayed bodies get edited
+    // again, and in-place insert growth must not realloc (see
+    // decompress::BODY_EDIT_SLACK).
+    let mut out = Vec::with_capacity(raw_len + crate::decompress::BODY_EDIT_SLACK);
     dec.read_to_end(&mut out).map_err(|e| perr!("Pristine body decompression failed: {}", e))?;
     if out.len() != raw_len {
         return Err(perr!("Pristine body length mismatch: {} != {}", out.len(), raw_len));
