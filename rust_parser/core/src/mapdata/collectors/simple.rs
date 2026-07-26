@@ -1,8 +1,9 @@
-//! The structurally simple collectors: players, creatures, hub,
+//! The structurally simple collectors: players, creatures, spawners, hub,
 //! gameSettings, vehicles, dimensionalDepot (sav_map_data.py lines
 //! ~668-696, 1505-1580, 3367-3391).
 
 use crate::extract::find_prop;
+use crate::gamedata;
 use crate::mapdata::consts::*;
 use crate::mapdata::geometry::{
     meters_to_pixel_length, project_xy, rendered_yaw, world_z_to_meters,
@@ -72,6 +73,48 @@ pub fn collect_creatures(scan: &SaveScan) -> Value {
         "points": points,
         "ids": ids,
     }])
+}
+
+/// Creature spawn markers -- static world data (the embedded
+/// creatureSpawners.json/creatures.json tables, see
+/// game_data/extractors/extract_spawners.py), not save actors: the save's
+/// ~2,277 spawner actors don't record which creature they spawn, so the
+/// cooked level data is the only source of truth and the result is the same
+/// for every save. Beetles are dropped deliberately: no icon exists for
+/// them, and they're not a creature anyone hunts on the map. One entry per
+/// creature class, sorted by label for a stable sidebar order.
+pub fn collect_spawners(_scan: &SaveScan) -> Value {
+    let gd = gamedata::get();
+    let mut entries: Vec<(String, String, Value)> = Vec::new();
+    for (class, spawners) in &gd.creature_spawners {
+        if class == "unknown" || class == "Char_Beetle_C" {
+            continue;
+        }
+        let Some(info) = gd.creatures.get(class) else { continue };
+        let mut points: Vec<Value> = Vec::new();
+        let mut ids: Vec<Value> = Vec::new();
+        for (path_name, &[x, y, z]) in spawners {
+            let [px, py] = project_xy(x, y);
+            points.push(jnum(px));
+            points.push(jnum(py));
+            points.push(jnum(world_z_to_meters(z)));
+            ids.push(Value::String(path_name.clone()));
+        }
+        entries.push((
+            info.display_name.clone(),
+            class.clone(),
+            json!({
+                "typePath": class,
+                "label": info.display_name,
+                "points": points,
+                "ids": ids,
+            }),
+        ));
+    }
+    // By label, class as the tiebreak (the Red Forest Spitter variants share
+    // display names with the normal Forest ones).
+    entries.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+    Value::Array(entries.into_iter().map(|(_, _, v)| v).collect())
 }
 
 /// sav_map_data._humanizeEnumValue over a raw EnumProperty value.

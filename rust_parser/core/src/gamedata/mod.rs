@@ -34,6 +34,18 @@ pub struct PowerSlugs {
     pub purple: SlugMap,
 }
 
+/// creatures.json: official display name + icon per creature class (see
+/// game_data/extractors/extract_spawners.py).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatureInfo {
+    pub display_name: String,
+    pub icon: Option<String>,
+}
+
+/// creatureSpawners.json: {creatureShortClass|"unknown": {instancePathName: [x,y,z]}}
+pub type CreatureSpawnerMap = IndexMap<String, IndexMap<String, [f64; 3]>>;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TypePaths {
@@ -67,6 +79,10 @@ pub struct GameData {
     pub recipes: serde_json::Map<String, serde_json::Value>,
     pub schematics: serde_json::Map<String, serde_json::Value>,
     pub game_phases: serde_json::Map<String, serde_json::Value>,
+    // -- game_data/generated/ (FModel level-export extracts; see
+    //    game_data/extractors/extract_spawners.py) --
+    pub creatures: IndexMap<String, CreatureInfo>,
+    pub creature_spawners: CreatureSpawnerMap,
 }
 
 macro_rules! embed {
@@ -108,6 +124,11 @@ pub fn get() -> &'static GameData {
         recipes: parse("recipes.json", embed!("generated/recipes.json")),
         schematics: parse("schematics.json", embed!("generated/schematics.json")),
         game_phases: parse("gamePhases.json", embed!("generated/gamePhases.json")),
+        creatures: parse("creatures.json", embed!("generated/creatures.json")),
+        creature_spawners: parse(
+            "creatureSpawners.json",
+            embed!("generated/creatureSpawners.json"),
+        ),
     })
 }
 
@@ -156,6 +177,14 @@ mod tests {
         assert!(d.recipes.len() > 300);
         assert!(d.schematics.len() > 200);
         assert!(!d.game_phases.is_empty());
+        assert!(d.creatures.len() >= 20, "creatures {}", d.creatures.len());
+        let spawner_total: usize = d.creature_spawners.values().map(|m| m.len()).sum();
+        assert!(spawner_total > 2000, "creature spawners {spawner_total}");
+        // Every spawner class has a name row (the extractor warns otherwise).
+        assert!(d
+            .creature_spawners
+            .keys()
+            .all(|c| c == "unknown" || d.creatures.contains_key(c)));
         // Purity names are enum names.
         let (_, purity, _, _) = d.resource_purity.values().next().unwrap();
         assert!(["UNKNOWN", "IMPURE", "NORMAL", "PURE"].contains(&purity.as_str()));

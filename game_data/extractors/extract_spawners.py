@@ -94,6 +94,14 @@ NO_DESCRIPTOR_NAMES = {
                               "/FactoryGame/Character/Creature/CreatureDescriptors/UI/IconDesc_Hatcher_256"),
 }
 
+# Applied over the game's own strings after extraction. The Space Giraffe's
+# literal in-game name is "Unknown File Error #6265616e" (the hex spells
+# "bean") -- a great gag in-game, but on a map layer it reads as this app
+# actually failing to resolve a name, so use the community name instead.
+DISPLAY_NAME_OVERRIDES = {
+    "Char_SpaceGiraffe_C": "Space Giraffe-Tick-Penguin-Whale Thing",
+}
+
 
 def shortClassName(objectField):
     """{"ObjectName": "BlueprintGeneratedClass'Char_Hog_C'"} -> "Char_Hog_C"."""
@@ -253,6 +261,9 @@ def main():
         if creature not in creatures and creature != "unknown":
             print(f"WARNING: spawned creature {creature} has no descriptor and no "
                   f"fallback display name")
+    for creature, displayName in DISPLAY_NAME_OVERRIDES.items():
+        if creature in creatures:
+            creatures[creature]["displayName"] = displayName
     creatures = dict(sorted(creatures.items()))
     with open(NAMES_OUTPUT_PATH, "w", encoding="utf-8", newline="\n") as f:
         json.dump(creatures, f, ensure_ascii=False, indent=1)

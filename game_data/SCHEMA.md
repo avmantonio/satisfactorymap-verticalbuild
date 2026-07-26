@@ -425,9 +425,12 @@ Hatcher variants (world actors, not spawner-spawned).
   path tree, so it lands in the same `<Content>` layout).
 - Creatures are NOT in Docs.json at all (they have no item/build
   descriptor) -- hence the string-table route. These are the game's literal
-  English strings, quirks included:
-  the Space Giraffe's real in-game name is "Unknown File Error #6265616e",
-  and the Red Forest Spitter variants share display names with the normal
+  English strings, quirks included -- with one deliberate exception: the
+  Space Giraffe's real in-game name is "Unknown File Error #6265616e" (hex
+  for "bean"), which on a map layer reads as the app failing to resolve a
+  name, so the extractor's `DISPLAY_NAME_OVERRIDES` replaces it with the
+  community name "Space Giraffe-Tick-Penguin-Whale Thing". Also:
+  the Red Forest Spitter variants share display names with the normal
   Forest ones (their descriptors point at the same localization keys). Two
   classes have no descriptor and no localization entry -- genuinely
   unnamed in-game -- so their names are this repo's own fallbacks:

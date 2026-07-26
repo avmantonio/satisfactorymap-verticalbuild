@@ -16,7 +16,8 @@ map image) — it's extracted from the game's own files and too
 large/derivative to version. Get it one of two ways:
 
 - **Quick setup — download the pre-extracted archive**:
-  [game_data.zip on Google Drive](https://drive.google.com/file/d/16JshnM65xrTpwxwbYs2iHmoog2AKDGZN/view?usp=sharing),
+  [game_data.zip from the latest game-data release](https://github.com/valentinps/satisfactorymap/releases/download/game-data-v2/game_data.zip)
+  (the same archive the production build downloads — see `build.sh`),
   then unpack it —
   ```bash
   py game_data/package_game_data.py unpack path/to/game_data.zip

@@ -8,8 +8,8 @@ set -euo pipefail
 # fetching "latest" of an installer -- or an unverified game-data blob -- would
 # let an upstream change (or compromise) flow straight into the deployed site.
 WASM_PACK_VERSION="v0.15.0"
-GAME_DATA_URL="https://github.com/valentinps/satisfactorymap/releases/download/game-data-v1/game_data.zip"
-GAME_DATA_SHA256="75b2087fae82ff00a1d36fccebd0970550e5ccebfad6d2b159c2838718cd13d6"
+GAME_DATA_URL="https://github.com/valentinps/satisfactorymap/releases/download/game-data-v2/game_data.zip"
+GAME_DATA_SHA256="9db05102cf5ce375ddbb55d4c47cad07cc536603f490faa716e10ef693d07af6"
 
 echo "Installing Rust..."
 # rustup itself is fetched over pinned-TLS; the toolchain is stable (pin it
