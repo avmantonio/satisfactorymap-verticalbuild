@@ -31,16 +31,18 @@ pub const EPOCH_1_TO_1970: u64 = 719_162 * 24 * 60 * 60;
 pub fn parse_save_file_info(data: &[u8]) -> PResult<(SaveFileInfo, usize)> {
     let mut c = Cursor::new(data, 0);
     let save_header_type = c.u32()?;
-    if save_header_type != 14 {
+    // COMPAT EXPERIMENT: 13 = Update 8 header (no saveName field).
+    if !matches!(save_header_type, 13 | 14) {
         return Err(perr!("Unsupported save header version number {}.", save_header_type));
     }
     let save_version = c.u32()?;
-    if !matches!(save_version, 52 | 53 | 58 | 59 | 60) {
+    // COMPAT EXPERIMENT: 42 = Update 8.
+    if !matches!(save_version, 42 | 52 | 53 | 58 | 59 | 60) {
         return Err(perr!("Unsupported save version number {}.", save_version));
     }
     let build_version = c.u32()?;
-    // save_version >= 14 always true for the accepted set; gate kept for parity.
-    let save_name = if save_version >= 14 { c.string_owned()? } else { String::new() };
+    // saveName exists from header type 14 (1.0) on.
+    let save_name = if save_header_type >= 14 { c.string_owned()? } else { String::new() };
     let map_name = c.string_owned()?;
     let map_options = c.string_owned()?;
     let session_name = c.string_owned()?;

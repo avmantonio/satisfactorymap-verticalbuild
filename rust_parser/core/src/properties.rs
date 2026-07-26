@@ -641,6 +641,16 @@ pub fn parse_properties(
                     "InventoryItem" => {
                         c.confirm_u32(0)?;
                         let item_name = c.string()?;
+                        // COMPAT EXPERIMENT: pre-44 itemState is a
+                        // (levelName, pathName) string pair, not a flag.
+                        if current_entity_save_version < 44 {
+                            let level = c.string()?;
+                            let path = c.string()?;
+                            StructValue::InventoryItem {
+                                item_name,
+                                item_properties: InvItemProps::LegacyRef { level, path },
+                            }
+                        } else {
                         let has_props =
                             c.bool_u32("StructProperty.InventoryItem.itemHasPropertiesFlag")?;
                         let item_properties = if has_props {
@@ -664,6 +674,7 @@ pub fn parse_properties(
                             InvItemProps::One
                         };
                         StructValue::InventoryItem { item_name, item_properties }
+                        }
                     }
                     "LinearColor" => StructValue::LinearColor([c.f32()?, c.f32()?, c.f32()?, c.f32()?]),
                     "Vector2D" => StructValue::Vector2D([c.f64()?, c.f64()?]),
