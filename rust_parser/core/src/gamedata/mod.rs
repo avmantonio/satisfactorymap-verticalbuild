@@ -6,8 +6,9 @@
 //!
 //! - game_data/sav_data/*.json: committed world tables regenerated from the
 //!   game's level exports by game_data/extractors/extract_collectables.py
-//!   (key order load-bearing and preserved across regenerations), plus two
-//!   hand-curated files (readableNameCorrections.json, typePaths.json).
+//!   (key order load-bearing and preserved across regenerations) and
+//!   extract_caves.py (caves.json), plus two hand-curated files
+//!   (readableNameCorrections.json, typePaths.json).
 //! - game_data/generated/*.json + game_data/category*.json: extracted from
 //!   the game's Docs.json by game_data/extractors/extract_docs_json.py (gitignored,
 //!   regenerable; documented in game_data/SCHEMA.md).
@@ -49,6 +50,34 @@ pub struct CreatureInfo {
 /// creatureSpawners.json: {creatureShortClass|"unknown": {instancePathName: [x,y,z]}}
 pub type CreatureSpawnerMap = IndexMap<String, IndexMap<String, [f64; 3]>>;
 
+/// caves.json: one connected cave system, traced from the cooked level data
+/// (see game_data/extractors/extract_caves.py). Static world geometry -- the
+/// same for every save, like the creature spawners.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Cave {
+    pub id: String,
+    /// The game's own name for the cave, when it named it; else None (the
+    /// payload numbers those instead).
+    pub name: Option<String>,
+    /// [minX, minY, maxX, maxY] in world cm.
+    pub bbox: [f64; 4],
+    /// [minZ, maxZ] in world cm; None when no source carried a Z.
+    pub z_range: Option<[f64; 2]>,
+    pub area_m2: f64,
+    /// Atmosphere volume actor names inside this cave (traceability only).
+    #[allow(dead_code)]
+    pub volumes: Vec<String>,
+    /// Outer rings, each a flat [x0, y0, x1, y1, ...] loop in world cm; the
+    /// first point is NOT repeated at the end.
+    pub rings: Vec<Vec<f64>>,
+}
+
+#[derive(Deserialize)]
+pub struct Caves {
+    pub caves: Vec<Cave>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TypePaths {
@@ -70,6 +99,7 @@ pub struct GameData {
     pub free_dropped_items: IndexMap<String, Vec<(i64, [f64; 3], String)>>,
     pub readable_name_corrections: IndexMap<String, String>,
     pub type_paths: TypePaths,
+    pub caves: Caves,
 
     // -- game_data/generated/ + game_data/ (Docs.json extracts) --
     // Kept as ordered JSON maps: consumers pick the fields they need, and
@@ -116,6 +146,7 @@ pub fn get() -> &'static GameData {
             embed!("sav_data/readableNameCorrections.json"),
         ),
         type_paths: parse("typePaths.json", embed!("sav_data/typePaths.json")),
+        caves: parse("caves.json", embed!("sav_data/caves.json")),
         building_categories: parse(
             "buildingCategories.json",
             embed!("generated/buildingCategories.json"),
@@ -176,6 +207,14 @@ mod tests {
         assert!(d.mercer_spheres.len() > 200);
         assert!(d.crash_sites.len() > 90);
         assert!(d.free_dropped_items.len() >= 50);
+        assert!(d.caves.caves.len() > 50, "caves {}", d.caves.caves.len());
+        assert!(d.caves.caves.iter().all(|c| !c.rings.is_empty()));
+        // Every ring is a flat x,y list of at least a triangle.
+        assert!(d
+            .caves
+            .caves
+            .iter()
+            .all(|c| c.rings.iter().all(|r| r.len() >= 6 && r.len() % 2 == 0)));
         assert!(d.buildings.len() > 400);
         assert!(d.recipes.len() > 300);
         assert!(d.schematics.len() > 200);

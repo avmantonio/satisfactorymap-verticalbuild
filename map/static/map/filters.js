@@ -262,6 +262,7 @@ var Filters = {};
     "Collectables": true,
     "Spawners": true,
     "Dropped Items": true,
+    "Caves": true,
   };
 
   function savedGroupStateForStack() {
@@ -1238,6 +1239,66 @@ var Filters = {};
     renderTopLevelCategory(navList, detailPane, "Dropped Items (" + total + ")", "circle", DROPPED_ITEM_COLOR, rows);
   }
 
+  // ---- Caves ----------------------------------------------------------------
+
+  // Orchid: the one hue no line layer uses (belts orange, pipes green, power
+  // yellow, hypertubes blue, rails white, vehicle paths grey), and it holds
+  // up over both the beige terrain and a dense factory.
+  var CAVE_COLOR = "#c66bff";
+
+  // payload.caves (see the rust core's collect_caves) is the same for every
+  // save: cave outlines traced from the cooked level data, since nothing in a
+  // save records a cave. One line bucket holds every ring, so the whole layer
+  // is one checkbox; each ring's z is its cave's floor altitude, which is
+  // what makes the altitude slider filter caves like any other geometry.
+  //
+  // Outlines, not fills: the map's renderer draws lines, and an outline reads
+  // better over a factory than 84 translucent blobs would. The shape is the
+  // game's own cave fog volume plus the cave geometry inside it, so it is
+  // generous by tens of meters -- "the cave is in here", not a survey.
+  function buildCavesSection(navList, detailPane, payload) {
+    var caves = payload.caves;
+    if (!caves || !caves.polylines || caves.polylines.length === 0) {
+      return;
+    }
+    var labels = caves.labels || [];
+    var areas = caves.areas || [];
+    var depths = caves.depths || [];
+    var tooltipInfo = function(index) {
+      var rows = [];
+      var area = areas[index];
+      if (typeof area === "number") {
+        rows.push(["Area", area >= 10000 ? (area / 10000).toFixed(1) + " ha"
+                                         : Math.round(area).toLocaleString() + " m²"]);
+      }
+      // The tooltip's own Altitude row already gives the floor (the ring's
+      // z); this is the cave's full vertical extent, floor to ceiling.
+      var depth = depths[index];
+      if (depth && depth.length === 2) {
+        rows.push(["Altitude range", Math.round(depth[0]) + " m to " + Math.round(depth[1]) + " m"]);
+      }
+      var ring = caves.polylines[index];
+      return { title: labels[index] || "Cave", rows: rows,
+               position: ring ? EditorTool.mapPxToWorldXY(ring[0], ring[1]) : undefined };
+    };
+    var bucket = makeLineBucket("caves", "Cave", CAVE_COLOR, caves.polylines, caves.ids,
+      "static", tooltipInfo, 3);
+    // One row, one bucket: the count is caves, not rings (a cave whose
+    // footprint came out in two touching pieces is still one cave).
+    var caveCount = 0;
+    var seen = {};
+    (caves.ids || []).forEach(function(id) {
+      var caveId = String(id).split("#")[0];
+      if (!seen[caveId]) {
+        seen[caveId] = true;
+        caveCount++;
+      }
+    });
+    var rows = [{ label: "Caves", count: caveCount, color: CAVE_COLOR, renderType: "line",
+                  buckets: [bucket] }];
+    renderTopLevelCategory(navList, detailPane, "Caves (" + caveCount + ")", "line", CAVE_COLOR, rows);
+  }
+
   // ---- HUB ------------------------------------------------------------------
 
   // The HUB is a one-of-a-kind landmark (excluded from collectBuildings --
@@ -1718,6 +1779,7 @@ var Filters = {};
     buildCollectablesSection(navList, detailPane, payload);
     buildSpawnersSection(navList, detailPane, payload);
     buildDroppedItemsSection(navList, detailPane, payload);
+    buildCavesSection(navList, detailPane, payload);
 
     // Fit the nav panel to the category labels now that they all exist.
     autoSizeNavPanel();

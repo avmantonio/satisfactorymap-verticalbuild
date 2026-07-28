@@ -152,6 +152,87 @@ pub fn collect_spawners(_scan: &SaveScan) -> Value {
     Value::Array(entries.into_iter().map(|(_, _, v)| v).collect())
 }
 
+/// Cave outlines -- static world data (the embedded caves.json, see
+/// game_data/extractors/extract_caves.py), not save actors: nothing in a save
+/// records a cave, so the cooked level data is the only source and the result
+/// is the same for every save.
+///
+/// One entry per outline ring, in caves.json order (north to south), so the
+/// frontend can hand the whole thing to one line bucket: `polylines` are
+/// closed loops in map pixels with the cave's floor altitude as z, and the
+/// parallel `labels`/`areas`/`depths` arrays carry what the tooltip shows.
+/// Caves the game never named are numbered by that same order, so every label
+/// is unique and stable across loads.
+pub fn collect_caves(_scan: &SaveScan) -> Value {
+    caves_value()
+}
+
+fn caves_value() -> Value {
+    let mut polylines: Vec<Value> = Vec::new();
+    let mut ids: Vec<Value> = Vec::new();
+    let mut labels: Vec<Value> = Vec::new();
+    let mut areas: Vec<Value> = Vec::new();
+    let mut depths: Vec<Value> = Vec::new();
+    for (index, cave) in gamedata::get().caves.caves.iter().enumerate() {
+        let label = cave.name.clone().unwrap_or_else(|| format!("Cave {}", index + 1));
+        // Altitude of the cave floor: what the altitude slider filters on, and
+        // what the tooltip reports as depth. No zRange (a cave traced purely
+        // from mesh origins) sinks to 0 rather than dropping the ring.
+        let [min_z, max_z] = cave.z_range.unwrap_or([0.0, 0.0]);
+        for (ring_index, ring) in cave.rings.iter().enumerate() {
+            let mut points: Vec<Value> = Vec::with_capacity(ring.len() / 2 * 3 + 3);
+            for pair in ring.chunks_exact(2) {
+                let [px, py] = project_xy(pair[0], pair[1]);
+                points.push(jnum(px));
+                points.push(jnum(py));
+                points.push(jnum(world_z_to_meters(min_z)));
+            }
+            if points.len() < 9 {
+                continue; // fewer than three vertices: not a ring
+            }
+            // Close the loop: the line renderer draws an open polyline.
+            let first = [points[0].clone(), points[1].clone(), points[2].clone()];
+            points.extend(first);
+            polylines.push(Value::Array(points));
+            ids.push(Value::String(format!("{}#{}", cave.id, ring_index)));
+            labels.push(Value::String(label.clone()));
+            areas.push(jnum(cave.area_m2));
+            depths.push(json!([jnum(world_z_to_meters(min_z)), jnum(world_z_to_meters(max_z))]));
+        }
+    }
+    json!({
+        "polylines": polylines,
+        "ids": ids,
+        "labels": labels,
+        "areas": areas,
+        "depths": depths,
+    })
+}
+
+#[cfg(test)]
+mod cave_tests {
+    use super::*;
+
+    #[test]
+    fn every_cave_ring_is_a_closed_loop_with_a_unique_label() {
+        let caves = caves_value();
+        let polylines = caves["polylines"].as_array().unwrap();
+        assert!(polylines.len() >= gamedata::get().caves.caves.len());
+        for ring in polylines {
+            let points = ring.as_array().unwrap();
+            assert!(points.len() >= 12 && points.len() % 3 == 0, "ring of {} values", points.len());
+            assert_eq!(&points[0..3], &points[points.len() - 3..], "ring not closed");
+        }
+        let labels: Vec<&str> =
+            caves["labels"].as_array().unwrap().iter().map(|l| l.as_str().unwrap()).collect();
+        assert_eq!(labels.len(), polylines.len());
+        let ids: Vec<&str> =
+            caves["ids"].as_array().unwrap().iter().map(|i| i.as_str().unwrap()).collect();
+        let unique: std::collections::HashSet<&&str> = ids.iter().collect();
+        assert_eq!(unique.len(), ids.len(), "duplicate ring id");
+    }
+}
+
 #[cfg(test)]
 mod spawner_label_tests {
     use super::*;

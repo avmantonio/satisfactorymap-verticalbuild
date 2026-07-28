@@ -23,6 +23,9 @@ up to **15 seconds at a time** — WebGL rendering instead of DOM markers
 - **The whole factory, mapped** — buildings by build-menu category,
   belts/pipes/railways/power lines as curves, resource nodes with purity,
   vehicles, trains, players, collectables and crash sites.
+- **The world, too** — creature spawns, and every **cave** on the map
+  outlined (traced from the game's own level data — the map render doesn't
+  show them at all), with its name, area and depth.
 - **Find anything** — search across every inventory in the save ("where did
   I leave my hard drives?"), per-building tooltips with recipe, power,
   clock speed and belt/pipe **bottleneck detection**.
