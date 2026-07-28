@@ -1,5 +1,5 @@
 """Extract the map's cave systems -- outline polygons in world coordinates --
-into game_data/sav_data/caves.json.
+into game_data/generated/world/caves.json.
 
 Caves are not actors: nothing in a save (or in docs.json) says "there is a
 cave here". They are authored level geometry, so the only source of truth is
@@ -50,8 +50,9 @@ Known limits, deliberate:
 
     py game_data/extractors/extract_caves.py [path/to/extraction/.../Content]
 
-Re-run whenever the extraction dump is refreshed (new game patch), and review
-the git diff: this file is committed (the app must work without game files).
+Re-run whenever the extraction dump is refreshed (new game patch). The output
+is gitignored like everything else extract_all.py produces -- it reaches a
+machine without the game files through game_data.zip (see game_data/README.md).
 
 Shape (caves.json):
   {"caves": [{"id", "name", "bbox", "zRange", "areaM2", "volumes", "rings"}]}
@@ -83,7 +84,7 @@ import sys
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_CONTENT_ROOT = r"C:\Users\plane.DESKTOP-SAH3OHV\Documents\SatisExtract\FactoryGame\Content"
 LEVEL_SUBDIR = os.path.join("FactoryGame", "Map", "GameLevel01")
-OUTPUT_PATH = os.path.join(REPO_ROOT, "game_data", "sav_data", "caves.json")
+OUTPUT_PATH = os.path.join(REPO_ROOT, "game_data", "generated", "world", "caves.json")
 
 # Only files mentioning one of these are parsed (the dump is ~1.5 GB of JSON).
 NEEDLES = (b"Cave", b"Atmosphere")

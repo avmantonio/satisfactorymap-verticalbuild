@@ -84,10 +84,12 @@ same `dist/` still serves in the browser via `serve_site.py`.
 | `rust_parser/core/` | `sav_core`: the save parser + map-payload builder (pure Rust, embeds the game-data tables) |
 | `rust_parser/wasm/` | `sav_wasm`: the wasm-bindgen boundary the worker loads |
 | `rust_parser/tauri/` | `sav_tauri`: native desktop shell (Tauri v2) over `sav_core`, mirrors the wasm binding |
-| `game_data/` | extraction scripts + hand-curated game metadata (`categoryLabels.json`, `categoryOverrides.json`, `SCHEMA.md`) |
-| `game_data/sav_data/` | *(committed)* static world tables (resource nodes, slugs, crash sites...) regenerated from the game's level data by `extractors/extract_collectables.py` |
+| `game_data/` | extraction scripts, `SCHEMA.md`, and the folder rules in [`game_data/README.md`](game_data/README.md) |
+| `game_data/curated/` | *(committed)* the hand-maintained inputs: name corrections, type paths, category labels/overrides, pickup item classes |
 | `game_data/docs.json` | *(not committed)* the game's own data dump, input to `extract_docs_json.py` |
-| `game_data/generated/` | *(generated)* item/building/recipe/schematic JSONs, creature spawner/name tables, `map_highres.png` |
+| `game_data/generated/docs/` | *(generated)* item/building/recipe/schematic/category/phase JSONs |
+| `game_data/generated/world/` | *(generated)* level-export tables: resource nodes, slugs, somersloops, mercer spheres, crash sites, dropped items, creature spawners, caves, world bounds |
+| `game_data/generated/` | *(generated)* `map_highres.png` + its tile pyramid |
 | `tools/` | `build_site.py` / `serve_site.py` / `benchmark.py` / `fetch_test_saves.py` / `e2e_editor.py` / `release.py` |
 | `dist/` | *(generated)* the assembled static site |
 
@@ -110,9 +112,11 @@ regression, needs `pip install playwright`) and the CI workflow in
 `.github/workflows/ci.yml`, which runs the Rust suite and the wasm build on
 every push to `main` and on pull requests.
 
-Note: `sav_core` embeds `game_data/generated/*.json` and the icon manifest at
-compile time, so building the Rust crates also requires the game data to be
-extracted first.
+Note: `sav_core` embeds `game_data/generated/{docs,world}/*.json` and the icon
+manifest at compile time, and **nothing generated is committed**, so the Rust
+crates do not build until you have either run `game_data/extract_all.py` or
+unpacked `game_data.zip` (the build script says so if you forget). See
+[`game_data/README.md`](game_data/README.md).
 
 ## Generating game data
 
@@ -149,12 +153,12 @@ the first which reads `game_data/docs.json`):
 
 | Script | Output |
 |---|---|
-| `extract_docs_json.py` | `items`/`resources`/`buildings`/`recipes`/`buildingCategories`/`schematics.json` — see `game_data/SCHEMA.md` |
+| `extract_docs_json.py` | `generated/docs/`: `items`/`resources`/`buildings`/`recipes`/`buildingCategories`/`schematics.json` — see `game_data/SCHEMA.md` |
 | `extract_game_phases.py` | `gamePhases.json` (Space Elevator phase costs; optional, has a built-in fallback table) |
-| `extract_spawners.py` | `creatureSpawners.json` (every creature spawner with position + creature class, e.g. all Lizard Doggo spawns) and `creatures.json` (official display name + icon per creature class, from the StringTables CSVs) |
-| `extract_collectables.py` | the **committed** world tables in `game_data/sav_data/`: power slugs, somersloops, mercer spheres, crash sites (incl. their unlock cost/power requirements, derived from `mUnlockCost` + docs.json labels), free dropped items, resource purity — fully regenerated from the world cells (replacing the old GreyHak-derived tables, validated 1:1 against them; run after `extract_docs_json.py`). Pickup item classes are cooked into the actors but FModel can't decode that struct — they merge from the previous table, and `--items-from-save some.sav` reads them from a save if a game update adds pickups (the save must have physically visited them: saves only serialize actors whose world cell has streamed in near a player). Also writes `generated/consumables.json` (Paleberry/Beryl Nut/Bacon Agaric plants). Review its `sav_data/` git diff after a game update |
-| `extract_world_bounds.py` | the **committed** `game_data/sav_data/worldBounds.json`: the map's two invisible edges. The damaging perimeter comes from the `FGDamageOverTimeVolume` actors carrying a `/World/Hazard/WorldPerimeter/` DoT class — eleven walls (three of them rotated, cutting the NE/NW/SW corners) reduced to a 7-vertex safe-side polygon, plus the ceiling/floor slabs as altitudes. The water limit is the union of the 270 `FGWaterVolume` actors (all `mResourceClass` `Desc_Water_C`, i.e. swimmable and extractor-valid), which stops far inside the rendered ocean — 31 water-plane patches, the biggest 51 × 34 km. Review its `sav_data/` git diff after a game update |
-| `extract_caves.py` | the **committed** `game_data/sav_data/caves.json` — one outline polygon per cave system (~84), traced from the cooked level data: the game's own cave atmosphere volumes (the fog/lighting regions it swaps you into underground, ~108 of them, some carrying authored names like `Atmosphere_SwampCave`), the `BP_CaveFloor` tunnel splines, the cave-only foliage clusters and the placed cave rock kit, unioned and contoured. Nothing in a save records a cave, so this is the only source. Review its `sav_data/` git diff after a game update |
+| `extract_spawners.py` | `generated/world/creatureSpawners.json` (every creature spawner with position + creature class, e.g. all Lizard Doggo spawns) and `creatures.json` (official display name + icon per creature class, from the StringTables CSVs) |
+| `extract_collectables.py` | `generated/world/`: power slugs, somersloops, mercer spheres, crash sites (incl. their unlock cost/power requirements, derived from `mUnlockCost` + docs.json labels), free dropped items, resource purity, plus `consumables.json` (Paleberry/Beryl Nut/Bacon Agaric plants) — fully regenerated from the world cells (replacing the old GreyHak-derived tables, validated 1:1 against them; run after `extract_docs_json.py`). Pickup item classes are cooked into the actors but FModel can't decode that struct, so they come from the committed `curated/pickupItems.json`; `--items-from-save some.sav` learns new ones from a save and writes them back there (the save must have physically visited them: saves only serialize actors whose world cell has streamed in near a player) |
+| `extract_world_bounds.py` | `generated/world/worldBounds.json`: the map's two invisible edges. The damaging perimeter comes from the `FGDamageOverTimeVolume` actors carrying a `/World/Hazard/WorldPerimeter/` DoT class — eleven walls (three of them rotated, cutting the NE/NW/SW corners) reduced to a 7-vertex safe-side polygon, plus the ceiling/floor slabs as altitudes. The water limit is the union of the 270 `FGWaterVolume` actors (all `mResourceClass` `Desc_Water_C`, i.e. swimmable and extractor-valid), which stops far inside the rendered ocean — 31 water-plane patches, the biggest 51 × 34 km |
+| `extract_caves.py` | `generated/world/caves.json` — one outline polygon per cave system (~84), traced from the cooked level data: the game's own cave atmosphere volumes (the fog/lighting regions it swaps you into underground, ~108 of them, some carrying authored names like `Atmosphere_SwampCave`), the `BP_CaveFloor` tunnel splines, the cave-only foliage clusters and the placed cave rock kit, unioned and contoured. Nothing in a save records a cave, so this is the only source |
 | `extract_map_image.py` | `map_highres.png`, fused from the game's 4-corner sliced map render (`FactoryGame/Interface/UI/Assets/MapTest/SlicedMap`) |
 | `copy_icons.py` | the icon PNGs under `map/static/map/icons/`, copied last — it reads the generated JSONs above to know which few hundred of the dump's tens of thousands of files are needed |
 
@@ -171,8 +175,9 @@ game files:
 py game_data/package_game_data.py pack          # writes game_data.zip in the repo root
 ```
 
-The archive contains `game_data/generated/` (JSONs + map image) and
-`map/static/map/icons/`. The recipient clones the repo and runs:
+The archive contains `game_data/generated/` (the `docs/` and `world/` tables,
+the map image and its tiles) and `map/static/map/icons/` — i.e. exactly what
+`extract_all.py` produces and git ignores. The recipient clones the repo and runs:
 
 ```bash
 py game_data/package_game_data.py unpack game_data.zip

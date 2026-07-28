@@ -17,12 +17,11 @@ two inputs a game update changes:
       collectibles, resource nodes), the sliced map render, and every icon
       PNG.
 
-Most steps write to the gitignored game_data/generated/;
-extract_collectables.py instead rewrites the COMMITTED world tables under
-game_data/sav_data/ (slugs, somersloops, mercer spheres, crash sites,
-dropped items, resource purity), extract_world_bounds.py (the damaging map
-perimeter and the water limit) and extract_caves.py (cave outlines) -- review
-their git diffs after a game update.
+Everything written here is gitignored and lands under game_data/generated/:
+docs/ for the Docs.json extracts, world/ for the level-export tables (slugs,
+somersloops, mercer spheres, crash sites, dropped items, resource purity,
+creature spawners, caves, the world perimeter and the water limit), plus the
+map render. Nothing generated is committed -- see game_data/README.md.
     - .pak (loose files -- a normal package export SKIPS these). FModel:
       right-click FactoryGame/Content/Localization/StringTables -> "Export
       Folder's Packages Raw Data". Provides the string-table source CSVs

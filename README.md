@@ -86,9 +86,9 @@ Everything — site, parser, desktop app, data extraction — is covered in
 The Rust parser is a port of
 [GreyHak/sat_sav_parse](https://github.com/GreyHak/sat_sav_parse), validated
 field-by-field against the Python reference with bit-exact differential
-gates. The static world tables in `game_data/sav_data/` were originally
-converted from that project; they now regenerate from the game's own level
-data (validated 1:1 against the originals — see
+gates. The static world tables (resource nodes, slugs, crash sites…) were
+originally converted from that project; they now regenerate from the game's
+own level data (validated 1:1 against the originals — see
 `game_data/extractors/extract_collectables.py`). This project wouldn't
 exist without GreyHak's format work.
 
@@ -105,7 +105,9 @@ publish their source, including when only serving the app. The canonical
 instance is [satisfactorymap.net](https://satisfactorymap.net/).
 
 Satisfactory is a trademark of Coffee Stain Studios. The game-derived data
-(icons, map image, item/building tables) belongs to Coffee Stain Studios and
-is not distributed in this repository — see
-[CONTRIBUTING.md](CONTRIBUTING.md). This project is not affiliated with or
-endorsed by Coffee Stain Studios.
+(icons, map image, item/building/world tables) belongs to Coffee Stain
+Studios: none of it is committed here — it is extracted from your own copy of
+the game by `game_data/extract_all.py`, or unpacked from the convenience
+archive attached to a release (see [game_data/README.md](game_data/README.md)
+and [CONTRIBUTING.md](CONTRIBUTING.md)). This project is not affiliated with
+or endorsed by Coffee Stain Studios.

@@ -1,5 +1,5 @@
 """Extract the map's two invisible limits -- the damaging world perimeter and
-the edge of the real water -- into game_data/sav_data/worldBounds.json.
+the edge of the real water -- into game_data/generated/world/worldBounds.json.
 
 Both are authored level geometry with no representation in a save, so the
 cooked world-partition export under <Content>/FactoryGame/Map/GameLevel01/ is
@@ -58,8 +58,9 @@ Caveats, deliberate:
 
     py game_data/extractors/extract_world_bounds.py [path/to/extraction/.../Content]
 
-Re-run whenever the extraction dump is refreshed (new game patch), and review
-the git diff: this file is committed (the app must work without game files).
+Re-run whenever the extraction dump is refreshed (new game patch). The output
+is gitignored like everything else extract_all.py produces -- it reaches a
+machine without the game files through game_data.zip (see game_data/README.md).
 
 Shape (worldBounds.json):
   {"perimeter": {"polygon": [[x, y], ...], "ceilingZ": z, "floorZ": z,
@@ -86,7 +87,7 @@ import sys
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_CONTENT_ROOT = r"C:\Users\plane.DESKTOP-SAH3OHV\Documents\SatisExtract\FactoryGame\Content"
 LEVEL_SUBDIR = os.path.join("FactoryGame", "Map", "GameLevel01")
-OUTPUT_PATH = os.path.join(REPO_ROOT, "game_data", "sav_data", "worldBounds.json")
+OUTPUT_PATH = os.path.join(REPO_ROOT, "game_data", "generated", "world", "worldBounds.json")
 
 NEEDLES = (b"FGDamageOverTimeVolume", b"FGWaterVolume", b"OceanSplineTool")
 # The three damage classes that make up the map's edge, all under

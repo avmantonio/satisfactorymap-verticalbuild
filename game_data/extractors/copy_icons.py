@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copies just the item/building icon PNGs referenced by game_data/generated/items.json
+# Copies just the item/building icon PNGs referenced by game_data/generated/docs/items.json
 # and buildings.json (their "icon" field -- see extract_docs_json.py/SCHEMA.md)
 # out of a full game asset extraction, into the map's static icon folders, keyed
 # by ClassName (e.g. "Desc_IronPlate_C.png", "Build_WorkBench_C.png"). This is
@@ -25,13 +25,15 @@ ICONS_DIR = Path(__file__).parent.parent.parent / "map" / "static" / "map" / "ic
 # (generated JSON file, destination subfolder under map/static/map/icons/) --
 # resources.json shares "items" with items.json (raw resources sit alongside
 # regular items in the frontend's icons/items/ folder).
+# Paths are relative to game_data/generated/ (docs/ = the docs.json extracts,
+# world/ = the level-export tables).
 ICON_SOURCES = (
-   ("items.json", "items"),
-   ("resources.json", "items"),
-   ("buildings.json", "buildings"),
+   ("docs/items.json", "items"),
+   ("docs/resources.json", "items"),
+   ("docs/buildings.json", "buildings"),
    # Creature icons for the spawner layer (see extract_spawners.py) -- same
    # {ClassName: {"icon": ...}} shape, keyed by Char_*_C.
-   ("creatures.json", "creatures"),
+   ("world/creatures.json", "creatures"),
 )
 
 # A handful of real per-concept icons live in Docs.json under a field
@@ -49,7 +51,7 @@ EXTRA_ICON_COPIES = (
    # normal item) -- this is ResourceSink_Purchasable_HardDrive_C's
    # mSchematicIcon, the real in-game hard drive crate art.
    ("/FactoryGame/Resource/Environment/CrashSites/UI/HardDrive_256", "items", "HardDrive.png"),
-   # Geyser (the "Desc_Geyser_C" resourceType -- see sav_data.resourcePurity)
+   # Geyser (the "Desc_Geyser_C" resourceType -- see world/resourcePurity.json)
    # is a synthetic key this parser invented; it has no FGResourceDescriptor
    # (or any other Docs.json entry/field) at all. This is the real in-game
    # geyser icon, found by inspecting the extraction directly rather than

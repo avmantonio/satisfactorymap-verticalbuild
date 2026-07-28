@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Generates game_data/generated/gamePhases.json from the game's own
+# Generates game_data/generated/docs/gamePhases.json from the game's own
 # GP_Project_Assembly_Phase_* assets (FGGamePhase) -- the Space Elevator
 # phase list with each phase's part costs. These assets are NOT in Docs.json
 # (which is why sav_map_data.py carries a hand-written wiki-sourced fallback
@@ -20,7 +20,7 @@ from pathlib import Path
 
 DEFAULT_CONTENT_ROOT = Path(r"C:\Users\plane.DESKTOP-SAH3OHV\Documents\SatisExtract\FactoryGame\Content")
 GAME_PHASES_SUBDIR = Path("FactoryGame/GamePhases")
-OUTPUT_PATH = Path(__file__).parent.parent / "generated" / "gamePhases.json"
+OUTPUT_PATH = Path(__file__).parent.parent / "generated" / "docs" / "gamePhases.json"
 
 PHASE_FILENAME_RE = re.compile(r"^GP_Project_Assembly_Phase_(\d+)$")
 # e.g. "BlueprintGeneratedClass'Desc_SpaceElevatorPart_1_C'"

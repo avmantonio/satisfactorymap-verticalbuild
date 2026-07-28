@@ -4,14 +4,16 @@
 //! crate therefore requires game_data extracted (same prerequisite the app
 //! itself has always had).
 //!
-//! - game_data/sav_data/*.json: committed world tables regenerated from the
-//!   game's level exports by game_data/extractors/extract_collectables.py
-//!   (key order load-bearing and preserved across regenerations) and
-//!   extract_world_bounds.py / extract_caves.py, plus two hand-curated files
-//!   (readableNameCorrections.json, typePaths.json).
-//! - game_data/generated/*.json + game_data/category*.json: extracted from
-//!   the game's Docs.json by game_data/extractors/extract_docs_json.py (gitignored,
-//!   regenerable; documented in game_data/SCHEMA.md).
+//! Two sources, split by who writes them:
+//!
+//! - game_data/curated/*.json: hand-maintained inputs, committed. Nothing
+//!   generates these; they are edited by a person.
+//! - game_data/generated/{docs,world}/*.json: everything game_data/extract_all.py
+//!   produces -- gitignored, and shipped separately in game_data.zip (see
+//!   game_data/README.md). docs/ comes from the game's Docs.json
+//!   (documented in game_data/SCHEMA.md); world/ from the FModel level-export
+//!   dump. Neither is in the repository, so a clone must run extract_all.py
+//!   or unpack the archive before this crate will compile.
 
 use indexmap::IndexMap;
 use serde::Deserialize;
@@ -122,7 +124,7 @@ pub struct TypePaths {
 }
 
 pub struct GameData {
-    // -- game_data/sav_data/ (converted Python literals) --
+    // -- game_data/generated/world/ (FModel level-export extracts) --
     pub resource_purity: ResourcePurityMap,
     pub power_slugs: PowerSlugs,
     pub somersloops: CollectibleMap,
@@ -135,7 +137,7 @@ pub struct GameData {
     pub world_bounds: WorldBounds,
     pub caves: Caves,
 
-    // -- game_data/generated/ + game_data/ (Docs.json extracts) --
+    // -- game_data/generated/docs/ + game_data/curated/ --
     // Kept as ordered JSON maps: consumers pick the fields they need, and
     // iteration order must match Python's json.load dict order.
     pub building_categories: serde_json::Map<String, serde_json::Value>,
@@ -146,8 +148,7 @@ pub struct GameData {
     pub recipes: serde_json::Map<String, serde_json::Value>,
     pub schematics: serde_json::Map<String, serde_json::Value>,
     pub game_phases: serde_json::Map<String, serde_json::Value>,
-    // -- game_data/generated/ (FModel level-export extracts; see
-    //    game_data/extractors/extract_spawners.py) --
+    // -- game_data/generated/world/ (see extract_spawners.py) --
     pub creatures: IndexMap<String, CreatureInfo>,
     pub creature_spawners: CreatureSpawnerMap,
 }
@@ -166,37 +167,37 @@ fn parse<T: serde::de::DeserializeOwned>(name: &str, s: &str) -> T {
 pub fn get() -> &'static GameData {
     static DATA: OnceLock<GameData> = OnceLock::new();
     DATA.get_or_init(|| GameData {
-        resource_purity: parse("resourcePurity.json", embed!("sav_data/resourcePurity.json")),
-        power_slugs: parse("powerSlugs.json", embed!("sav_data/powerSlugs.json")),
-        somersloops: parse("somersloops.json", embed!("sav_data/somersloops.json")),
-        mercer_spheres: parse("mercerSpheres.json", embed!("sav_data/mercerSpheres.json")),
-        crash_sites: parse("crashSites.json", embed!("sav_data/crashSites.json")),
+        resource_purity: parse("resourcePurity.json", embed!("generated/world/resourcePurity.json")),
+        power_slugs: parse("powerSlugs.json", embed!("generated/world/powerSlugs.json")),
+        somersloops: parse("somersloops.json", embed!("generated/world/somersloops.json")),
+        mercer_spheres: parse("mercerSpheres.json", embed!("generated/world/mercerSpheres.json")),
+        crash_sites: parse("crashSites.json", embed!("generated/world/crashSites.json")),
         free_dropped_items: parse(
             "freeDroppedItems.json",
-            embed!("sav_data/freeDroppedItems.json"),
+            embed!("generated/world/freeDroppedItems.json"),
         ),
         readable_name_corrections: parse(
             "readableNameCorrections.json",
-            embed!("sav_data/readableNameCorrections.json"),
+            embed!("curated/readableNameCorrections.json"),
         ),
-        type_paths: parse("typePaths.json", embed!("sav_data/typePaths.json")),
-        world_bounds: parse("worldBounds.json", embed!("sav_data/worldBounds.json")),
-        caves: parse("caves.json", embed!("sav_data/caves.json")),
+        type_paths: parse("typePaths.json", embed!("curated/typePaths.json")),
+        world_bounds: parse("worldBounds.json", embed!("generated/world/worldBounds.json")),
+        caves: parse("caves.json", embed!("generated/world/caves.json")),
         building_categories: parse(
             "buildingCategories.json",
-            embed!("generated/buildingCategories.json"),
+            embed!("generated/docs/buildingCategories.json"),
         ),
-        category_labels: parse("categoryLabels.json", embed!("categoryLabels.json")),
-        category_overrides: parse("categoryOverrides.json", embed!("categoryOverrides.json")),
-        buildings: parse("buildings.json", embed!("generated/buildings.json")),
-        items: parse("items.json", embed!("generated/items.json")),
-        recipes: parse("recipes.json", embed!("generated/recipes.json")),
-        schematics: parse("schematics.json", embed!("generated/schematics.json")),
-        game_phases: parse("gamePhases.json", embed!("generated/gamePhases.json")),
-        creatures: parse("creatures.json", embed!("generated/creatures.json")),
+        category_labels: parse("categoryLabels.json", embed!("curated/categoryLabels.json")),
+        category_overrides: parse("categoryOverrides.json", embed!("curated/categoryOverrides.json")),
+        buildings: parse("buildings.json", embed!("generated/docs/buildings.json")),
+        items: parse("items.json", embed!("generated/docs/items.json")),
+        recipes: parse("recipes.json", embed!("generated/docs/recipes.json")),
+        schematics: parse("schematics.json", embed!("generated/docs/schematics.json")),
+        game_phases: parse("gamePhases.json", embed!("generated/docs/gamePhases.json")),
+        creatures: parse("creatures.json", embed!("generated/world/creatures.json")),
         creature_spawners: parse(
             "creatureSpawners.json",
-            embed!("generated/creatureSpawners.json"),
+            embed!("generated/world/creatureSpawners.json"),
         ),
     })
 }

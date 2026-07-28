@@ -23,12 +23,16 @@ jobs:
           path: |
             game_data/generated
             map/static/map/icons
-          key: game-data-v2
+          key: game-data-v3
       - name: Fetch game data
-        # sav_core embeds game_data/generated/*.json at compile time.
+        # sav_core embeds game_data/generated/{docs,world}/*.json at compile
+        # time, and NOTHING generated is committed, so this archive is the only
+        # way CI gets a compilable tree. game-data-v3 is the first archive built
+        # after the generated/{docs,world}/ split -- v2 predates it and carries
+        # no world/ tables (they used to be committed under game_data/sav_data/).
         if: steps.game-data.outputs.cache-hit != 'true'
         run: |
-          wget -q -O game_data.zip https://github.com/valentinps/satisfactorymap/releases/download/game-data-v2/game_data.zip
+          wget -q -O game_data.zip https://github.com/valentinps/satisfactorymap/releases/download/game-data-v3/game_data.zip
           python3 game_data/package_game_data.py unpack game_data.zip
       - name: Cache test saves
         uses: actions/cache@v4
@@ -59,11 +63,11 @@ jobs:
           path: |
             game_data/generated
             map/static/map/icons
-          key: game-data-v2
+          key: game-data-v3
       - name: Fetch game data
         if: steps.game-data.outputs.cache-hit != 'true'
         run: |
-          wget -q -O game_data.zip https://github.com/valentinps/satisfactorymap/releases/download/game-data-v2/game_data.zip
+          wget -q -O game_data.zip https://github.com/valentinps/satisfactorymap/releases/download/game-data-v3/game_data.zip
           python3 game_data/package_game_data.py unpack game_data.zip
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh

@@ -1,4 +1,4 @@
-"""Regenerate the world-collectible tables in game_data/sav_data/ from the
+"""Regenerate the world-collectible tables in game_data/generated/world/ from the
 FModel extraction dump -- replaces the original workflow that derived them
 from GreyHak's sat_sav_parse tables / a fully-revealed save.
 
@@ -18,8 +18,7 @@ per-instance properties, and its root component's world transform):
                          geysers keep the synthetic Desc_Geyser_C class and
                          an absent mPurity means the RP_Normal default)
 
-One more table goes to game_data/generated/ instead (gitignored: fully
-regenerable, no merge state, not consumed by the app yet):
+One more table lands beside them, unused by the app so far:
 
   consumables.json       BP_BerryBush_C / BP_NutBush_C / BP_Shroom_01_C,
                          keyed by the consumable item class they yield
@@ -40,10 +39,10 @@ link (the dump adds one limestone node the old table missed); the [id, ...]
 field of the detailed tables is the world-partition cell name the actor
 lives in (confirmed 522/522).
 
-The two other files in game_data/sav_data/ are NOT touched by this script:
-readableNameCorrections.json and typePaths.json are small hand-curated
-tables (originally converted from GreyHak's sat_sav_parse sav_data package,
-see git history for extract_sav_data_tables.py), edited in place.
+Every output here is gitignored (see game_data/README.md): regenerate with
+extract_all.py or unpack game_data.zip. The one thing that is NOT derivable
+from the dump -- which item each pickup holds -- lives in the committed
+game_data/curated/pickupItems.json and is an INPUT to this script.
 
 Fully automated -- nothing curated survives in the output:
   - The metadata dict (4th element) of somersloops/mercerSpheres is written
@@ -51,16 +50,16 @@ Fully automated -- nothing curated survives in the output:
     crashSites metadata is DERIVED: the payload builder reads only
     "cost"/"power" (the unlock requirement shown per hard drive), and both
     come from the drop pod's cooked mUnlockCost -- item labels resolved via
-    generated/items.json (run extract_docs_json.py first; falls back to the
+    generated/docs/items.json (run extract_docs_json.py first; falls back to the
     short class name with a warning).
   - freeDroppedItems item classes: the item IS cooked into each placed
     actor, but FModel's CUE4Parse has no Satisfactory handler for the
     custom-serialized FInventoryItem struct, so the dump exports
     mPickupItems.Item as null (counts and positions export fine). Items
-    therefore merge from, in priority order: --items-from-save (a .sav
-    re-serializes the cooked value in a format this script can read;
-    validated 659 items / 0 mismatches against the curated table), then
-    VERIFIED_PICKUP_ITEMS below, then the existing table by instance name.
+    come from curated/pickupItems.json, with --items-from-save winning over
+    it (a .sav re-serializes the cooked value in a format this script can
+    read; validated 659 items / 0 mismatches against the curated table) and
+    writing what it learns back into that committed file.
     CAVEAT: a save only serializes actors whose world cell has streamed in
     near a player -- a brand-new save carries ~3 pickups (spawn area), a
     well-traveled one nearly all 703. Unknown new pickups are skipped with
@@ -69,9 +68,9 @@ Fully automated -- nothing curated survives in the output:
     pointing --items-from-save at a save that has physically visited them
     without collecting them.
 
-Key order preservation: existing tables keep their key/entry order (the
-payload builder's output ordering depends on it); genuinely new entries
-append at the end.
+Key order: every table is written sorted, so the same dump gives byte-
+identical files on any machine (nothing depends on a previously written
+table any more -- see orderedKeys).
 
     py game_data/extractors/extract_collectables.py [path/to/extraction/.../Content]
         [--items-from-save path/to/any.sav] [--check]
@@ -92,7 +91,7 @@ from collections import Counter
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_CONTENT_ROOT = r"C:\Users\plane.DESKTOP-SAH3OHV\Documents\SatisExtract\FactoryGame\Content"
 LEVEL_SUBDIR = os.path.join("FactoryGame", "Map", "GameLevel01")
-SAV_DATA_DIR = os.path.join(REPO_ROOT, "game_data", "sav_data")
+WORLD_DIR = os.path.join(REPO_ROOT, "game_data", "generated", "world")
 
 # actor Type -> (output table, bucket key inside it)
 SLUG_CLASSES = {
@@ -118,20 +117,30 @@ CONSUMABLE_CLASSES = {
 NEEDLES = (b"BP_Crystal", b"BP_WAT", b"BP_DropPod", b"FGItemPickup_Spawnable",
            b"BP_ResourceNode", b"BP_Fracking",
            b"BP_BerryBush", b"BP_NutBush", b"BP_Shroom")
-GENERATED_DIR = os.path.join(REPO_ROOT, "game_data", "generated")
+CURATED_DIR = os.path.join(REPO_ROOT, "game_data", "curated")
 
-# Item classes for pickup instances the existing table doesn't know, verified
-# outside the cooked data (which never stores them).
-VERIFIED_PICKUP_ITEMS = {
-    # Verified against a fully-revealed save (sav-data-from-save branch): a
-    # gas nobelisk pickup upstream's table missed.
-    "Persistent_Level:PersistentLevel.FGItemPickup_Spawnable_UAID_40B076DF2F7986CE01_1126606299":
-        "/Game/FactoryGame/Equipment/NobeliskDetonator/Ammo/Desc_NobeliskGas.Desc_NobeliskGas_C",
-    # Verified against a save whose object body carries the item (18 Motors;
-    # missing from the reveal save because it had been collected there).
-    "Persistent_Level:PersistentLevel.FGItemPickup_Spawnable_UAID_40B076DF2F79A7CD01_2130364060":
-        "/Game/FactoryGame/Resource/Parts/Motor/Desc_Motor.Desc_Motor_C",
-}
+# {pickupInstanceName: itemClassPath} -- the one fact about a pickup that the
+# cooked data does NOT carry (see the header), so it is a committed INPUT to
+# this script rather than something recovered from its own last output.
+# --items-from-save merges newly-learned entries straight into it.
+CURATED_PICKUPS_NAME = "pickupItems.json"
+
+
+def loadCuratedPickupItems(warnings):
+    path = os.path.join(CURATED_DIR, CURATED_PICKUPS_NAME)
+    if not os.path.isfile(path):
+        warnings.append(f"{path} missing -- every pickup will be skipped for want of an "
+                        f"item class; restore it from git, it is not regenerable from the dump")
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def saveCuratedPickupItems(mapping):
+    path = os.path.join(CURATED_DIR, CURATED_PICKUPS_NAME)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({k: mapping[k] for k in sorted(mapping)}, f, ensure_ascii=False, indent=1)
+        f.write("\n")
 
 
 def rotatorToQuat(rot):
@@ -391,7 +400,7 @@ def loadItemLabels(warnings):
     for crash-site cost labels. Empty (with a warning) if not generated yet."""
     labels = {}
     for name in ("items.json", "resources.json"):
-        path = os.path.join(REPO_ROOT, "game_data", "generated", name)
+        path = os.path.join(REPO_ROOT, "game_data", "generated", "docs", name)
         if not os.path.isfile(path):
             warnings.append(f"{path} missing (run extract_docs_json.py first) -- "
                             f"crash-site cost labels fall back to class names")
@@ -423,7 +432,7 @@ def deriveRequirement(unlockCost, itemLabels, warnings):
     return {}
 
 
-def loadExisting(name, directory=SAV_DATA_DIR):
+def loadExisting(name, directory=WORLD_DIR):
     path = os.path.join(directory, name)
     if not os.path.isfile(path):
         return {}
@@ -431,25 +440,25 @@ def loadExisting(name, directory=SAV_DATA_DIR):
         return json.load(f)
 
 
-def groupByBucket(records, existing):
-    """{pathName: (bucket, pos, ...)} -> {bucket: {pathName: pos}}, keeping
-    the existing table's bucket and key order where present."""
+def groupByBucket(records):
+    """{pathName: (bucket, pos, ...)} -> {bucket: {pathName: pos}}, sorted."""
     grouped = {}
     for pathName, rec in records.items():
         grouped.setdefault(rec[0], {})[pathName] = rec[1]
     out = {}
-    for bucket in orderedKeys(existing, grouped):
-        old = existing.get(bucket, {})
-        out[bucket] = {k: grouped[bucket][k] for k in orderedKeys(old, grouped[bucket])}
+    for bucket in orderedKeys(grouped):
+        out[bucket] = {k: grouped[bucket][k] for k in orderedKeys(grouped[bucket])}
     return out
 
 
-def orderedKeys(existing, new):
-    """Existing key order first (for keys still present), new keys appended
-    in sorted order -- keeps diffs minimal and downstream ordering stable."""
-    kept = [k for k in existing if k in new]
-    added = sorted(k for k in new if k not in existing)
-    return kept + added
+def orderedKeys(new):
+    """Sorted. Every table is written in one deterministic order that depends
+    only on the dump, so two people regenerating from the same extraction get
+    byte-identical files -- which is what makes a difference in the archive
+    mean "the game changed", not "a different machine built it". (Ordering
+    used to follow whatever the previously committed table happened to have;
+    with the tables gitignored there is no such thing any more.)"""
+    return sorted(new)
 
 
 def buildTables(slugs, detail, pickups, nodes, consumables, saveItems=None):
@@ -460,7 +469,7 @@ def buildTables(slugs, detail, pickups, nodes, consumables, saveItems=None):
     for bucket in ("blue", "yellow", "purple"):
         new = {k: pos for k, (b, pos, _) in slugs.items() if b == bucket}
         old = existingSlugs.get(bucket, {})
-        slugsOut[bucket] = {k: new[k] for k in orderedKeys(old, new)}
+        slugsOut[bucket] = {k: new[k] for k in orderedKeys(new)}
         for k in old:
             if k not in new:
                 warnings.append(f"powerSlugs/{bucket}: {k} disappeared from the dump")
@@ -471,7 +480,7 @@ def buildTables(slugs, detail, pickups, nodes, consumables, saveItems=None):
         old = loadExisting(tableName)
         new = {k: v for k, v in detail.items() if v[0] == tableName}
         table = {}
-        for k in orderedKeys(old, new):
+        for k in orderedKeys(new):
             _, cell, quat, pos, unlockCost, _ = new[k]
             metadata = {}
             if tableName == "crashSites.json":
@@ -482,19 +491,18 @@ def buildTables(slugs, detail, pickups, nodes, consumables, saveItems=None):
                 warnings.append(f"{tableName}: {k} disappeared from the dump")
         detailOut[tableName] = table
 
-    # freeDroppedItems: {itemPath: [[count, pos, instanceName], ...]} --
-    # resolve each instance's item from the existing table, then the verified
-    # overrides; keep existing item-key and entry order.
-    oldItems = loadExisting("freeDroppedItems.json")
-    itemByInstance = dict(VERIFIED_PICKUP_ITEMS)
-    for itemPath, entries in oldItems.items():
-        for _count, _pos, instanceName in entries:
-            itemByInstance.setdefault(instanceName, itemPath)
+    # freeDroppedItems: {itemPath: [[count, pos, instanceName], ...]}. The item
+    # class is the one thing the dump cannot give us (see the header), so it
+    # comes from the committed curated/pickupItems.json instead -- an INPUT to
+    # this script, not its own previous output. That is what lets the output
+    # table be gitignored like every other generated file: delete every
+    # generated table, re-run, and this still resolves all 703 pickups.
+    itemByInstance = dict(loadCuratedPickupItems(warnings))
     for instanceName, itemPath in (saveItems or {}).items():
         previous = itemByInstance.get(instanceName)
         if previous is not None and previous != itemPath:
             warnings.append(f"freeDroppedItems: {instanceName} item differs between "
-                            f"save ({itemPath}) and table ({previous}) -- save wins")
+                            f"save ({itemPath}) and curated table ({previous}) -- save wins")
         itemByInstance[instanceName] = itemPath
     grouped = {}
     for instanceName, (num, pos, mesh, _) in pickups.items():
@@ -505,17 +513,20 @@ def buildTables(slugs, detail, pickups, nodes, consumables, saveItems=None):
             continue
         grouped.setdefault(itemPath, []).append((num, pos, instanceName))
     itemsOut = {}
-    for itemPath in orderedKeys(oldItems, grouped):
-        oldOrder = {e[2]: i for i, e in enumerate(oldItems.get(itemPath, []))}
-        entries = sorted(grouped[itemPath], key=lambda e: (oldOrder.get(e[2], len(oldOrder)), e[2]))
+    for itemPath in orderedKeys(grouped):
+        entries = sorted(grouped[itemPath], key=lambda e: e[2])
         itemsOut[itemPath] = [[num, pos, name] for num, pos, name in entries]
-        for _c, _p, name in oldItems.get(itemPath, []):
-            if name not in pickups:
-                warnings.append(f"freeDroppedItems: {name} ({itemPath}) disappeared from the dump")
+    # The curated table is the roster of pickups we know the item for, so it
+    # is also how a pickup deleted by a game update gets noticed.
+    for instanceName in itemByInstance:
+        if instanceName not in pickups:
+            warnings.append(f"freeDroppedItems: {instanceName} is in "
+                            f"{CURATED_PICKUPS_NAME} but not in the dump -- "
+                            f"drop it from that file if the game removed it")
 
     oldPurity = loadExisting("resourcePurity.json")
     purityOut = {}
-    for k in orderedKeys(oldPurity, nodes):
+    for k in orderedKeys(nodes):
         desc, purity, pos, core, _ = nodes[k]
         if desc is None or purity is None:
             warnings.append(f"resourcePurity: {k} has unresolvable class/purity -- skipped")
@@ -525,7 +536,7 @@ def buildTables(slugs, detail, pickups, nodes, consumables, saveItems=None):
         if k not in nodes:
             warnings.append(f"resourcePurity: {k} disappeared from the dump")
 
-    consumablesOut = groupByBucket(consumables, loadExisting("consumables.json", GENERATED_DIR))
+    consumablesOut = groupByBucket(consumables)
     return slugsOut, detailOut, itemsOut, purityOut, consumablesOut, warnings
 
 
@@ -561,6 +572,17 @@ def main():
     if savPath:
         saveItems = readPickupItemsFromSave(savPath)
         print(f"{len(saveItems)} pickup items read from {savPath}")
+        # A save is the only way to learn a NEW pickup's item class, so what
+        # it teaches goes straight into the committed curated table -- that,
+        # not the generated output, is where the knowledge now lives.
+        if not check:
+            curated = loadCuratedPickupItems([])
+            learned = {k: v for k, v in saveItems.items() if curated.get(k) != v}
+            if learned:
+                curated.update(learned)
+                saveCuratedPickupItems(curated)
+                print(f"learned {len(learned)} pickup item class(es) -> "
+                      f"game_data/curated/{CURATED_PICKUPS_NAME} (commit it)")
 
     slugs, detail, pickups, nodes, consumables = collectActors(contentRoot)
     slugsOut, detailOut, itemsOut, purityOut, consumablesOut, warnings = buildTables(
@@ -568,11 +590,11 @@ def main():
     for w in warnings:
         print(f"WARNING: {w}")
 
-    outputs = {"powerSlugs.json": (SAV_DATA_DIR, slugsOut),
-               "freeDroppedItems.json": (SAV_DATA_DIR, itemsOut),
-               "resourcePurity.json": (SAV_DATA_DIR, purityOut),
-               **{name: (SAV_DATA_DIR, table) for name, table in detailOut.items()},
-               "consumables.json": (GENERATED_DIR, consumablesOut)}
+    outputs = {"powerSlugs.json": (WORLD_DIR, slugsOut),
+               "freeDroppedItems.json": (WORLD_DIR, itemsOut),
+               "resourcePurity.json": (WORLD_DIR, purityOut),
+               **{name: (WORLD_DIR, table) for name, table in detailOut.items()},
+               "consumables.json": (WORLD_DIR, consumablesOut)}
     failures = []
     for name, (directory, table) in outputs.items():
         path = os.path.join(directory, name)
