@@ -279,9 +279,16 @@ pub fn describe_instance(store: &SaveStore, index: &MapIndex, instance_name: &st
     };
     let properties = &object.properties;
 
-    // The tamed Lizard Doggo's pet name: mDisplayName is a TextProperty,
-    // exposed as a list whose LAST element is taken (`displayName[-1]`).
+    // The tamed Lizard Doggo. mTamed marks it (see collect_creatures -- a
+    // pet name is NOT the discriminator, an un-renamed tamed doggo has none),
+    // and the title says so, so a tamed doggo pin is never mistaken for the
+    // spawner pin sharing its artwork. Same wording as collect_creatures'.
     if type_path.as_deref() == Some(LIZARD_DOGGO_TYPE_PATH) {
+        if props::boolean(properties, data, b"mTamed") == Some(true) {
+            result.insert("label".into(), Value::String(format!("{} (Tamed)", readable_label(LIZARD_DOGGO_TYPE_PATH))));
+        }
+        // The pet name: mDisplayName is a TextProperty, exposed as a list
+        // whose LAST element is taken (`displayName[-1]`).
         if let Some(PropertyValue::Text(t)) = find_prop(properties, data, b"mDisplayName") {
             let pet_name: Value = match t {
                 TextValue::NoneHistory { s, .. } => Value::String(s.to_string(data)),

@@ -105,20 +105,20 @@ var Filters = {};
     '</svg>'
   );
 
-  // Same reasoning as the player icon above -- a simple inline paw-print
-  // silhouette stands in for every wildlife/enemy species (Lizard Doggo,
-  // Hogs, Spitters, Stingers, Crab Hatchers, ...) rather than sourcing a
-  // unique icon per creature; the tooltip/row label still says exactly
-  // which species it is.
+  // Wildlife/enemy species -- both the spawn markers (see
+  // buildSpawnersSection) and the live tamed creatures under Entities are
+  // drawn with the game's own per-species art, keyed by class name
+  // (icons/creatures/<Char_*_C>.png -- see game_data/extractors/copy_icons.py).
+  // The two deliberately share that artwork: a tamed doggo IS the same
+  // animal as the doggo its spawner produces, and the pin's heart badge (see
+  // map.js's _paintPin) is what says "this one is yours", rather than a
+  // second, unrelated-looking icon.
   var CREATURE_COLOR = "#c9a35c";
-  var CREATURE_ICON_URL = "data:image/svg+xml," + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32">' +
-    '<circle cx="16" cy="21" r="7" fill="' + CREATURE_COLOR + '"/>' +
-    '<circle cx="7" cy="12" r="4" fill="' + CREATURE_COLOR + '"/>' +
-    '<circle cx="16" cy="7" r="4" fill="' + CREATURE_COLOR + '"/>' +
-    '<circle cx="25" cy="12" r="4" fill="' + CREATURE_COLOR + '"/>' +
-    '</svg>'
-  );
+  var CREATURE_ICON_BASE = "icons/creatures/";
+
+  function creatureIconUrl(iconClass) {
+    return CREATURE_ICON_BASE + encodeURIComponent(iconClass) + ".png";
+  }
 
   // Simple "home" pentagon silhouette (square body + peaked roof) -- like
   // the player icon above, an inline SVG data: URL avoids adding a binary
@@ -679,6 +679,52 @@ var Filters = {};
   Filters.getVehicleSearchEntries = function() { return vehicleSearchEntries; };
   Filters.vehicleColor = function() { return VEHICLE_COLOR; };
 
+  // Wildlife rows -- every creature-spawner species (see buildSpawnersSection)
+  // plus the tamed creatures under Entities. Unlike buildings/vehicles there's
+  // no per-type info endpoint to open a modal against, so these are searchable
+  // purely to find and toggle the layer; each row carries its own live sidebar
+  // checkbox, exactly like the building rows do.
+  var wildlifeSearchEntries = [];
+  Filters.getWildlifeSearchEntries = function() { return wildlifeSearchEntries; };
+
+  // One entry per resource node / resource well type (see
+  // buildResourceEntryGroup), covering all of that resource's purity x
+  // mined/unmined leaf rows at once -- the sidebar has no single "every iron
+  // node" toggle either, and the purity split is exactly what makes a
+  // resource worth looking up ("how many pure iron nodes are still free?").
+  var resourceSearchEntries = [];
+  Filters.getResourceSearchEntries = function() { return resourceSearchEntries; };
+  // The color the resource groups' own headers use -- a resource spans three
+  // purity colors, so no single row's color represents it.
+  Filters.resourceColor = function() { return PURITY_COLORS.NORMAL; };
+
+  // Whole-category search entries: a handful of logistics families whose rows
+  // are scattered across build-menu subcategories (one row per mark), so
+  // "show me every belt" isn't a single toggle anywhere in the sidebar. Each
+  // entry drives the real per-mark row checkboxes -- never a second source of
+  // truth. Icons are the family's Mk.1 buildable, the recognisable one.
+  //
+  // Belts and pipes are spline (line) rows; conveyor LIFTS are not -- a lift
+  // is a vertical structure the parser draws as a building box, not a spline
+  // (see the rust core's conveyor_belt_only_type_paths), so its rows are
+  // ordinary merged building rows and are picked up by class name instead.
+  var LAYER_CATEGORY_DEFS = [
+    { key: "belts", label: "Conveyor Belts", iconClassName: "Build_ConveyorBeltMk1_C" },
+    { key: "lifts", label: "Conveyor Lifts", iconClassName: "Build_ConveyorLiftMk1_C" },
+    { key: "pipes", label: "Pipelines", iconClassName: "Build_Pipeline_NoIndicator_C" },
+  ];
+  // Anchored on the Mk-numbered lift classes specifically: "Lift" alone also
+  // matches Build_FoundationPassthrough_Lift_C, which is a hole in a floor.
+  var CONVEYOR_LIFT_CLASS_PATTERN = /Build_ConveyorLiftMk\d/;
+  var layerCategoryRows = { belts: [], lifts: [], pipes: [] };
+  Filters.getLayerCategorySearchEntries = function() {
+    return LAYER_CATEGORY_DEFS
+      .filter(function(def) { return (layerCategoryRows[def.key] || []).length > 0; })
+      .map(function(def) {
+        return { label: def.label, iconClassName: def.iconClassName, rows: layerCategoryRows[def.key] };
+      });
+  };
+
   // Leaflet doesn't notice its container resized just because a CSS
   // width/left value changed -- invalidateSize() is the real API for that,
   // and it's what actually fires the "resize" event BucketedCanvasLayer
@@ -809,14 +855,33 @@ var Filters = {};
     return label;
   }
 
+  // The purity order the map itself reads in (best first) -- used to rank the
+  // purity rows so the search modal's distribution bars read Pure -> Normal
+  // -> Impure rather than in whatever order the payload happened to list them.
+  var PURITY_ORDER = ["PURE", "NORMAL", "IMPURE", "UNKNOWN"];
+
   // One resource (e.g. "Crude Oil") -> Mined/Unmined subgroups -> purity
   // rows nested inside each, instead of one flat list of 6 "Unmined, Pure" /
   // "Mined, Pure" / etc. rows -- mined vs. unmined is the choice that
   // actually matters when deciding what to look at, so it gets to be the
   // grouping level, with purity as the detail nested underneath it.
-  function buildResourceEntryGroup(childrenDiv, resourceEntry) {
+  //
+  // `section` is the sidebar heading ("Resource Nodes"/"Resource Wells"); the
+  // leaf rows it produces are also registered as ONE search entry for the
+  // whole resource, so "iron" reaches the node layer and not just the item
+  // (see resourceSearchEntries).
+  function buildResourceEntryGroup(childrenDiv, resourceEntry, section) {
     var url = resourceIconUrl(resourceEntry.resourceType);
-    return renderGroup(childrenDiv, stripWellSuffix(resourceEntry.label), "icon", PURITY_COLORS.NORMAL, function(stateChildrenDiv) {
+    var searchRows = [];
+    // Crude Oil exists BOTH as ordinary nodes and as resource wells, under the
+    // same resourceType -- so keying purely on that gave the oil wells the
+    // exact same bucket keys as the oil nodes. Keys are the identity behind
+    // saved visibility, the right-click "Hide layer/category" lookup and the
+    // search isolate's save/restore, so the two layers were quietly sharing
+    // all three. Wells get their own namespace; plain nodes keep the original
+    // key so nobody's stored filters reset for the other 12 resources.
+    var keyPrefix = resourceEntry.isWell ? "node:well:" : "node:";
+    var result = renderGroup(childrenDiv, stripWellSuffix(resourceEntry.label), "icon", PURITY_COLORS.NORMAL, function(stateChildrenDiv) {
       var checkboxes = [];
       var allBuckets = [];
       ["unmined", "mined"].forEach(function(state) {
@@ -841,13 +906,19 @@ var Filters = {};
                      position: worldPositionAt(purityData.points, index) };
           };
           var bucket = makeIconBucket(
-            "node:" + resourceEntry.resourceType + ":" + state + ":" + purityName, resourceEntry.label,
+            keyPrefix + resourceEntry.resourceType + ":" + state + ":" + purityName, resourceEntry.label,
             purityColor, purityData.points, purityData.ids, "static", tooltipInfo, url, opacity, purityColor);
-          rows.push({ label: purityLabel, count: count, color: purityColor, buckets: [bucket], iconUrl: url });
+          // purity/mined tag the row with the two axes the sidebar splits it
+          // by, so the search modal can re-aggregate them (total, mined vs
+          // untouched, and the purity distribution) without re-reading the payload.
+          rows.push({ label: purityLabel, count: count, color: purityColor, buckets: [bucket], iconUrl: url,
+                      purityLabel: purityLabel, purityRank: PURITY_ORDER.indexOf(purityName),
+                      mined: state === "mined" });
         });
         if (rows.length === 0) {
           return; // No point offering a toggle for an empty Mined/Unmined subgroup.
         }
+        searchRows = searchRows.concat(rows);
         var subTotal = rows.reduce(function(s, r) { return s + r.count; }, 0);
         var result = renderGroup(stateChildrenDiv, stateLabel + " (" + subTotal + ")", "icon", PURITY_COLORS.NORMAL, rows, { startCollapsed: true, iconUrl: url });
         checkboxes.push(result.checkbox);
@@ -855,6 +926,17 @@ var Filters = {};
       });
       return { buckets: allBuckets, checkboxes: checkboxes };
     }, { startCollapsed: true, iconUrl: url });
+    if (searchRows.length > 0) {
+      // The label must never collide with the ORE ITEM of the same name, which
+      // is in the item catalog too -- "Iron Ore" the thing on a belt and "Iron
+      // Ore" the hole in the ground are different answers to the same query.
+      // Well entries already carry " (Resource Well)" from the payload (see
+      // WELL_LABEL_SUFFIX); node entries get the matching suffix here.
+      var label = resourceEntry.isWell ? resourceEntry.label
+                                       : resourceEntry.label + " (Resource Node)";
+      resourceSearchEntries.push({ label: label, iconUrl: url, section: section, rows: searchRows });
+    }
+    return result;
   }
 
   // Every top-level section shows its total count in the header (matching
@@ -881,7 +963,7 @@ var Filters = {};
       var checkboxes = [];
       var allBuckets = [];
       resourceEntries.forEach(function(resourceEntry) {
-        var result = buildResourceEntryGroup(childrenDiv, resourceEntry);
+        var result = buildResourceEntryGroup(childrenDiv, resourceEntry, title);
         checkboxes.push(result.checkbox);
         allBuckets = allBuckets.concat(result.buckets);
       });
@@ -1029,10 +1111,8 @@ var Filters = {};
   // every save: creature spawn markers from the cooked level data, not save
   // actors -- the save's own spawner actors never say which creature they
   // spawn. Pins follow the collectables' design (real icon on a white pin
-  // circle), using the extracted creature icons keyed by class name
-  // (icons/creatures/<Char_*_C>.png -- see game_data/extractors/copy_icons.py).
-  var SPAWNER_ICON_BASE = "icons/creatures/";
-
+  // circle), using the per-species creature icons (see creatureIconUrl).
+  //
   // Creature families with several variants each get a collapsible subgroup
   // (matched on the class name); everything else (Lizard Doggo, Flightless
   // Birb, the Space Giraffe-Tick-Penguin-Whale Thing) is a loose row after
@@ -1055,7 +1135,7 @@ var Filters = {};
         return;
       }
       total += count;
-      var url = SPAWNER_ICON_BASE + encodeURIComponent(spawnerType.typePath) + ".png";
+      var url = creatureIconUrl(spawnerType.typePath);
       // The bucket label says "Spawner" so a rectangle-selection list can't
       // read as live creatures; the sidebar row shows just the species
       // (displayLabel), already sitting under the "Spawners" heading.
@@ -1078,6 +1158,18 @@ var Filters = {};
     if (total === 0) {
       return;
     }
+    // Searchable by species from the top bar, the same way buildings/vehicles
+    // are (see wildlifeSearchEntries) -- "stinger" is a far more natural way
+    // to reach that layer than remembering it lives under Spawners > Stingers.
+    // Every row here gets a live checkbox from appendLeafRow below.
+    var spawnerRows = [];
+    rowsByFamily.forEach(function(rows) { spawnerRows = spawnerRows.concat(rows); });
+    spawnerRows = spawnerRows.concat(looseRows);
+    // `section` is the sidebar heading the row lives under -- the search
+    // modal shows it as the entry's category chip, and tells "N spawn points"
+    // from "N live creatures" by it.
+    spawnerRows.forEach(function(row) { row.section = "Spawners"; });
+    wildlifeSearchEntries = wildlifeSearchEntries.concat(spawnerRows);
     renderTopLevelCategory(navList, detailPane, "Spawners (" + total + ")", "icon", CREATURE_COLOR, function(childrenDiv) {
       var checkboxes = [];
       var allBuckets = [];
@@ -1097,7 +1189,9 @@ var Filters = {};
         allBuckets = allBuckets.concat(row.buckets);
       });
       return { buckets: allBuckets, checkboxes: checkboxes };
-    }, { iconUrl: CREATURE_ICON_URL });
+      // iconUrl: the nav row borrows the first species' own art rather than a
+      // made-up generic creature glyph -- whatever this world actually spawns.
+    }, { iconUrl: spawnerRows[0].iconUrl });
   }
 
   // ---- Dropped / ground items ----------------------------------------------
@@ -1160,15 +1254,21 @@ var Filters = {};
     renderTopLevelCategory(navList, detailPane, "HUB", "icon", HUB_COLOR, rows, { iconUrl: HUB_ICON_URL });
   }
 
-  // ---- Entities (Players + wildlife/enemy creatures) ----------------------
+  // ---- Entities (Players + tamed creatures) -------------------------------
 
   // Unlike the other icon buckets above, a player's name/inventory isn't
   // known to the client up front -- it requires the same /api/instance
-  // round-trip as buildings (see sav_map_data.describeInstance's player
-  // branch), hence tooltipKind "server" instead of "static". Creatures don't
-  // have anything like that to fetch (no inventory/name), so their tooltip
-  // is resolved entirely client-side from the species label already in the
-  // payload -- see sav_map_data.collectCreatures.
+  // round-trip as buildings (see the rust core's describe_instance player
+  // branch), hence tooltipKind "server" instead of "static". Creatures use it
+  // too, for their pet name and the "(Tamed)" title.
+  //
+  // payload.creatures holds ONLY tamed creatures (see collect_creatures): an
+  // untamed one exists in the save purely because its region happened to be
+  // loaded when the player saved, and despawns the moment that region
+  // unloads, so plotting it would promise a doggo that isn't really there.
+  // Where wild ones live is the Spawners layer's job. A tamed one is
+  // permanent, so it gets the species icon with a heart badge (pinBadge) --
+  // same animal as its spawner's pin, visibly claimed.
   function buildEntitiesSection(navList, detailPane, payload) {
     var rows = [];
 
@@ -1179,20 +1279,29 @@ var Filters = {};
       rows.push({ label: "Player", count: playerCount, color: PLAYER_COLOR, buckets: [playerBucket], iconUrl: PLAYER_ICON_URL });
     }
 
+    var creatureRows = [];
     (payload.creatures || []).forEach(function(creatureType) {
       var count = pointCount(creatureType.points, 3);
       if (count === 0) {
         return;
       }
+      var url = creatureIconUrl(creatureType.iconClass);
       var bucket = makeIconBucket(
         "creature:" + creatureType.typePath, creatureType.label, CREATURE_COLOR, creatureType.points,
-        creatureType.ids, "server", null, CREATURE_ICON_URL, 1);
-      rows.push({ label: creatureType.label, count: count, color: CREATURE_COLOR, buckets: [bucket], iconUrl: CREATURE_ICON_URL });
+        creatureType.ids, "server", null, url, 1);
+      bucket.pinBadge = "heart";
+      creatureRows.push({ label: creatureType.label, count: count, color: CREATURE_COLOR, buckets: [bucket], iconUrl: url });
     });
+    rows = rows.concat(creatureRows);
 
     if (rows.length === 0) {
       return;
     }
+    // Searchable alongside the spawners -- "doggo" should reach the tamed
+    // doggo layer as readily as it reaches the doggo spawners. `section` as
+    // in buildSpawnersSection: the row's sidebar heading.
+    creatureRows.forEach(function(row) { row.section = "Entities"; });
+    wildlifeSearchEntries = wildlifeSearchEntries.concat(creatureRows);
     var total = rows.reduce(function(s, r) { return s + r.count; }, 0);
     renderTopLevelCategory(navList, detailPane, "Entities (" + total + ")", "icon", PLAYER_COLOR, rows, { iconUrl: PLAYER_ICON_URL });
   }
@@ -1499,6 +1608,9 @@ var Filters = {};
         var row = mergedBuildingRow(g.mergedLabel, g.entries, color, drawPriority, category);
         row.subcategory = g.subcategory;
         buildingSearchEntries.push(row);
+        if (CONVEYOR_LIFT_CLASS_PATTERN.test(row.typePaths[0])) {
+          layerCategoryRows.lifts.push(row);
+        }
         addRow(category, g.subcategory, row);
       });
     });
@@ -1508,10 +1620,14 @@ var Filters = {};
     // its own toggleable line bucket), placed by the category/subcategory
     // sav_map_data attached to each group.
     (payload.belts || []).forEach(function(group) {
-      addRow(group.category || "Unknown", group.subcategory, beltPipeRow("line:belt:", LINE_COLORS.belts, group));
+      var row = beltPipeRow("line:belt:", LINE_COLORS.belts, group);
+      layerCategoryRows.belts.push(row); // Lifts are never in here -- see LAYER_CATEGORY_DEFS.
+      addRow(group.category || "Unknown", group.subcategory, row);
     });
     (payload.pipes || []).forEach(function(group) {
-      addRow(group.category || "Unknown", group.subcategory, beltPipeRow("line:pipe:", LINE_COLORS.pipelines, group));
+      var row = beltPipeRow("line:pipe:", LINE_COLORS.pipelines, group);
+      layerCategoryRows.pipes.push(row);
+      addRow(group.category || "Unknown", group.subcategory, row);
     });
     (payload.vehiclePaths || []).forEach(function(group) {
       addRow(group.category || "Unknown", group.subcategory, beltPipeRow("line:vehiclePath:", LINE_COLORS.vehiclePaths, group));
@@ -1570,6 +1686,13 @@ var Filters = {};
   }
 
   Filters.build = function(payload) {
+    // Bottleneck markers belong to the save being replaced -- and clearing
+    // them here (rather than letting clearBuckets silently drop them) is what
+    // hands back the altitude window showing them widened. Runs before
+    // Altitude.build, which then restores against the user's real range.
+    if (window.Bottleneck) {
+      Bottleneck.clear();
+    }
     var navList = document.getElementById("categoryNavColumn");
     var detailPane = document.getElementById("categoryDetailPane");
     navList.innerHTML = "";
@@ -1577,6 +1700,9 @@ var Filters = {};
     categoryEntries = [];
     buildingSearchEntries = [];
     vehicleSearchEntries = [];
+    wildlifeSearchEntries = [];
+    resourceSearchEntries = [];
+    layerCategoryRows = { belts: [], lifts: [], pipes: [] };
     bucketLayerCheckbox = {};
     bucketLayerLabel = {};
     bucketCategoryCheckbox = {};
@@ -1627,11 +1753,17 @@ var Filters = {};
   // Filters.build: empties the sidebar tree and every per-save lookup, drops
   // the buckets, and hides the footer's save-details chrome.
   Filters.clear = function() {
+    if (window.Bottleneck) {
+      Bottleneck.clear(); // See Filters.build -- also hands back a widened altitude window.
+    }
     document.getElementById("categoryNavColumn").innerHTML = "";
     document.getElementById("categoryDetailPane").innerHTML = "";
     categoryEntries = [];
     buildingSearchEntries = [];
     vehicleSearchEntries = [];
+    wildlifeSearchEntries = [];
+    resourceSearchEntries = [];
+    layerCategoryRows = { belts: [], lifts: [], pipes: [] };
     bucketLayerCheckbox = {};
     bucketLayerLabel = {};
     bucketCategoryCheckbox = {};

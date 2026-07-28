@@ -28,18 +28,115 @@ use serde_json::{json, Value};
 /// spawners step) + the save index.
 pub const BUILD_STEP_COUNT: u64 = 18 + 1;
 
-/// sav_map_data.listSearchableItems.
+/// Desc_ classes in readableNameCorrections that are NOT items: the game's
+/// creature descriptors (FGCreatureDescriptor, plus the two enemy-group
+/// pseudo-descriptors), which are in that table only so creature classes get
+/// readable names. They can never sit in an inventory, so listing them
+/// alongside Iron Plate in the item search was pure noise -- worse, they're
+/// the only catalog entries with no icon at all, since no icons/items/ art
+/// exists for any of them.
+///
+/// Deliberately explicit rather than inferred: every entry is a verified
+/// "this class is an animal, not a thing you can hold". The creature-search
+/// entries built from the Spawners/Entities layers (see filters.js's
+/// wildlifeSearchEntries) are how you look these up instead, and they come
+/// with the real per-species art. `creature_descriptors_are_not_items` guards
+/// the list against a future Docs.json promoting one of them to a real item.
+const CREATURE_DESCRIPTOR_CLASSES: [&str; 21] = [
+    "Desc_HatcherBasic_C",
+    "Desc_HogAlpha_C",
+    "Desc_HogBasic_C",
+    "Desc_HogCliff_C",
+    "Desc_HogNuclear_C",
+    "Desc_HostileCreature_C",
+    "Desc_NonflyingBird_C",
+    "Desc_SpaceGiraffe_C",
+    "Desc_SpaceRabbit_C",
+    "Desc_SpitterAquatic_Alpha_C",
+    "Desc_SpitterAquatic_Small_C",
+    "Desc_SpitterDesert_Alpha_C",
+    "Desc_SpitterDesert_Small_C",
+    "Desc_SpitterForest_Alpha_C",
+    "Desc_SpitterForest_Red_Alpha_C",
+    "Desc_SpitterForest_Small_C",
+    "Desc_SpitterForest_Small_Red_C",
+    "Desc_SpitterWave_C",
+    "Desc_StingerAlpha_C",
+    "Desc_StingerElite_C",
+    "Desc_StingerSmall_C",
+];
+
+/// sav_map_data.listSearchableItems, minus the creature descriptors above.
 fn list_searchable_items() -> Value {
     let mut items: Vec<(&str, &str)> = gamedata::get()
         .readable_name_corrections
         .iter()
         .filter(|(short_name, _)| short_name.starts_with("Desc_"))
+        .filter(|(short_name, _)| !CREATURE_DESCRIPTOR_CLASSES.contains(&short_name.as_str()))
         .map(|(short_name, label)| (short_name.as_str(), label.as_str()))
         .collect();
     items.sort_by(|a, b| a.1.cmp(b.1)); // stable, by label
     Value::Array(
         items.into_iter().map(|(path, label)| json!({"itemPath": path, "label": label})).collect(),
     )
+}
+
+#[cfg(test)]
+mod searchable_item_tests {
+    use super::*;
+
+    #[test]
+    fn creature_descriptors_are_not_items() {
+        let gd = gamedata::get();
+        for class in CREATURE_DESCRIPTOR_CLASSES {
+            assert!(
+                gd.readable_name_corrections.contains_key(class),
+                "{class} is no longer in readableNameCorrections -- drop it from the list"
+            );
+            // A real item has an FGItemDescriptor entry and/or extracted icon
+            // art. If one of these ever gains either, it stopped being a
+            // creature and belongs in the catalog.
+            assert!(
+                !gd.items.contains_key(class) && !gamedata::has_item_icon(class),
+                "{class} is a real item descriptor now -- it should not be filtered out"
+            );
+        }
+    }
+
+    #[test]
+    fn the_item_catalog_keeps_real_items_and_drops_creatures() {
+        let catalog = list_searchable_items();
+        let labels: Vec<&str> =
+            catalog.as_array().unwrap().iter().map(|e| e["label"].as_str().unwrap()).collect();
+        assert!(labels.contains(&"Iron Plate"));
+        assert!(labels.contains(&"Hard Drive")); // No icon, but genuinely searchable.
+        assert!(!labels.contains(&"Alpha Hog"));
+        assert!(!labels.contains(&"Lizard Doggo"));
+        // Real drops/trophies named after a creature are still items.
+        assert!(labels.contains(&"Hog Remains"));
+        assert!(labels.contains(&"Lizard Doggo Statue"));
+    }
+
+    /// The hand-maintained list above is easy to leave one entry short (it
+    /// was, for the Crab Hatcher). No species may reach the item search under
+    /// EITHER of the two names the codebase knows it by -- creatures.json's
+    /// official displayName, or readable_label's hand-curated one -- since a
+    /// creature descriptor is named by one or the other, never something else.
+    #[test]
+    fn no_creature_name_survives_in_the_item_catalog() {
+        let catalog = list_searchable_items();
+        let labels: Vec<&str> =
+            catalog.as_array().unwrap().iter().map(|e| e["label"].as_str().unwrap()).collect();
+        for (class, info) in &gamedata::get().creatures {
+            for name in [info.display_name.clone(), names::readable_label(class)] {
+                assert!(
+                    !labels.contains(&name.as_str()),
+                    "{name:?} ({class}) is a creature but is in the item catalog -- \
+                     add its Desc_ class to CREATURE_DESCRIPTOR_CLASSES"
+                );
+            }
+        }
+    }
 }
 
 /// Python datetime.fromtimestamp(ticks / TICKS_IN_SECOND -

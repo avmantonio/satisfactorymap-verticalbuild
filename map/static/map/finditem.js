@@ -181,16 +181,17 @@ var FindItem = {};
     }
   }
 
-  var catalog = []; // [{kind:"item", label, itemPath}, {kind:"building", label, typePaths, category, subcategory, row}, {kind:"vehicle", label, typePaths, isTrain, iconUrl, row}, ...]
+  var catalog = []; // [{kind:"item", label, itemPath}, {kind:"building", label, typePaths, category, subcategory, row}, {kind:"vehicle", label, typePaths, isTrain, iconUrl, row}, {kind:"wildlife", label, iconUrl, row}, {kind:"category", label, iconClassName, rows}, ...]
   var itemCatalogByLabel = {}; // label -> itemPath, for an exact-match Enter on a fully typed item name.
   var buildingCatalogByLabel = {}; // label -> building catalog entry, same for a fully typed building name.
   var vehicleCatalogByLabel = {}; // label -> vehicle catalog entry, same for a fully typed vehicle name.
+  var layerCatalogByLabel = {}; // label -> wildlife/category entry, same.
   var currentSuggestions = []; // The subset currently shown in the dropdown (flat, in display order, kinds mixed).
   var currentRowElements = []; // Row DOM elements parallel to currentSuggestions (group-label divs aren't part of this).
   var activeIndex = -1; // Highlighted suggestion row (keyboard/hover), -1 = none.
   var savedVisibility = null; // bucket.key -> visible, captured right before highlighting so "show all layers again" restores exactly what was on.
   var highlighting = false;
-  var highlightedBuildingEntry = null; // Set by showBuildingHighlight, so clearHighlight can re-sync its checkbox.
+  var highlightedEntry = null; // Set by showEntryHighlight, so clearHighlight can re-sync its rows' checkboxes.
   var lastKind = null; // "item" | "building" -- which of the two below is the live one.
   var lastResult = null; // The currently-open item modal's search result, if it's a searchable one (null for the Depot view).
   var lastBuilding = null; // {entry, info} for the currently-open building modal.
@@ -412,11 +413,11 @@ var FindItem = {};
   // filters.js's savedVisibility comment: keys are stable identifiers for a
   // *kind* of thing, not tied to one specific save's data). Shared by both
   // highlight kinds (item search's synthetic bucket, building search's
-  // isolate-in-place -- see showBuildingHighlight) since only one is ever
+  // isolate-in-place -- see showEntryHighlight) since only one is ever
   // active at a time.
   // Extra synthetic buckets created alongside the main highlight: the item
   // search's per-type building boxes and the building search's lens pins
-  // (see showHighlight/showBuildingHighlight). Tracked by key so
+  // (see showHighlight/showEntryHighlight). Tracked by key so
   // clearHighlight can drop them all through the layer's own removal.
   var extraHighlightKeys = [];
   function removeExtraHighlightBuckets() {
@@ -445,14 +446,18 @@ var FindItem = {};
       });
       savedVisibility = null;
     }
-    // showBuildingHighlight forced this row's checkbox to "on" without a real
-    // change event (see there) -- put it back in sync with the bucket state
-    // just restored above, so the sidebar doesn't show "visible" for a
-    // building that's actually gone back to hidden.
-    if (highlightedBuildingEntry && highlightedBuildingEntry.row.checkbox) {
-      highlightedBuildingEntry.row.checkbox.checked = highlightedBuildingEntry.row.buckets[0].visible;
+    // showEntryHighlight forced these rows' checkboxes to "on" without a real
+    // change event (see there) -- put them back in sync with the bucket state
+    // just restored above, so the sidebar doesn't show "visible" for a layer
+    // that's actually gone back to hidden.
+    if (highlightedEntry) {
+      entryRows(highlightedEntry).forEach(function(row) {
+        if (row.checkbox) {
+          row.checkbox.checked = row.buckets[0].visible;
+        }
+      });
     }
-    highlightedBuildingEntry = null;
+    highlightedEntry = null;
     refreshBuildingModalEye(); // The checkbox resync above may have flipped the modal's eye state.
     modalHighlightToggle.textContent = "Show only these on map";
     buildingModalHighlightToggle.textContent = "Show only this on map";
@@ -579,52 +584,60 @@ var FindItem = {};
     // user was already looking.
   }
 
-  // Building search's equivalent of showHighlight -- but a building's own
-  // buckets already exist and are real, permanent sidebar buckets (see
-  // filters.js's buildingSearchEntries), so this just hides every other
-  // bucket and forces this one's own bucket(s) visible in place, rather than
-  // building a synthetic one-off bucket the way item search does. Also
-  // forces the building's own sidebar checkbox to reflect "shown" so the two
+  // "Show only this on map" for every kind whose objects are already real,
+  // permanent sidebar buckets -- buildings, vehicles, wildlife layers, whole
+  // categories (see filters.js's *SearchEntries). Unlike the item search,
+  // which has to synthesize a bucket for its results, this just hides every
+  // other bucket and forces the entry's own ones visible in place. Also
+  // forces the entry's sidebar checkboxes to reflect "shown" so the two
   // controls don't end up disagreeing once the isolate is cleared.
-  // Above how many instances the building isolate skips its lens pins: past
+  // Above how many instances the isolate skips its lens pins: past
   // this the pins are pure noise (imagine one per foundation), and the boxes
   // alone already carry the "where" at that density.
   var BUILDING_PIN_LIMIT = 1500;
 
-  function showBuildingHighlight(entry) {
+  function showEntryHighlight(entry) {
+    var rows = entryRows(entry);
     savedVisibility = {};
     MapApp.layer.buckets.forEach(function(b) {
       savedVisibility[b.key] = b.visible;
       b.visible = false;
     });
-    entry.row.buckets.forEach(function(b) { b.visible = true; });
+    rows.forEach(function(row) {
+      row.buckets.forEach(function(b) { b.visible = true; });
+    });
     // The isolated buildings' boxes are hard to spot at map-wide zoom, so
     // each instance also gets the same lens pin the item search uses --
     // sharing the box buckets' [x, y, yaw, z] stride-4 points (icon
     // consumers read x/y and z at stride-1, same trick as the vehicles' pin
     // buckets), and their ids so hovering a pin serves the building's own
     // rich tooltip. Icons paint above the boxes, so pins keep hover priority.
+    // Wildlife layers are already pins, and belts/pipes are lines with no
+    // per-instance box at all, so neither contributes here -- they're simply
+    // isolated in place.
     var pinPoints = [], pinIds = [];
-    entry.row.buckets.forEach(function(b) {
-      // Rect (box) buckets only: they are the real per-instance geometry and
-      // are always stride-4. Vehicle rows also carry icon pin buckets that
-      // share the boxes' ids (trains' pin bucket is even stride-3, [x, y, z])
-      // -- reading those with the stride-4 layout produced NaN/mismatched
-      // pins, and duplicated every road vehicle's pin on top of itself.
-      if (!b.ids || b.renderType !== "rect") {
-        return;
-      }
-      for (var i = 0; i < b.ids.length; i++) {
-        pinPoints.push(b.points[i * 4], b.points[i * 4 + 1],
-                       b.points[i * 4 + 2], b.points[i * 4 + 3]);
-        pinIds.push(b.ids[i]);
-      }
+    rows.forEach(function(row) {
+      row.buckets.forEach(function(b) {
+        // Rect (box) buckets only: they are the real per-instance geometry and
+        // are always stride-4. Vehicle rows also carry icon pin buckets that
+        // share the boxes' ids (trains' pin bucket is even stride-3, [x, y, z])
+        // -- reading those with the stride-4 layout produced NaN/mismatched
+        // pins, and duplicated every road vehicle's pin on top of itself.
+        if (!b.ids || b.renderType !== "rect") {
+          return;
+        }
+        for (var i = 0; i < b.ids.length; i++) {
+          pinPoints.push(b.points[i * 4], b.points[i * 4 + 1],
+                         b.points[i * 4 + 2], b.points[i * 4 + 3]);
+          pinIds.push(b.ids[i]);
+        }
+      });
     });
     if (pinPoints.length > 0 && pinIds.length <= BUILDING_PIN_LIMIT) {
       var pinKey = HIGHLIGHT_BUCKET_KEY + ":pins";
       var pinBucket = MapApp.layer.addBucket({
         key: pinKey,
-        label: entry.row.label,
+        label: entry.label,
         color: HIGHLIGHT_COLOR,
         visible: true,
         renderType: "icon",
@@ -640,13 +653,15 @@ var FindItem = {};
       pinBucket.excludeFromSelection = true;
       extraHighlightKeys.push(pinKey);
     }
-    if (entry.row.checkbox) {
-      entry.row.checkbox.checked = true;
-    }
-    highlightedBuildingEntry = entry;
+    rows.forEach(function(row) {
+      if (row.checkbox) {
+        row.checkbox.checked = true;
+      }
+    });
+    highlightedEntry = entry;
     highlighting = true;
     buildingModalHighlightToggle.textContent = "Show all layers again";
-    refreshBuildingModalEye(); // The isolate just forced this row's checkbox on.
+    refreshBuildingModalEye(); // The isolate just forced these rows' checkboxes on.
     MapApp.layer.requestRedraw();
   }
 
@@ -729,7 +744,7 @@ var FindItem = {};
 
   function refreshBuildingModalEye() {
     var entry = currentBuildingModalEntry;
-    if (!entry || !entry.row.checkbox) {
+    if (!entry || !entryRows(entry).some(function(row) { return row.checkbox; })) {
       buildingModalVisibilityToggle.style.display = "none";
       return;
     }
@@ -738,32 +753,56 @@ var FindItem = {};
   }
 
   buildingModalVisibilityToggle.addEventListener("click", function() {
-    var entry = currentBuildingModalEntry;
-    if (entry && entry.row.checkbox) {
-      entry.row.checkbox.click(); // Same path as the suggestion-row eye -- the sidebar's own change handler does the redraw.
+    if (currentBuildingModalEntry) {
+      toggleEntryVisibility(currentBuildingModalEntry); // Same path as the suggestion-row eye -- the sidebar's own change handler does the redraw.
     }
     refreshBuildingModalEye();
   });
+
+  // The chip under the modal title: where this entry lives in the sidebar,
+  // and the color everything else in the modal is tinted with.
+  function modalCategoryChip(entry) {
+    if (entry.kind === "vehicle") {
+      return { text: entry.isTrain ? "Vehicles › Railway" : "Vehicles", color: Filters.vehicleColor() };
+    }
+    if (entry.kind === "wildlife") {
+      return { text: entry.section, color: entry.row.color };
+    }
+    if (entry.kind === "resource") {
+      return { text: entry.section, color: Filters.resourceColor() };
+    }
+    if (entry.kind === "category") {
+      // Not a build-menu category -- say so plainly, the same way the
+      // suggestion row's "(Category)" suffix does.
+      return { text: "Category", color: entry.rows[0].color };
+    }
+    return {
+      text: entry.subcategory ? entry.category + " › " + entry.subcategory : entry.category,
+      color: Filters.buildingCategoryColor(entry.category),
+    };
+  }
 
   function openBuildingModal(entry) {
     currentBuildingModalEntry = entry;
     refreshBuildingModalEye();
     buildingModalTitle.textContent = entry.label;
-    var chipColor;
+    var chip = modalCategoryChip(entry);
+    buildingModalCategory.textContent = chip.text;
     buildingModalIcon.classList.toggle("vehicleModalIcon", entry.kind === "vehicle");
-    if (entry.kind === "vehicle") {
-      buildingModalCategory.textContent = entry.isTrain ? "Vehicles › Railway" : "Vehicles";
-      chipColor = Filters.vehicleColor();
+    if (entry.kind === "vehicle" || entry.kind === "wildlife" || entry.kind === "resource") {
+      // Vehicle glyphs (icons/vehicles/), creature art (icons/creatures/) and
+      // a resource's ore icon are all carried as a ready URL on the entry --
+      // no ClassName-keyed lookup to do.
       buildingModalIcon.onerror = function() { buildingModalIcon.onerror = null; buildingModalIcon.src = DEFAULT_BUILDING_ICON_URL; };
       buildingModalIcon.src = entry.iconUrl;
       buildingModalIcon.style.visibility = "visible";
+    } else if (entry.kind === "category") {
+      attachIconWithFallback(buildingModalIcon, "building", entry.iconClassName);
     } else {
-      buildingModalCategory.textContent = entry.subcategory ? entry.category + " › " + entry.subcategory : entry.category;
-      chipColor = Filters.buildingCategoryColor(entry.category);
       attachIconWithFallback(buildingModalIcon, "building", entry.typePaths[0]);
     }
-    buildingModalCategory.style.background = chipColor + "26"; // ~15% alpha tint, hex-appended (2-digit alpha).
-    buildingModalCategory.style.color = chipColor;
+    buildingModalCategory.style.background = chip.color + "26"; // ~15% alpha tint, hex-appended (2-digit alpha).
+    buildingModalCategory.style.color = chip.color;
     banner.style.display = "none";
     buildingOverlay.style.display = "flex";
   }
@@ -817,8 +856,11 @@ var FindItem = {};
   }
 
   // One horizontal-bar breakdown section (the building modal's "Recipe mix",
-  // the train modal's "Consist mix") appended into the recipes area --
-  // rows: [{label, count}], scaled against the largest count.
+  // the train modal's "Consist mix", a category's tier mix, a resource's
+  // purity mix) appended into the recipes area -- rows: [{label, count,
+  // color?}], scaled against the largest count. A row's own `color` wins over
+  // the section color, so a resource's purity bars can wear the same
+  // green/orange/red the map paints those nodes in.
   function appendBarSection(title, rows, barColor) {
     buildingModalRecipes.appendChild(el("div", "buildingModalSectionLabel", title));
     var maxCount = rows.reduce(function(m, r) { return Math.max(m, r.count); }, 1);
@@ -828,7 +870,7 @@ var FindItem = {};
       var track = el("div", "recipeBarTrack");
       var fill = el("div", "recipeBarFill");
       fill.style.width = Math.max(3, (barRow.count / maxCount) * 100) + "%";
-      fill.style.background = barColor;
+      fill.style.background = barRow.color || barColor;
       track.appendChild(fill);
       row.appendChild(track);
       row.appendChild(el("span", "recipeBarCount", barRow.count.toLocaleString()));
@@ -923,6 +965,111 @@ var FindItem = {};
 
     fillModalInventory(entry.isTrain ? "Combined cargo (all freight cars)" : "Combined cargo", info.inventory);
     buildingModalHighlightToggle.style.display = info.count > 0 ? "block" : "none";
+  }
+
+  // Blanks the sections the layer modals below don't use, so a previous
+  // building/vehicle modal's recipe bars and inventory never linger behind a
+  // spawner's stat tile.
+  function resetModalSections() {
+    buildingModalStats.innerHTML = "";
+    buildingModalRecipes.innerHTML = "";
+    fillModalInventory("", null);
+  }
+
+  // Wildlife (a creature-spawner species, or a tamed-creature layer -- see
+  // filters.js's wildlifeSearchEntries). There's no /api endpoint behind
+  // these and nothing to fetch: the layer's count is already in the sidebar
+  // row, so the modal is filled synchronously. What it's for is the same
+  // thing the building modal is for -- "how many of these are there, and
+  // show me only those".
+  function fillWildlifeModalFromEntry(entry) {
+    var count = entry.row.count;
+    resetModalSections();
+    buildingModalSummary.textContent = entry.isSpawner
+      ? count.toLocaleString() + " spawn point" + (count === 1 ? "" : "s") + " across the world."
+      : count.toLocaleString() + " on the map.";
+    buildingModalStats.appendChild(statTile(count.toLocaleString(), entry.isSpawner ? "Spawn points" : "Count"));
+    buildingModalHighlightToggle.style.display = count > 0 ? "block" : "none";
+  }
+
+  // A whole logistics family (see filters.js's LAYER_CATEGORY_DEFS). Its
+  // per-mark rows are the interesting part -- "am I still running Mk.1 belts
+  // anywhere?" is the question this answers -- so they get the same
+  // horizontal-bar breakdown the building modal uses for its recipe mix.
+  function fillCategoryModalFromEntry(entry) {
+    var rows = entry.rows;
+    var total = rows.reduce(function(sum, row) { return sum + row.count; }, 0);
+    resetModalSections();
+    buildingModalSummary.textContent = total.toLocaleString() + " placed across " +
+      rows.length + " tier" + (rows.length === 1 ? "" : "s") + ".";
+    buildingModalStats.appendChild(statTile(total.toLocaleString(), "Total"));
+    buildingModalStats.appendChild(statTile(String(rows.length), "Tiers in use"));
+    var bars = rows
+      .map(function(row) { return { label: row.displayLabel || row.label, count: row.count }; })
+      .filter(function(bar) { return bar.count > 0; })
+      .sort(function(a, b) { return b.count - a.count; });
+    if (bars.length > 0) {
+      appendBarSection("Breakdown", bars, entry.rows[0].color);
+    }
+    buildingModalHighlightToggle.style.display = total > 0 ? "block" : "none";
+  }
+
+  // A resource node/well type (see filters.js's resourceSearchEntries). Its
+  // leaf rows are the purity x mined/unmined grid, so the two numbers that
+  // matter -- how many there are, and how many are still untapped -- are
+  // stat tiles, with the purity split as bars in the map's own purity colors.
+  function fillResourceModalFromEntry(entry) {
+    var rows = entry.rows;
+    var total = rows.reduce(function(sum, row) { return sum + row.count; }, 0);
+    var mined = rows.reduce(function(sum, row) { return sum + (row.mined ? row.count : 0); }, 0);
+    var noun = entry.section === "Resource Wells" ? "well" : "node";
+    resetModalSections();
+    buildingModalSummary.textContent = total.toLocaleString() + " " + noun + (total === 1 ? "" : "s") +
+      " in the world, " + (total - mined).toLocaleString() + " not yet tapped.";
+    buildingModalStats.appendChild(statTile(total.toLocaleString(), "Total"));
+    buildingModalStats.appendChild(statTile((total - mined).toLocaleString(), "Untapped"));
+    buildingModalStats.appendChild(statTile(mined.toLocaleString(), "Being mined"));
+
+    // Purity summed across mined AND unmined -- purity is a property of the
+    // node itself, so splitting the distribution by whether someone already
+    // built on it would answer a different question than "what's out there".
+    // Ordered best purity first (purityRank), not by count.
+    var byPurity = {};
+    var order = [];
+    rows.forEach(function(row) {
+      if (!byPurity[row.purityLabel]) {
+        byPurity[row.purityLabel] = { label: row.purityLabel, count: 0, color: row.color, rank: row.purityRank };
+        order.push(byPurity[row.purityLabel]);
+      }
+      byPurity[row.purityLabel].count += row.count;
+    });
+    order.sort(function(a, b) { return a.rank - b.rank; });
+    if (order.length > 0) {
+      appendBarSection("Purity", order, Filters.resourceColor());
+    }
+    buildingModalHighlightToggle.style.display = total > 0 ? "block" : "none";
+  }
+
+  function fillerForEntry(entry) {
+    if (entry.kind === "vehicle") return fillVehicleModalFromInfo;
+    if (entry.kind === "wildlife") return fillWildlifeModalFromEntry;
+    if (entry.kind === "category") return fillCategoryModalFromEntry;
+    if (entry.kind === "resource") return fillResourceModalFromEntry;
+    return fillBuildingModalFromInfo;
+  }
+
+  // The wildlife/category counterpart of runInfoSearchFor: no fetch, so it
+  // opens and fills in one go, but it lands in exactly the same lastBuilding/
+  // lastKind state so the banner's "Details" and the highlight toggle work
+  // identically for every kind.
+  function runLayerSearchFor(entry) {
+    searchGeneration++; // Orphan any in-flight fetch -- this modal supersedes it.
+    lastBuilding = { entry: entry, info: null };
+    lastKind = "building";
+    clearHighlight();
+    openBuildingModal(entry);
+    fillerForEntry(entry)(entry, null);
+    buildingModalHighlightToggle.textContent = "Show only this on map";
   }
 
   // Monotonic request token: every new search bumps it, and a resolving
@@ -1038,25 +1185,52 @@ var FindItem = {};
       runBuildingSearchFor(entry);
     } else if (entry.kind === "vehicle") {
       runVehicleSearchFor(entry);
+    } else if (entry.kind === "wildlife" || entry.kind === "category" || entry.kind === "resource") {
+      runLayerSearchFor(entry);
     } else {
       runSearchFor(entry.itemPath, entry.label);
     }
+  }
+
+  // The sidebar rows a suggestion's show/hide toggle drives: one for a
+  // building/vehicle/wildlife entry, the whole family for a "category" entry
+  // (see filters.js's LAYER_CATEGORY_DEFS -- "Conveyor Belts" is one row per
+  // mark, scattered across build-menu subcategories). Always the real sidebar
+  // rows, so this is never a second source of truth for visibility.
+  function entryRows(entry) {
+    return entry.rows || [entry.row];
+  }
+
+  function entryIsShown(entry) {
+    return entryRows(entry).some(function(row) { return !row.checkbox || row.checkbox.checked; });
+  }
+
+  // Flips the entry to the opposite of what it currently reads as -- a
+  // part-shown category goes fully hidden, matching how its rows' own
+  // (indeterminate) group checkbox behaves in the sidebar.
+  function toggleEntryVisibility(entry) {
+    var target = !entryIsShown(entry);
+    entryRows(entry).forEach(function(row) {
+      if (row.checkbox && row.checkbox.checked !== target) {
+        row.checkbox.click(); // The sidebar's own change handler does the redraw/persistence.
+      }
+    });
   }
 
   // Repaints any show/hide eye button (suggestion row or the building
   // modal's) from the entry's current checkbox state -- glyph, blue-shown/
   // pink-hidden class, and tooltip all in one place.
   function refreshVisibilityToggle(btn, entry) {
-    var isShown = !entry.row.checkbox || entry.row.checkbox.checked;
+    var isShown = entryIsShown(entry);
     btn.classList.toggle("isShown", isShown);
     btn.innerHTML = isShown ? EYE_OPEN_SVG : EYE_OFF_SVG;
     btn.title = isShown ? "Hide " + entry.label + " on the map" : "Show " + entry.label + " on the map";
   }
 
-  // The show/hide eye button on a building suggestion row -- see the header
-  // comment. Reads/writes entry.row.checkbox directly (the same real DOM
-  // checkbox the sidebar row owns, see filters.js's appendLeafRow), so this
-  // is never a second source of truth for the building's visibility.
+  // The show/hide eye button on a suggestion row -- see the header comment.
+  // Reads/writes the row's real DOM checkbox (the one the sidebar owns, see
+  // filters.js's appendLeafRow), so this is never a second source of truth
+  // for what's visible.
   function makeVisibilityToggle(entry) {
     var btn = document.createElement("button");
     btn.type = "button";
@@ -1076,9 +1250,7 @@ var FindItem = {};
     });
     btn.addEventListener("click", function(e) {
       e.stopPropagation();
-      if (entry.row.checkbox) {
-        entry.row.checkbox.click(); // Fires the sidebar's own change handler -- redraw, savedVisibility, all of it, for free.
-      }
+      toggleEntryVisibility(entry);
       refresh();
     });
     return btn;
@@ -1097,18 +1269,27 @@ var FindItem = {};
     var img = document.createElement("img");
     img.className = "searchSuggestionIcon";
     img.alt = "";
-    if (entry.kind === "vehicle") {
-      // Vehicle glyphs live under icons/vehicles/ and are carried on the
-      // entry itself (see filters.js) -- no ClassName-keyed lookup to do.
+    if (entry.kind === "vehicle" || entry.kind === "wildlife" || entry.kind === "resource") {
+      // Vehicle glyphs (icons/vehicles/), creature art (icons/creatures/) and
+      // a resource's ore icon all arrive as a ready URL on the entry itself
+      // (see filters.js) -- no ClassName-keyed lookup to do.
       img.onerror = function() { img.onerror = null; img.src = DEFAULT_BUILDING_ICON_URL; };
       img.src = entry.iconUrl;
-      img.classList.add("searchSuggestionVehicleIcon");
+      if (entry.kind === "vehicle") {
+        img.classList.add("searchSuggestionVehicleIcon");
+      }
+    } else if (entry.kind === "category") {
+      attachIconWithFallback(img, "building", entry.iconClassName);
     } else {
       attachIconWithFallback(img, entry.kind, catalogIconClassName(entry));
     }
     row.appendChild(img);
-    row.appendChild(el("span", "searchSuggestionLabel", entry.label));
-    if (entry.kind === "building" || entry.kind === "vehicle") {
+    // "(Category)" spelled out on the row itself, not just implied by the
+    // group heading above it -- one glance has to say "this toggles a whole
+    // family", not "this is a building called Conveyor Belts".
+    row.appendChild(el("span", "searchSuggestionLabel",
+      entry.kind === "category" ? entry.label + " (Category)" : entry.label));
+    if (entry.kind !== "item") {
       row.appendChild(makeVisibilityToggle(entry));
     }
     // mousedown (not click) + preventDefault so selecting doesn't first
@@ -1146,24 +1327,38 @@ var FindItem = {};
       hideSuggestions();
       return;
     }
-    var itemMatches = matchCatalog(catalog.filter(function(e) { return e.kind === "item"; }), q);
-    var buildingMatches = matchCatalog(catalog.filter(function(e) { return e.kind === "building"; }), q);
-    var vehicleMatches = matchCatalog(catalog.filter(function(e) { return e.kind === "vehicle"; }), q);
-    currentSuggestions = itemMatches.concat(buildingMatches, vehicleMatches);
+    function matchesOfKind(kind) {
+      return matchCatalog(catalog.filter(function(e) { return e.kind === kind; }), q);
+    }
+    // Categories first: they're the broadest thing a query can mean, and
+    // burying "Conveyor Belts (Category)" under five individual belt marks
+    // would defeat the point of having it.
+    var groups = [
+      ["Categories", matchesOfKind("category")],
+      ["Items", matchesOfKind("item")],
+      // Directly under Items deliberately: an ore query plausibly means
+      // either, and "Iron Ore" sitting right above "Iron Ore (Resource Node)"
+      // is what makes the distinction obvious at a glance.
+      ["Resources", matchesOfKind("resource")],
+      ["Buildings", matchesOfKind("building")],
+      ["Vehicles", matchesOfKind("vehicle")],
+      ["Wildlife", matchesOfKind("wildlife")],
+    ];
+    currentSuggestions = groups.reduce(function(all, group) { return all.concat(group[1]); }, []);
 
     suggestionsEl.innerHTML = "";
     currentRowElements = [];
     if (currentSuggestions.length === 0) {
-      suggestionsEl.appendChild(el("div", "searchSuggestionEmpty", "No matching item, building or vehicle."));
+      suggestionsEl.appendChild(el("div", "searchSuggestionEmpty", "No matching item, resource, building, vehicle, creature or category."));
       suggestionsEl.style.display = "block";
       activeIndex = -1;
       return;
     }
 
-    var nonEmptyKinds = [itemMatches, buildingMatches, vehicleMatches].filter(function(m) { return m.length > 0; }).length;
+    var nonEmptyKinds = groups.filter(function(group) { return group[1].length > 0; }).length;
     var showGroupLabels = nonEmptyKinds > 1;
     var index = 0;
-    [["Items", itemMatches], ["Buildings", buildingMatches], ["Vehicles", vehicleMatches]].forEach(function(group) {
+    groups.forEach(function(group) {
       var groupEntries = group[1];
       if (groupEntries.length === 0) {
         return;
@@ -1188,10 +1383,44 @@ var FindItem = {};
     renderSuggestions(searchInput.value);
   });
 
+  // Focusing the box selects whatever is already in it, so the next
+  // keystroke replaces the previous query instead of appending to it -- the
+  // box is almost always re-entered to search for something ELSE, and having
+  // to clear it first was pure friction. The mousedown/mouseup pair is the
+  // standard workaround for a click otherwise collapsing that selection to a
+  // caret right after focus lands; a click while already focused still places
+  // a caret normally, so text stays editable in place.
+  var selectOnNextMouseUp = false;
+
   searchInput.addEventListener("focus", function() {
+    selectOnNextMouseUp = true; // Cleared below if this focus wasn't click-driven.
+    searchInput.select();
     if (searchInput.value.trim()) {
       renderSuggestions(searchInput.value);
     }
+  });
+
+  searchInput.addEventListener("mouseup", function(e) {
+    if (selectOnNextMouseUp) {
+      selectOnNextMouseUp = false;
+      e.preventDefault(); // Keep the selection the focus handler just made.
+    }
+  });
+
+  searchInput.addEventListener("blur", function() {
+    selectOnNextMouseUp = false;
+  });
+
+  // Ctrl/Cmd+F puts the cursor in the search box (text pre-selected, as
+  // above) rather than opening the browser's own find bar, which can only
+  // ever search the handful of DOM nodes the map happens to have rendered.
+  document.addEventListener("keydown", function(e) {
+    if ((e.key !== "f" && e.key !== "F") || !(e.ctrlKey || e.metaKey) || e.altKey || e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    searchInput.focus(); // Fires the focus handler above (synchronously), which selects.
+    selectOnNextMouseUp = false; // No click is pending -- don't swallow the next one.
   });
 
   searchInput.addEventListener("keydown", function(e) {
@@ -1214,6 +1443,9 @@ var FindItem = {};
       } else if (vehicleCatalogByLabel.hasOwnProperty(typedLabel)) {
         hideSuggestions();
         runVehicleSearchFor(vehicleCatalogByLabel[typedLabel]);
+      } else if (layerCatalogByLabel.hasOwnProperty(typedLabel)) {
+        hideSuggestions();
+        runLayerSearchFor(layerCatalogByLabel[typedLabel]);
       }
     } else if (e.key === "Escape") {
       hideSuggestions();
@@ -1245,13 +1477,13 @@ var FindItem = {};
   });
 
   // Building modal's equivalent of the item modal's highlight toggle above --
-  // see showBuildingHighlight for why this isolates in place rather than
+  // see showEntryHighlight for why this isolates in place rather than
   // building a synthetic bucket.
   buildingModalHighlightToggle.addEventListener("click", function() {
     if (highlighting) {
       clearHighlight();
     } else if (lastBuilding) {
-      showBuildingHighlight(lastBuilding.entry);
+      showEntryHighlight(lastBuilding.entry);
       buildingModalHighlightToggle.textContent = "Show all layers again";
       buildingOverlay.style.display = "none";
       bannerLabel.textContent = "Showing only: " + lastBuilding.entry.label;
@@ -1271,8 +1503,7 @@ var FindItem = {};
       overlay.style.display = "flex";
     } else if (lastKind === "building" && lastBuilding) {
       openBuildingModal(lastBuilding.entry);
-      var fillFromInfo = lastBuilding.entry.kind === "vehicle" ? fillVehicleModalFromInfo : fillBuildingModalFromInfo;
-      fillFromInfo(lastBuilding.entry, lastBuilding.info);
+      fillerForEntry(lastBuilding.entry)(lastBuilding.entry, lastBuilding.info);
       buildingModalHighlightToggle.textContent = "Show all layers again";
     }
   });
@@ -1317,7 +1548,7 @@ var FindItem = {};
     buildingOverlay.style.display = "none";
     banner.style.display = "none";
     highlighting = false;
-    highlightedBuildingEntry = null;
+    highlightedEntry = null;
     savedVisibility = null;
     lastResult = null;
     lastBuilding = null;
@@ -1352,7 +1583,35 @@ var FindItem = {};
     vehicleCatalogByLabel = {};
     vehicleEntries.forEach(function(entry) { vehicleCatalogByLabel[entry.label] = entry; });
 
-    catalog = itemEntries.concat(buildingEntries, vehicleEntries);
+    // Creature-spawner species and tamed creatures (see filters.js's
+    // wildlifeSearchEntries): "stinger" or "doggo" reaches the layer directly,
+    // instead of hunting for it under Spawners > Stingers / Entities.
+    // isSpawner/section come straight from the row's own sidebar section, so
+    // the modal can say "N spawn points across the world" for a spawner and
+    // "N on the map" for the live tamed creatures without guessing from the label.
+    var wildlifeEntries = (Filters.getWildlifeSearchEntries ? Filters.getWildlifeSearchEntries() : []).map(function(row) {
+      return { kind: "wildlife", label: row.label, iconUrl: row.iconUrl, row: row,
+               isSpawner: row.section === "Spawners", section: row.section };
+    });
+
+    // Whole logistics families whose per-mark rows are spread across the
+    // sidebar, so there's nowhere else to flip all of them at once.
+    var categoryEntries = (Filters.getLayerCategorySearchEntries ? Filters.getLayerCategorySearchEntries() : []).map(function(def) {
+      return { kind: "category", label: def.label, iconClassName: def.iconClassName, rows: def.rows };
+    });
+
+    // Ore nodes and resource wells (see filters.js's resourceSearchEntries).
+    // Their labels already carry the "(Resource Node)"/"(Resource Well)"
+    // suffix that keeps them apart from the identically-named ore ITEM in the
+    // item catalog above -- both are legitimate answers to "iron ore".
+    var resourceEntries = (Filters.getResourceSearchEntries ? Filters.getResourceSearchEntries() : []).map(function(def) {
+      return { kind: "resource", label: def.label, iconUrl: def.iconUrl, section: def.section, rows: def.rows };
+    });
+
+    layerCatalogByLabel = {};
+    wildlifeEntries.concat(categoryEntries, resourceEntries).forEach(function(entry) { layerCatalogByLabel[entry.label] = entry; });
+
+    catalog = itemEntries.concat(buildingEntries, vehicleEntries, wildlifeEntries, categoryEntries, resourceEntries);
 
     window.MapApp.currentDepotItems = payload.dimensionalDepot || [];
   };

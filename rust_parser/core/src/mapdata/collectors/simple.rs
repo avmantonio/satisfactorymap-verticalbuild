@@ -49,17 +49,28 @@ pub fn collect_hub(scan: &SaveScan) -> Value {
     points_and_ids(scan, HUB_TYPE_PATH)
 }
 
+/// TAMED lizard doggos only. A doggo actor exists in the save only if the
+/// player had its region loaded at save time OR it was tamed -- an untamed one
+/// is a transient spawn that despawns the moment its region unloads, so
+/// plotting it is misleading (its spawner, drawn as static world data by
+/// collect_spawners, is the durable fact about where doggos live). A tamed
+/// doggo is permanent and player-owned, which is exactly what's worth a pin,
+/// so the label says so and the map draws a heart on the pin.
+///
+/// mTamed is a BoolProperty present only once tamed (absent -> wild); the pet
+/// name (mDisplayName) is NOT a discriminator: a tamed doggo the player never
+/// renamed carries no mDisplayName at all, just the game's default display name.
 pub fn collect_creatures(scan: &SaveScan) -> Value {
     let data = scan.data();
     // Single-typePath bucket dict in Python; list-shaped output.
     let mut points: Vec<Value> = Vec::new();
     let mut ids: Vec<Value> = Vec::new();
-    let slots = scan.actor_slots_of_type(&[LIZARD_DOGGO_TYPE_PATH]);
-    if slots.is_empty() {
-        return json!([]);
-    }
-    for slot in &slots {
-        let actor = scan.actor(*slot);
+    for slot in scan.actor_slots_of_type(&[LIZARD_DOGGO_TYPE_PATH]) {
+        let Some(object) = scan.parse_object(slot) else { continue };
+        if props::boolean(&object.properties, data, b"mTamed") != Some(true) {
+            continue;
+        }
+        let actor = scan.actor(slot);
         let position = f3(actor.position);
         let [px, py] = project_xy(position[0], position[1]);
         points.push(jnum(px));
@@ -67,9 +78,18 @@ pub fn collect_creatures(scan: &SaveScan) -> Value {
         points.push(jnum(world_z_to_meters(position[2])));
         ids.push(Value::String(props::lossy(actor.instance_name.bytes(data))));
     }
+    if ids.is_empty() {
+        return json!([]);
+    }
     json!([{
         "typePath": LIZARD_DOGGO_TYPE_PATH,
-        "label": readable_label(LIZARD_DOGGO_TYPE_PATH),
+        // Keep in sync with describe_instance's doggo branch (the hover
+        // tooltip's title) -- same wording, same meaning.
+        "label": format!("{} (Tamed)", readable_label(LIZARD_DOGGO_TYPE_PATH)),
+        // Class-keyed creature icon (icons/creatures/<Char_*_C>.png), the same
+        // art the spawner pins use -- the map tells the two apart with the
+        // heart badge, not a different picture.
+        "iconClass": props::lossy(props::short_name(LIZARD_DOGGO_TYPE_PATH.as_bytes())),
         "points": points,
         "ids": ids,
     }])
@@ -83,6 +103,16 @@ pub fn collect_creatures(scan: &SaveScan) -> Value {
 /// for every save. Beetles are dropped deliberately: no icon exists for
 /// them, and they're not a creature anyone hunts on the map. One entry per
 /// creature class, sorted by label for a stable sidebar order.
+///
+/// Labels come from readable_label (i.e. readableNameCorrections.json), NOT
+/// creatures.json's displayName. Two reasons: that table gives
+/// Char_SpitterForestAlpha_C and Char_SpitterForestRedAlpha_C the SAME name
+/// (likewise the two Small Forest Spitters), which showed up as two
+/// indistinguishable sidebar rows and two indistinguishable search results;
+/// and describe_instance already names a live creature actor through
+/// readable_label, so this is what makes a spawner and the creature it spawns
+/// agree. It also means the hand-curated corrections table is the one place
+/// to fix any species' name -- see the labels_are_unique test below.
 pub fn collect_spawners(_scan: &SaveScan) -> Value {
     let gd = gamedata::get();
     let mut entries: Vec<(String, String, Value)> = Vec::new();
@@ -90,7 +120,12 @@ pub fn collect_spawners(_scan: &SaveScan) -> Value {
         if class == "unknown" || class == "Char_Beetle_C" {
             continue;
         }
-        let Some(info) = gd.creatures.get(class) else { continue };
+        // creatures.json membership still gates which classes are real
+        // creatures worth a marker, even though its name is no longer used.
+        if !gd.creatures.contains_key(class) {
+            continue;
+        }
+        let label = readable_label(class);
         let mut points: Vec<Value> = Vec::new();
         let mut ids: Vec<Value> = Vec::new();
         for (path_name, &[x, y, z]) in spawners {
@@ -101,20 +136,61 @@ pub fn collect_spawners(_scan: &SaveScan) -> Value {
             ids.push(Value::String(path_name.clone()));
         }
         entries.push((
-            info.display_name.clone(),
+            label.clone(),
             class.clone(),
             json!({
                 "typePath": class,
-                "label": info.display_name,
+                "label": label,
                 "points": points,
                 "ids": ids,
             }),
         ));
     }
-    // By label, class as the tiebreak (the Red Forest Spitter variants share
-    // display names with the normal Forest ones).
+    // By label, class as the tiebreak -- labels are unique today (see the
+    // test), but the tiebreak keeps the order stable regardless.
     entries.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
     Value::Array(entries.into_iter().map(|(_, _, v)| v).collect())
+}
+
+#[cfg(test)]
+mod spawner_label_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    /// Every plotted spawner species must be tellable from every other one --
+    /// in the sidebar and in the search bar, the label is all the user gets.
+    /// A collision here means readableNameCorrections.json needs a distinct
+    /// name for the colliding classes.
+    #[test]
+    fn spawner_labels_are_unique() {
+        let gd = gamedata::get();
+        let mut by_label: HashMap<String, Vec<&str>> = HashMap::new();
+        for class in gd.creature_spawners.keys() {
+            if class == "unknown" || class == "Char_Beetle_C" || !gd.creatures.contains_key(class) {
+                continue;
+            }
+            by_label.entry(readable_label(class)).or_default().push(class);
+        }
+        assert!(!by_label.is_empty(), "no spawner species at all");
+        let clashes: Vec<_> = by_label.iter().filter(|(_, classes)| classes.len() > 1).collect();
+        assert!(clashes.is_empty(), "spawner species sharing a label: {clashes:?}");
+    }
+
+    /// A class missing from readableNameCorrections would fall through to the
+    /// de-camelCase fallback and read as "Char, Big Crab Hatcher".
+    #[test]
+    fn every_spawner_species_has_a_curated_name() {
+        let gd = gamedata::get();
+        for class in gd.creature_spawners.keys() {
+            if class == "unknown" || class == "Char_Beetle_C" || !gd.creatures.contains_key(class) {
+                continue;
+            }
+            assert!(
+                gd.readable_name_corrections.contains_key(class),
+                "{class} has no readableNameCorrections entry"
+            );
+        }
+    }
 }
 
 /// sav_map_data._humanizeEnumValue over a raw EnumProperty value.

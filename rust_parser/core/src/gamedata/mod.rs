@@ -35,7 +35,10 @@ pub struct PowerSlugs {
 }
 
 /// creatures.json: official display name + icon per creature class (see
-/// game_data/extractors/extract_spawners.py).
+/// game_data/extractors/extract_spawners.py). The map uses this table as the
+/// roster of what counts as a creature; it does NOT take names from it --
+/// two Forest Spitter variants share a displayName here, so species are named
+/// through readable_label instead (see collect_spawners).
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatureInfo {

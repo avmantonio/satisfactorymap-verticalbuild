@@ -354,6 +354,27 @@ pub fn flow_bottleneck(
                 .collect(),
         ),
     );
+    // Every rated member of the line/network, limiting or not, so the map can
+    // light up the WHOLE run rather than just the slow bits of it -- a lone
+    // warning pin says "something here is slow" without ever showing which
+    // belts it is actually talking about. Names only: the client resolves each
+    // one to the spline it already has plotted (see bottleneck.js), which is
+    // also what lets it drop the warning marker at a segment's MIDDLE instead
+    // of on the shared endpoint between two of them.
+    result.insert(
+        "allSegments".into(),
+        Value::Array(
+            ranked_segments
+                .iter()
+                .map(|r| {
+                    json!({
+                        "instanceName": props::lossy(r.instance_name),
+                        "isLimiting": r.rate == slowest_rate,
+                    })
+                })
+                .collect(),
+        ),
+    );
     if let Some(hovered_rate) = rate_of_type_path(hovered_type_path) {
         result.insert("hoveredPerMinute".into(), Value::from(hovered_rate));
         result.insert("hoveredIsLimiting".into(), Value::Bool(hovered_rate == slowest_rate));

@@ -377,8 +377,19 @@ var MapApp = {};
       if (!map) {
         return;
       }
+      if (!this._viewTopLeft) {
+        return; // Before the first _reset/frame there's no affine to draw against.
+      }
       var ctx = this._highlightCanvas.getContext("2d");
       ctx.clearRect(0, 0, this._highlightCanvas.width, this._highlightCanvas.height);
+
+      var zoom = map.getZoom();
+      var pixelOrigin = map.getPixelOrigin();
+      // The highlight canvas is viewport-anchored (see _reset/_onMoveEnd),
+      // unlike the buffered bulk canvas -- so its affine uses _viewTopLeft.
+      var affine = this._computeAffine(zoom, pixelOrigin, this._viewTopLeft);
+
+      this._drawLineOverlays(ctx, affine);
 
       var bucket = MapApp.highlightedBucket;
       if (!bucket || !bucket.ids) {
@@ -394,11 +405,6 @@ var MapApp = {};
       if (idx === -1) {
         return;
       }
-      var zoom = map.getZoom();
-      var pixelOrigin = map.getPixelOrigin();
-      // The highlight canvas is viewport-anchored (see _reset/_onMoveEnd),
-      // unlike the buffered bulk canvas -- so its affine uses _viewTopLeft.
-      var affine = this._computeAffine(zoom, pixelOrigin, this._viewTopLeft);
 
       if (bucket.renderType === "rect") {
         this._strokeRectHighlight(ctx, bucket, idx, affine);
@@ -481,6 +487,58 @@ var MapApp = {};
         ctx.arc(tipX, tipY - pinRadius - pinRadius * 0.7, pinRadius + 2, 0, Math.PI * 2);
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 2.5;
+        ctx.stroke();
+      }
+    },
+
+    // Free-standing shapes painted over everything (see
+    // MapApp.setLineOverlays) -- bottleneck.js retracing a whole conveyor
+    // line: its belts as polylines, plus any conveyor LIFT along it, which
+    // the parser draws as a building box rather than a spline (see the rust
+    // core's conveyor_belt_only_type_paths) and which is very often the slow
+    // member being pointed at.
+    //
+    // These live on the highlight canvas rather than in real buckets for two
+    // reasons: adding a line/rect bucket at runtime forces the WebGL renderer
+    // to rebuild (and re-upload) its entire stream, which on a megabase is a
+    // multi-second freeze on what should be an instant "show me"; and the
+    // bulk pass altitude-gates everything it draws, which is exactly the
+    // filter these overlays exist to escape.
+    _drawLineOverlays: function(ctx, affine) {
+      var overlays = MapApp.lineOverlays;
+      if (!overlays || overlays.length === 0) {
+        return;
+      }
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      for (var o = 0; o < overlays.length; o++) {
+        var overlay = overlays[o];
+        ctx.beginPath();
+        var polylines = overlay.polylines || [];
+        for (var p = 0; p < polylines.length; p++) {
+          if (polylines[p].points.length >= polylines[p].stride * 2) {
+            _tracePolylinePath(ctx, polylines[p].points, polylines[p].stride, affine);
+          }
+        }
+        var boxes = overlay.boxes || [];
+        for (var b = 0; b < boxes.length; b++) {
+          var idx = boxes[b].index * 4;
+          var pts = boxes[b].bucket.points;
+          var footprint = _footprintForPoint(boxes[b].bucket, boxes[b].index, pts[idx + 2]);
+          if (footprint.verts) {
+            _tracePolygon(ctx, pts[idx], pts[idx + 1], footprint.verts, affine);
+          } else {
+            this._traceRect(ctx, pts[idx], pts[idx + 1], footprint.yaw, footprint.halfWidth, footprint.halfDepth, affine);
+          }
+        }
+        // Same white halo the hovered-line highlight wears, for the same
+        // reason: a colored stroke alone disappears into a dense bundle of
+        // belts running alongside it.
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = overlay.width + 3;
+        ctx.stroke();
+        ctx.strokeStyle = overlay.color;
+        ctx.lineWidth = overlay.width;
         ctx.stroke();
       }
     },
@@ -661,7 +719,7 @@ var MapApp = {};
                 bucket.pinFillColor || "#ffffff",
                 outlineColor || bucket.color || "#999999",
                 outlineColor ? 2 : 1.25,
-                _getIcon(bucket.iconUrl));
+                _getIcon(bucket.iconUrl), bucket.pinBadge);
     },
 
     _drawCircleBucket: function(ctx, bucket, affine, minX, maxX, minY, maxY, radius, altMin, altMax) {
@@ -1720,9 +1778,35 @@ var MapApp = {};
     return img;
   }
 
-  // One pin's full geometry -- tail, circle, glyph -- with the tip landing
-  // exactly on (tipX, tipY). Shared between the sprite bake below and
-  // _drawSinglePin (the hover/highlight path, which draws at most a handful
+  // A small badge stamped on a pin's circle (bucket.pinBadge), for a marker
+  // that deliberately shares another marker's artwork and needs one glyph to
+  // say how it differs -- today only "heart", which marks a TAMED creature so
+  // its pin isn't read as the creature-spawner pin using the same species
+  // icon (see filters.js's buildEntitiesSection). Two lobes plus a V, filled
+  // red over a white outline so it stays legible against any icon underneath.
+  function _paintHeartBadge(ctx, centerX, topY, size) {
+    var lobeRadius = size / 4;
+    var lobeY = topY + lobeRadius;
+    ctx.beginPath();
+    ctx.arc(centerX - lobeRadius, lobeY, lobeRadius, Math.PI, 0);
+    ctx.arc(centerX + lobeRadius, lobeY, lobeRadius, Math.PI, 0);
+    ctx.lineTo(centerX, topY + lobeRadius * 2.6);
+    ctx.closePath();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(1, size * 0.22);
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    ctx.fillStyle = "#e02040";
+    ctx.fill();
+  }
+
+  // How far a pinBadge pokes outside the plain circle, as a fraction of the
+  // pin radius -- the sprite bake needs it to size its padding (see _getPinSprite).
+  var PIN_BADGE_OVERHANG = 0.25;
+
+  // One pin's full geometry -- tail, circle, glyph, optional badge -- with the
+  // tip landing exactly on (tipX, tipY). Shared between the sprite bake below
+  // and _drawSinglePin (the hover/highlight path, which draws at most a handful
   // of pins per frame and wants a custom outline color).
   // Tail and circle are filled as two SEPARATE fill() calls rather
   // than one combined path -- combining them into a single path and
@@ -1732,7 +1816,7 @@ var MapApp = {};
   // to a hole instead of solid fill. Two plain opaque white fills of
   // the same color have no such winding interaction: painting white
   // over white in the overlap is still just white.
-  function _paintPin(ctx, tipX, tipY, radius, fillColor, strokeColor, lineWidth, img) {
+  function _paintPin(ctx, tipX, tipY, radius, fillColor, strokeColor, lineWidth, img, badge) {
     var tailLength = radius * 0.7;
     var tailHalfWidth = radius * 0.5;
     var tailBaseInset = radius * 0.6;
@@ -1759,6 +1843,12 @@ var MapApp = {};
     if (img.complete && img.naturalWidth > 0) {
       ctx.drawImage(img, circleX - imageSize / 2, circleY - imageSize / 2, imageSize, imageSize);
     }
+
+    // Last, so it sits over the glyph -- it's the thing that distinguishes
+    // this pin from the identically-drawn one it would otherwise be confused with.
+    if (badge === "heart") {
+      _paintHeartBadge(ctx, circleX + radius * 0.7, circleY - radius * 0.95, radius * 0.8);
+    }
   }
 
   // Pre-rendered pin sprites for the bulk icon pass. Painting a pin costs
@@ -1781,12 +1871,15 @@ var MapApp = {};
     }
     var fillColor = bucket.pinFillColor || "#ffffff";
     var strokeColor = bucket.color || "#999999";
-    var key = bucket.iconUrl + "|" + radius + "|" + fillColor + "|" + strokeColor;
+    var badge = bucket.pinBadge || "";
+    var key = bucket.iconUrl + "|" + radius + "|" + fillColor + "|" + strokeColor + "|" + badge;
     var sprite = _pinSpriteCache[key];
     if (sprite) {
       return sprite;
     }
-    var pad = 2; // room for the stroke (lineWidth 1.25) plus its antialiasing fringe
+    // Room for the stroke (lineWidth 1.25) plus its antialiasing fringe --
+    // and for a badge, which deliberately overhangs the circle's edge.
+    var pad = badge ? Math.ceil(radius * PIN_BADGE_OVERHANG) + 2 : 2;
     var width = Math.ceil(radius * 2 + pad * 2);
     var height = Math.ceil(radius * 2 + radius * 0.7 + pad * 2); // circle + tail
     var dpr = window.devicePixelRatio || 1;
@@ -1795,7 +1888,7 @@ var MapApp = {};
     canvas.height = Math.ceil(height * dpr);
     var ctx = canvas.getContext("2d");
     ctx.scale(dpr, dpr);
-    _paintPin(ctx, width / 2, height - pad, radius, fillColor, strokeColor, 1.25, img);
+    _paintPin(ctx, width / 2, height - pad, radius, fillColor, strokeColor, 1.25, img, badge);
     sprite = { canvas: canvas, width: width, height: height, anchorX: width / 2, anchorY: height - pad };
     _pinSpriteCache[key] = sprite;
     return sprite;
@@ -2021,6 +2114,19 @@ var MapApp = {};
     MapApp.highlightedIndex = (index == null ? null : index);
     MapApp.highlightedBucket = bucket || null;
     MapApp.highlightedId = bucket ? id : null;
+    if (MapApp.layer) {
+      MapApp.layer.requestHighlightRedraw();
+    }
+  };
+
+  // Standalone shapes traced over the map, sharing the highlight canvas (and
+  // so its cheap per-frame redraw) -- see _drawLineOverlays. Each overlay is
+  // {polylines: [{points, stride}, ...], boxes: [{bucket, index}, ...],
+  // color, width}; the geometry is borrowed from the buckets that already
+  // hold it, never copied. null when nothing is being traced.
+  MapApp.lineOverlays = null;
+  MapApp.setLineOverlays = function(overlays) {
+    MapApp.lineOverlays = overlays && overlays.length > 0 ? overlays : null;
     if (MapApp.layer) {
       MapApp.layer.requestHighlightRedraw();
     }
@@ -2353,6 +2459,38 @@ var MapApp = {};
         MapApp.setHighlight(null, null);
       }
     });
+    // Middle-click hides whatever is under the cursor -- the same
+    // per-instance hide the right-click menu's "Hide this object" performs
+    // (undone in bulk by the sidebar's "Restore N hidden objects"), as a
+    // one-gesture way to dig a buried machine out from under the roof/
+    // foundation covering it. Bound on the container rather than through
+    // Leaflet, which has no middle-button event; mousedown (not auxclick) so
+    // preventDefault still suppresses the browser's autoscroll cursor.
+    map.getContainer().addEventListener("mousedown", function(e) {
+      if (e.button !== 1) {
+        return;
+      }
+      e.preventDefault();
+      if (window.EditorTool && EditorTool.isPlacing()) {
+        return; // The placement ghost owns the cursor (see editor.js).
+      }
+      var hideToleranceScreenPx = 8;
+      var latLng = map.mouseEventToLatLng(e);
+      var hit = MapApp.layer.hitTest(latLng.lng, latLng.lat, hideToleranceScreenPx / Math.pow(2, map.getZoom()));
+      if (!hit) {
+        return;
+      }
+      MapApp.hideObject(hit.bucket, hit.index);
+      if (window.Filters) {
+        Filters.refreshHiddenObjectsIndicator();
+      }
+      // The object it was describing is gone from the map -- a tooltip left
+      // pointing at it (pinned or not) would describe something invisible.
+      if (window.Tooltip) {
+        Tooltip.hide();
+      }
+    });
+
     map.on("mouseout", function() {
       if (window.ContextMenu && ContextMenu.isOpen()) {
         return; // Keep the right-clicked object highlighted while its menu is up.

@@ -198,6 +198,36 @@ var Altitude = {};
   trackFill.addEventListener("pointerup", endFillDrag);
   trackFill.addEventListener("pointercancel", endFillDrag);
 
+  // Widens the current window just far enough to include [minZ, maxZ],
+  // clamped to the track's own bounds -- for a feature that has to show
+  // something specific the user's altitude filter would otherwise be hiding
+  // (see bottleneck.js: the slow belt in a line is very often on a different
+  // floor from the one being inspected, which is half of why it's hard to
+  // find). Never narrows. Returns the range it replaced so the caller can put
+  // it back, or null when nothing had to move.
+  Altitude.ensureRangeCovers = function(minZ, maxZ) {
+    if (panel.style.display === "none" || !isFinite(minZ) || !isFinite(maxZ)) {
+      return null; // No save loaded -- there's no filter to widen.
+    }
+    var current = { min: parseFloat(minSlider.value), max: parseFloat(maxSlider.value) };
+    var wanted = {
+      min: Math.max(parseFloat(minSlider.min), Math.min(current.min, Math.floor(minZ) - 1)),
+      max: Math.min(parseFloat(maxSlider.max), Math.max(current.max, Math.ceil(maxZ) + 1)),
+    };
+    if (wanted.min === current.min && wanted.max === current.max) {
+      return null;
+    }
+    setRange(wanted.min, wanted.max);
+    return current;
+  };
+
+  Altitude.restoreRange = function(range) {
+    if (!range || panel.style.display === "none") {
+      return;
+    }
+    setRange(range.min, range.max);
+  };
+
   Altitude.build = function(payload) {
     var range = computeAltitudeRange(payload);
     var lo = Math.floor(range.min) - 1;
