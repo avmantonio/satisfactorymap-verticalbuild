@@ -20,7 +20,9 @@ two inputs a game update changes:
 Most steps write to the gitignored game_data/generated/;
 extract_collectables.py instead rewrites the COMMITTED world tables under
 game_data/sav_data/ (slugs, somersloops, mercer spheres, crash sites,
-dropped items, resource purity) -- review its git diff after a game update.
+dropped items, resource purity), and extract_world_bounds.py the committed
+worldBounds.json (the damaging map perimeter and the water limit) -- review
+their git diffs after a game update.
     - .pak (loose files -- a normal package export SKIPS these). FModel:
       right-click FactoryGame/Content/Localization/StringTables -> "Export
       Folder's Packages Raw Data". Provides the string-table source CSVs
@@ -69,6 +71,7 @@ STEPS = (
     ("extract_game_phases.py", True),
     ("extract_spawners.py", True),
     ("extract_collectables.py", True),
+    ("extract_world_bounds.py", True),
     ("extract_map_image.py", True),
     ("copy_icons.py", True),
 )

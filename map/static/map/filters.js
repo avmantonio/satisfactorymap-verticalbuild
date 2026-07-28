@@ -262,6 +262,7 @@ var Filters = {};
     "Collectables": true,
     "Spawners": true,
     "Dropped Items": true,
+    "Map Limits": true,
   };
 
   function savedGroupStateForStack() {
@@ -1238,6 +1239,51 @@ var Filters = {};
     renderTopLevelCategory(navList, detailPane, "Dropped Items (" + total + ")", "circle", DROPPED_ITEM_COLOR, rows);
   }
 
+  // ---- Map limits -----------------------------------------------------------
+
+  // Red for the thing that kills you, cyan for water -- neither hue is used
+  // by a line layer (belts orange, pipes green, power yellow, hypertubes
+  // blue, rails white, vehicle paths grey).
+  var LIMIT_COLORS = { worldPerimeter: "#ff5a4d", waterLimit: "#35d0f5" };
+
+  // payload.mapLimits (see the rust core's collect_map_limits) is the same
+  // for every save: the map's two invisible edges, traced from the cooked
+  // level data. The world border is where the out-of-bounds damage volumes
+  // start; the water limit is where swimmable, extractor-valid water ends --
+  // which is well inside the ocean the game draws, so on the west side there
+  // is a 334 m strip that looks like sea and holds no water at all.
+  //
+  // One row (and one bucket) per ring, so the border and the water edge
+  // toggle independently. Every ring is drawn at sea level: a line's z only
+  // feeds the altitude filter and depth sorting, and these are limits rather
+  // than structures -- see the collector for why that beats their real span.
+  function buildMapLimitsSection(navList, detailPane, payload) {
+    var limits = payload.mapLimits;
+    if (!limits || !limits.polylines || limits.polylines.length === 0) {
+      return;
+    }
+    var rows = [];
+    limits.polylines.forEach(function(ring, index) {
+      // kind, not ids[index]: bulk id arrays come back with the instance-name
+      // prefix re-added (see save_client.js's expandPayloadIds), which is
+      // fine for the hit-test identity but would wreck a color/key lookup.
+      var kind = (limits.kinds || [])[index] || String(index);
+      var label = (limits.labels || [])[index] || "Limit";
+      var color = LIMIT_COLORS[kind] || NEUTRAL_COLOR;
+      var detailRows = (limits.rows || [])[index] || [];
+      var tooltipInfo = function() {
+        return { title: label, rows: detailRows,
+                 position: EditorTool.mapPxToWorldXY(ring[0], ring[1]) };
+      };
+      var bucket = makeLineBucket("limit:" + kind, label, color, [ring],
+        [(limits.ids || [])[index] || kind], "static", tooltipInfo, 3);
+      rows.push({ label: label, count: 1, color: color, renderType: "line",
+                  buckets: [bucket] });
+    });
+    renderTopLevelCategory(navList, detailPane, "Map Limits", "line",
+      LIMIT_COLORS.worldPerimeter, rows);
+  }
+
   // ---- HUB ------------------------------------------------------------------
 
   // The HUB is a one-of-a-kind landmark (excluded from collectBuildings --
@@ -1718,6 +1764,7 @@ var Filters = {};
     buildCollectablesSection(navList, detailPane, payload);
     buildSpawnersSection(navList, detailPane, payload);
     buildDroppedItemsSection(navList, detailPane, payload);
+    buildMapLimitsSection(navList, detailPane, payload);
 
     // Fit the nav panel to the category labels now that they all exist.
     autoSizeNavPanel();

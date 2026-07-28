@@ -201,9 +201,9 @@ impl SaveSession {
             .map_err(|e| JsError::new(&e.msg))?;
         drop(bytes);
 
-        // 18 payload steps + the index build = BUILD_STEP_COUNT ticks (same
-        // shape as Python's buildAll, plus the static spawners step); one
-        // shared SaveScan for both.
+        // 19 payload steps + the index build = BUILD_STEP_COUNT ticks (same
+        // shape as Python's buildAll, plus the static spawners and mapLimits
+        // steps); one shared SaveScan for both.
         let mut build_progress = |current: u64, total: u64| call(2, current, total);
         let (payload_json, index) =
             mapdata::build_all_json(&store, Some(&mut build_progress))

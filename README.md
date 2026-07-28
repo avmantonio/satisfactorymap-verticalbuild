@@ -23,6 +23,9 @@ up to **15 seconds at a time** — WebGL rendering instead of DOM markers
 - **The whole factory, mapped** — buildings by build-menu category,
   belts/pipes/railways/power lines as curves, resource nodes with purity,
   vehicles, trains, players, collectables and crash sites.
+- **The map's own edges** — the damaging world border (and the altitudes it
+  starts at), plus where the water you can actually swim in and pump from
+  ends, which is well inside the ocean the game draws.
 - **Find anything** — search across every inventory in the save ("where did
   I leave my hard drives?"), per-building tooltips with recipe, power,
   clock speed and belt/pipe **bottleneck detection**.

@@ -24,9 +24,9 @@ use crate::store::SaveStore;
 use scan::SaveScan;
 use serde_json::{json, Value};
 
-/// 18 payload steps (sav_map_data._BUILD_STEP_COUNT's 17 + the static
-/// spawners step) + the save index.
-pub const BUILD_STEP_COUNT: u64 = 18 + 1;
+/// 19 payload steps (sav_map_data._BUILD_STEP_COUNT's 17 + the static
+/// spawners and mapLimits steps) + the save index.
+pub const BUILD_STEP_COUNT: u64 = 19 + 1;
 
 /// Desc_ classes in readableNameCorrections that are NOT items: the game's
 /// creature descriptors (FGCreatureDescriptor, plus the two enemy-group
