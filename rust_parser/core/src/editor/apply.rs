@@ -10,6 +10,7 @@ use crate::editor::ops::{EditOp, LwRef};
 use crate::editor::rename;
 use crate::error::{perr, PResult};
 use crate::mapdata::scan::SaveScan;
+use crate::save_header::FIRST_1_0_SAVE_VERSION;
 use crate::store::*;
 use std::collections::{BTreeSet, HashMap};
 
@@ -1341,7 +1342,24 @@ fn plan_delete_lightweight(store: &SaveStore, plan: &mut EditPlan, items: &[LwRe
 /// Plan ONE op against the parsed store. The plan holds only small buffers
 /// (copied objects, field patches), so the caller can drop the store's
 /// parsed structures before applying it to the body.
+///
+/// Every edit route reaches the engine through here -- apply_op, session::step
+/// and session::planned_growth all plan first, as do the wasm/Tauri bindings --
+/// so the pre-1.0 refusal below cannot be walked around.
 pub fn plan_op(store: &SaveStore, op: &EditOp) -> PResult<EditPlan> {
+    // COMPAT EXPERIMENT (see save_header::FIRST_1_0_SAVE_VERSION): an Update 8
+    // save parses and maps fine, but every record this engine writes is
+    // 1.0-format -- actor headers gain a flags u32, levels gain a version
+    // field. Splicing those into a v42 body yields a file the game cannot
+    // load, and the damage only shows up when the player tries to load it, so
+    // refuse up front instead. Viewing, searching and exporting an untouched
+    // save are unaffected.
+    if store.info.save_version < FIRST_1_0_SAVE_VERSION {
+        return Err(perr!(
+            "This save is from an older game version (save version {}), which can be viewed but not edited: the editor only writes 1.0-format records.",
+            store.info.save_version
+        ));
+    }
     let mut plan = EditPlan::default();
     match op {
         EditOp::MoveActors { names, delta, rotate_yaw_deg, pivot } => {

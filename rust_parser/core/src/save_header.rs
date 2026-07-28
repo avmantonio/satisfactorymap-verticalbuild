@@ -27,6 +27,17 @@ pub struct SaveFileInfo {
 pub const TICKS_IN_SECOND: u64 = 10_000_000;
 pub const EPOCH_1_TO_1970: u64 = 719_162 * 24 * 60 * 60;
 
+/// COMPAT EXPERIMENT: first saveVersion carrying the 1.0 body layout -- header
+/// flags, the per-level version field, and the 1.0 collectables tail (see
+/// level.rs, which gates all three on this). Below it the file is an Update
+/// 8-era save; 42 is the only such version the accept list above takes today.
+///
+/// Read paths honour the gates either way. WRITE paths do not: every record
+/// the editor emits is 1.0-format, so it refuses to touch a save below this
+/// (see editor::apply::plan_op) rather than produce a file the game can't
+/// load. Widening the accept list means auditing those write paths first.
+pub const FIRST_1_0_SAVE_VERSION: u32 = 46;
+
 /// Returns (header, offset where the compressed body begins).
 pub fn parse_save_file_info(data: &[u8]) -> PResult<(SaveFileInfo, usize)> {
     let mut c = Cursor::new(data, 0);

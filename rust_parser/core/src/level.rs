@@ -5,7 +5,7 @@ use crate::error::{perr, PResult};
 use crate::object::{parse_object, skip_object, ClassTables};
 use crate::properties::parse_object_reference;
 use crate::reader::Cursor;
-use crate::save_header::parse_save_file_info;
+use crate::save_header::{parse_save_file_info, FIRST_1_0_SAVE_VERSION};
 use crate::store::*;
 use crate::version_data::parse_save_object_version_data;
 
@@ -19,7 +19,7 @@ pub type ProgressFn<'a> = &'a mut dyn FnMut(u8, u64, u64);
 pub(crate) fn parse_one_header(c: &mut Cursor, header_save_version: u32) -> PResult<Header> {
     // COMPAT EXPERIMENT: the header `flags` u32 was added with 1.0; U8 (v42)
     // headers go straight from instanceName to the next field.
-    let has_flags = header_save_version >= 46;
+    let has_flags = header_save_version >= FIRST_1_0_SAVE_VERSION;
     let header_type = c.u32()?;
     match header_type {
         1 => {
@@ -161,14 +161,14 @@ fn parse_headers_and_level(
     // COMPAT EXPERIMENT: the per-level save version field appeared with 1.0
     // (not present in U8 v42 saves); fall back to the header version there.
     let level_save_version =
-        if header_save_version >= 46 { c.u32()? } else { header_save_version };
+        if header_save_version >= FIRST_1_0_SAVE_VERSION { c.u32()? } else { header_save_version };
 
     let mut collectables2 = Vec::new();
     let mut save_object_version_data = None;
     let object_ue5_version: i32;
     // COMPAT EXPERIMENT: pre-1.0 saves carry a collectables list on the
     // persistent level too.
-    if !persistent_level_flag || header_save_version < 46 {
+    if !persistent_level_flag || header_save_version < FIRST_1_0_SAVE_VERSION {
         let n = c.u32()?;
         for _ in 0..n {
             collectables2.push(parse_object_reference(c)?);
