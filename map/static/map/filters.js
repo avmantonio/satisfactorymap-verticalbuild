@@ -262,7 +262,7 @@ var Filters = {};
     "Collectables": true,
     "Spawners": true,
     "Dropped Items": true,
-    "Map Limits": true,
+    "World": true,
   };
 
   function savedGroupStateForStack() {
@@ -1239,37 +1239,92 @@ var Filters = {};
     renderTopLevelCategory(navList, detailPane, "Dropped Items (" + total + ")", "circle", DROPPED_ITEM_COLOR, rows);
   }
 
-  // ---- Map limits -----------------------------------------------------------
+  // ---- World (the map's own features, not the player's) ---------------------
 
-  // Red for the thing that kills you, cyan for water -- neither hue is used
-  // by a line layer (belts orange, pipes green, power yellow, hypertubes
-  // blue, rails white, vehicle paths grey).
-  var LIMIT_COLORS = { worldPerimeter: "#ff5a4d", waterLimit: "#35d0f5" };
-
-  // payload.mapLimits (see the rust core's collect_map_limits) is the same
-  // for every save: the map's two invisible edges, traced from the cooked
-  // level data. The world border is where the out-of-bounds damage volumes
-  // start; the water limit is where swimmable, extractor-valid water ends --
-  // which is well inside the ocean the game draws, so on the west side there
-  // is a 334 m strip that looks like sea and holds no water at all.
+  // Three static layers the game never draws on its own map, all traced from
+  // the cooked level data and identical for every save: the caves, the
+  // damaging world border, and the edge of the real water. They share a
+  // category because they answer the same kind of question -- "what is the
+  // terrain actually like here?" -- and because none of them belongs to the
+  // save being viewed.
   //
-  // One row (and one bucket) per ring, so the border and the water edge
-  // toggle independently. Every ring is drawn at sea level: a line's z only
-  // feeds the altitude filter and depth sorting, and these are limits rather
-  // than structures -- see the collector for why that beats their real span.
-  function buildMapLimitsSection(navList, detailPane, payload) {
+  // Colors: orchid for caves, red for the thing that damages you, cyan for
+  // water. None collides with a line layer (belts orange, pipes green, power
+  // yellow, hypertubes blue, rails white, vehicle paths grey).
+  var WORLD_COLORS = {
+    caves: "#c66bff",
+    worldPerimeter: "#ff5a4d",
+    waterLimit: "#35d0f5",
+  };
+
+  // payload.caves (see the rust core's collect_caves): one line per cave
+  // outline ring, all in a single bucket so the whole layer is one checkbox.
+  // Outlines rather than fills: the renderer draws lines, and an outline
+  // reads better over a factory than 84 translucent blobs. The shape is the
+  // game's own cave fog volume plus the cave geometry inside it, so it is
+  // generous by tens of meters -- "the cave is in here", not a survey.
+  function buildCavesRow(payload) {
+    var caves = payload.caves;
+    if (!caves || !caves.polylines || caves.polylines.length === 0) {
+      return null;
+    }
+    var labels = caves.labels || [];
+    var areas = caves.areas || [];
+    var depths = caves.depths || [];
+    var tooltipInfo = function(index) {
+      var rows = [];
+      var area = areas[index];
+      if (typeof area === "number") {
+        rows.push(["Area", area >= 10000 ? (area / 10000).toFixed(1) + " ha"
+                                         : Math.round(area).toLocaleString() + " m²"]);
+      }
+      var depth = depths[index];
+      if (depth && depth.length === 2) {
+        rows.push(["Altitude range", Math.round(depth[0]) + " m to " + Math.round(depth[1]) + " m"]);
+      }
+      var ring = caves.polylines[index];
+      return { title: labels[index] || "Cave", rows: rows,
+               position: ring ? EditorTool.mapPxToWorldXY(ring[0], ring[1]) : undefined };
+    };
+    var bucket = makeLineBucket("caves", "Cave", WORLD_COLORS.caves, caves.polylines,
+      caves.ids, "static", tooltipInfo, 3);
+    // The count is caves, not rings: a cave whose footprint came out in two
+    // touching pieces is still one cave.
+    var seen = {};
+    var caveCount = 0;
+    (caves.ids || []).forEach(function(id) {
+      var caveId = String(id).split("#")[0];
+      if (!seen[caveId]) {
+        seen[caveId] = true;
+        caveCount++;
+      }
+    });
+    return { label: "Caves", count: caveCount, color: WORLD_COLORS.caves,
+             renderType: "line", buckets: [bucket] };
+  }
+
+  // payload.mapLimits (see the rust core's collect_map_limits): the world
+  // border is where the out-of-bounds damage volumes start; the water limit
+  // is where swimmable, extractor-valid water ends -- which is well inside
+  // the ocean the game draws, so on the west side there is a 334 m strip
+  // that looks like sea and holds no water at all. One row per ring, so the
+  // two toggle independently.
+  //
+  // Every ring is drawn at sea level: a line's z only feeds the altitude
+  // filter and depth sorting, and these are limits rather than structures --
+  // see the collector for why that beats their real span.
+  function buildLimitRows(payload) {
     var limits = payload.mapLimits;
     if (!limits || !limits.polylines || limits.polylines.length === 0) {
-      return;
+      return [];
     }
-    var rows = [];
-    limits.polylines.forEach(function(ring, index) {
+    return limits.polylines.map(function(ring, index) {
       // kind, not ids[index]: bulk id arrays come back with the instance-name
       // prefix re-added (see save_client.js's expandPayloadIds), which is
       // fine for the hit-test identity but would wreck a color/key lookup.
       var kind = (limits.kinds || [])[index] || String(index);
       var label = (limits.labels || [])[index] || "Limit";
-      var color = LIMIT_COLORS[kind] || NEUTRAL_COLOR;
+      var color = WORLD_COLORS[kind] || NEUTRAL_COLOR;
       var detailRows = (limits.rows || [])[index] || [];
       var tooltipInfo = function() {
         return { title: label, rows: detailRows,
@@ -1277,11 +1332,22 @@ var Filters = {};
       };
       var bucket = makeLineBucket("limit:" + kind, label, color, [ring],
         [(limits.ids || [])[index] || kind], "static", tooltipInfo, 3);
-      rows.push({ label: label, count: 1, color: color, renderType: "line",
-                  buckets: [bucket] });
+      return { label: label, count: 1, color: color, renderType: "line",
+               buckets: [bucket] };
     });
-    renderTopLevelCategory(navList, detailPane, "Map Limits", "line",
-      LIMIT_COLORS.worldPerimeter, rows);
+  }
+
+  function buildWorldSection(navList, detailPane, payload) {
+    var rows = [];
+    var caveRow = buildCavesRow(payload);
+    if (caveRow) {
+      rows.push(caveRow);
+    }
+    rows = rows.concat(buildLimitRows(payload));
+    if (rows.length === 0) {
+      return;
+    }
+    renderTopLevelCategory(navList, detailPane, "World", "line", WORLD_COLORS.caves, rows);
   }
 
   // ---- HUB ------------------------------------------------------------------
@@ -1764,7 +1830,7 @@ var Filters = {};
     buildCollectablesSection(navList, detailPane, payload);
     buildSpawnersSection(navList, detailPane, payload);
     buildDroppedItemsSection(navList, detailPane, payload);
-    buildMapLimitsSection(navList, detailPane, payload);
+    buildWorldSection(navList, detailPane, payload);
 
     // Fit the nav panel to the category labels now that they all exist.
     autoSizeNavPanel();
