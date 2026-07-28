@@ -16,6 +16,9 @@ use sav_core::save_header::FIRST_1_0_SAVE_VERSION;
 use sav_core::store::{Header, SaveStore};
 use std::path::PathBuf;
 
+/// map/uploads/ is gitignored; CI populates it with exactly the saves listed
+/// in tools/fetch_test_saves.py, so a test may only load one of those. Any
+/// other save sitting in a local uploads/ folder passes here and fails there.
 fn load(name: &str) -> SaveStore {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../map/uploads").join(name);
     let bytes = std::fs::read(path).expect("test save present");
@@ -41,7 +44,7 @@ fn move_op(name: String) -> EditOp {
 
 #[test]
 fn a_pre_1_0_save_is_refused_by_the_edit_engine() {
-    let mut store = load("All_autosave_2.sav");
+    let mut store = load("All_080726-163150.sav");
     let name = first_actor_name(&store);
     // The real Update 8 value, and the only sub-1.0 version the header accept
     // list takes today.
@@ -62,7 +65,7 @@ fn a_pre_1_0_save_is_refused_by_the_edit_engine() {
 
 #[test]
 fn the_guard_refuses_everything_below_the_1_0_layout_boundary() {
-    let mut store = load("All_autosave_2.sav");
+    let mut store = load("All_080726-163150.sav");
     let name = first_actor_name(&store);
     for version in 0..FIRST_1_0_SAVE_VERSION {
         store.info.save_version = version;
@@ -77,7 +80,7 @@ fn the_guard_refuses_everything_below_the_1_0_layout_boundary() {
 /// version itself, and the save's own real version, both plan fine.
 #[test]
 fn current_saves_still_plan_normally() {
-    let mut store = load("All_autosave_2.sav");
+    let mut store = load("All_080726-163150.sav");
     let name = first_actor_name(&store);
     let real_version = store.info.save_version;
     assert!(
