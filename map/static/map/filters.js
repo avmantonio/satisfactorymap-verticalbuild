@@ -76,6 +76,13 @@ var Filters = {};
   // hand-picked label file.
   var HARD_DRIVE_ICON_URL = "icons/items/HardDrive.png";
 
+  // No FGItemDescriptor (above), but a Desc_ entry in readableNameCorrections
+  // all the same -- so "Hard Drive" IS in the searchable item catalog (see the
+  // rust core's list_searchable_items), and this is the key its crash-site
+  // rows get registered under for the search bar's eye (see
+  // collectableToggleRows).
+  var HARD_DRIVE_ITEM_CLASS = "Desc_HardDrive_C";
+
   // Resource node icons -- keyed by the save's own resourceType pathName
   // (see sav_map_data.collectResourceNodes), which is exactly the ClassName
   // the raw resource's own per-class icon is stored under (see
@@ -705,6 +712,23 @@ var Filters = {};
   // purity colors, so no single row's color represents it.
   Filters.resourceColor = function() { return PURITY_COLORS.NORMAL; };
 
+  // Item ClassName -> the Collectables sidebar rows for that same pickup
+  // (Remaining/Collected, or a hard drive's three states -- see
+  // buildCollectablesSection/buildHardDrivesGroup). A handful of items -- the
+  // three slugs, Somersloop, Mercer Sphere, Hard Drive -- are ALSO world
+  // pickups with a map layer of their own, so "Mercer Sphere" in the search
+  // bar honestly means two things: what's stashed in inventories (the item
+  // search's answer) and what's still lying out there (this layer). Rather
+  // than a second, near-identical dropdown entry for the layer, the one item
+  // suggestion gets the same show/hide eye a layer row has -- driving these
+  // real sidebar checkboxes, never a second source of truth. Absent for every
+  // other item, which is what makes the eye appear on exactly these six rows
+  // and nowhere else.
+  var collectableToggleRows = {};
+  Filters.getCollectableToggleRows = function(itemPath) {
+    return collectableToggleRows[itemPath] || null;
+  };
+
   // Whole-category search entries: a handful of logistics families whose rows
   // are scattered across build-menu subcategories (one row per mark), so
   // "show me every belt" isn't a single toggle anywhere in the sidebar. Each
@@ -1048,17 +1072,20 @@ var Filters = {};
     // Mercer Sphere groups above use.
     var collectedCount = total - rows[0].count;
     var title = "Hard Drives (" + collectedCount + "/" + total + ")";
-    return { total: total, result: renderGroup(childrenDiv, title, "icon", HARD_DRIVE_COLORS.hasDrive, rows, { startCollapsed: true, iconUrl: url }) };
+    return { total: total, rows: rows, result: renderGroup(childrenDiv, title, "icon", HARD_DRIVE_COLORS.hasDrive, rows, { startCollapsed: true, iconUrl: url }) };
   }
 
   function buildCollectablesSection(navList, detailPane, payload) {
     var collectables = payload.collectables;
+    // itemPath: the pickup's own item descriptor ClassName -- the key the item
+    // search looks these rows up by (see collectableToggleRows). Same classes
+    // the rust core's COLLECTABLE_ITEMS table uses.
     var kinds = [
-      { key: "slugsBlue", label: "Blue Power Slug", color: SLUG_COLORS.slugsBlue },
-      { key: "slugsYellow", label: "Yellow Power Slug", color: SLUG_COLORS.slugsYellow },
-      { key: "slugsPurple", label: "Purple Power Slug", color: SLUG_COLORS.slugsPurple },
-      { key: "somersloops", label: "Somersloop", color: SOMERSLOOP_COLOR },
-      { key: "mercerSpheres", label: "Mercer Sphere", color: MERCER_SPHERE_COLOR },
+      { key: "slugsBlue", itemPath: "Desc_Crystal_C", label: "Blue Power Slug", color: SLUG_COLORS.slugsBlue },
+      { key: "slugsYellow", itemPath: "Desc_Crystal_mk2_C", label: "Yellow Power Slug", color: SLUG_COLORS.slugsYellow },
+      { key: "slugsPurple", itemPath: "Desc_Crystal_mk3_C", label: "Purple Power Slug", color: SLUG_COLORS.slugsPurple },
+      { key: "somersloops", itemPath: "Desc_WAT1_C", label: "Somersloop", color: SOMERSLOOP_COLOR },
+      { key: "mercerSpheres", itemPath: "Desc_WAT2_C", label: "Mercer Sphere", color: MERCER_SPHERE_COLOR },
     ];
     var hardDriveTotal = pointCount(payload.hardDrives.hasDrive, 3) +
       pointCount(payload.hardDrives.empty, 3) + pointCount(payload.hardDrives.dismantled, 3);
@@ -1100,11 +1127,15 @@ var Filters = {};
         // already found) is the number worth seeing at a glance here.
         var kindTitle = kind.label + "s (" + collectedCount + "/" + (remainingCount + collectedCount) + ")";
         var result = renderGroup(childrenDiv, kindTitle, "icon", kind.color, rows, { startCollapsed: true, iconUrl: url });
+        // Registered AFTER renderGroup, so every row already carries the live
+        // checkbox appendLeafRow attached (see collectableToggleRows).
+        collectableToggleRows[kind.itemPath] = rows;
         checkboxes.push(result.checkbox);
         allBuckets = allBuckets.concat(result.buckets);
       });
       if (hardDriveTotal > 0) {
         var hardDriveGroup = buildHardDrivesGroup(childrenDiv, payload);
+        collectableToggleRows[HARD_DRIVE_ITEM_CLASS] = hardDriveGroup.rows;
         checkboxes.push(hardDriveGroup.result.checkbox);
         allBuckets = allBuckets.concat(hardDriveGroup.result.buckets);
       }
@@ -1832,6 +1863,7 @@ var Filters = {};
     vehicleSearchEntries = [];
     wildlifeSearchEntries = [];
     resourceSearchEntries = [];
+    collectableToggleRows = {};
     layerCategoryRows = { belts: [], lifts: [], pipes: [] };
     bucketLayerCheckbox = {};
     bucketLayerLabel = {};
@@ -1894,6 +1926,7 @@ var Filters = {};
     vehicleSearchEntries = [];
     wildlifeSearchEntries = [];
     resourceSearchEntries = [];
+    collectableToggleRows = {};
     layerCategoryRows = { belts: [], lifts: [], pipes: [] };
     bucketLayerCheckbox = {};
     bucketLayerLabel = {};
