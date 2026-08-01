@@ -2413,6 +2413,9 @@ var MapApp = {};
       if (window.EditorTool && EditorTool.isPlacing()) {
         return; // The placement ghost owns the cursor (see editor.js).
       }
+      if (window.NetworkTool && NetworkTool.isHoveringLink()) {
+        return; // A network link's own tooltip is up under this cursor (see network.js).
+      }
       var now = Date.now();
       if (now - lastHoverTime < HOVER_THROTTLE_MS) {
         return;
@@ -2439,6 +2442,9 @@ var MapApp = {};
       }
       if (window.EditorTool && EditorTool.isPlacing()) {
         return; // The click places the ghost, it doesn't pin a tooltip (see editor.js).
+      }
+      if (window.NetworkTool && NetworkTool.isPicking()) {
+        return; // The click adds (or removes) a network point (see network.js).
       }
       if (e.originalEvent && (e.originalEvent.ctrlKey || e.originalEvent.metaKey)) {
         // Ctrl+click toggles the object in/out of the selection instead of

@@ -404,6 +404,87 @@
   </div>
 </div>
 
+<!-- "Optimal network finder (EMST)" (network.js) -- reachable only by typing
+     its name in the search bar, so a planning tool costs no permanent UI.
+     Non-modal like #pastePanel: the map stays live underneath because
+     clicking it is how points get added. -->
+<div id="networkPanel" style="display:none">
+  <div id="networkPanelHeader">
+    <svg id="networkPanelIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20">
+      <path d="M5 18 L12 6 L19 15" fill="none" stroke="#25e0ff" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M12 6 L6 9" fill="none" stroke="#25e0ff" stroke-width="1.6"/>
+      <circle cx="5" cy="18" r="2.2" fill="#25e0ff"/>
+      <circle cx="12" cy="6" r="2.2" fill="#25e0ff"/>
+      <circle cx="19" cy="15" r="2.2" fill="#25e0ff"/>
+      <circle cx="6" cy="9" r="2.2" fill="#25e0ff"/>
+    </svg>
+    <div id="networkPanelHeadings">
+      <span id="networkPanelTitle">Optimal network finder</span>
+      <span id="networkPanelSubtitle">Shortest links joining every point</span>
+    </div>
+    <button id="networkPanelClose" title="Close">&times;</button>
+  </div>
+
+  <!-- Everything below the header scrolls as one region when the window is
+       too short for it, so no control is ever cut off (see map.css). -->
+  <div id="networkPanelBody">
+  <div class="networkSectionLabel">Link style</div>
+  <div id="networkModes">
+    <button id="networkModeStraight" class="networkSegment active" type="button">Straight</button>
+    <button id="networkModeAxis" class="networkSegment" type="button">X / Y only</button>
+  </div>
+  <div id="networkModeHint">Shortest point-to-point network (Euclidean MST).</div>
+
+  <div class="networkSectionLabel">Points <span id="networkPointCount">none yet</span></div>
+  <div class="networkButtonRow">
+    <button id="networkPickBtn" type="button" title="Click the map to add points">Click map to add</button>
+    <button id="networkSelectionBtn" type="button" disabled>Add selection</button>
+  </div>
+  <div id="networkCoordRow">
+    <input id="networkCoordX" type="number" step="1" placeholder="X (m)" title="World X in metres">
+    <input id="networkCoordY" type="number" step="1" placeholder="Y (m)" title="World Y in metres">
+    <button id="networkCoordAdd" type="button" title="Add a point at these coordinates">Add</button>
+  </div>
+  <div id="networkPointList" class="networkList"></div>
+
+  <!-- Destination: optional. Without one the tool minimises total length and
+       nothing else; with one, the slider trades that length against how far
+       every point has to travel through the tree to reach it. -->
+  <div class="networkSectionLabel">Destination</div>
+  <div id="networkDestinationRow">
+    <span id="networkDestinationNone">None — set one from a point above</span>
+    <span id="networkDestinationName" style="display:none"></span>
+    <button id="networkDestinationClear" type="button" title="Remove the destination" style="display:none">&times;</button>
+  </div>
+  <div id="networkPriority" style="display:none">
+    <input type="range" id="networkAlpha" min="0" max="100" step="5" value="0"
+           title="What the network is optimised for">
+    <div id="networkAlphaEnds">
+      <span>Shortest network</span>
+      <span>Shortest trips</span>
+    </div>
+    <div id="networkAlphaNote"></div>
+  </div>
+
+  <!-- Summary only: the per-link breakdown lives on the map (hover a link)
+       and in Copy, not as hundreds of rows eating the panel. -->
+  <div id="networkResult" style="display:none">
+    <div id="networkSummary"></div>
+  </div>
+  </div>
+
+  <!-- Pinned action bar: the buttons that DO something stay put while the
+       lists above them scroll. -->
+  <div id="networkPanelFooter">
+    <div class="networkButtonRow">
+      <button id="networkComputeBtn" type="button" disabled>Compute network</button>
+      <button id="networkClearBtn" type="button" title="Remove every point" disabled>Clear</button>
+    </div>
+    <button id="networkCopyBtn" type="button" style="display:none">Copy points &amp; links</button>
+  </div>
+</div>
+<div id="networkHint" style="display:none">Click the map to add a point &middot; click a building to take its position &middot; click either again to remove it &middot; Esc when done</div>
+
 <!-- Full-screen busy overlay for save-editing operations (copy / paste /
      delete / undo / redo / export -- see SaveLoadFlow.showBusy in data.js).
      Blocks all input while the WASM worker crunches so it's unmistakable
@@ -443,6 +524,8 @@
 <script src="contextmenu.js"></script>
 <script src="save_client.js"></script>
 <script src="editor.js"></script>
+<script src="emst.js"></script>
+<script src="network.js"></script>
 <script src="data.js"></script>
 </body>
 </html>
