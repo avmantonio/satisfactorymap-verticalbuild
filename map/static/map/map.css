@@ -3365,3 +3365,621 @@ body.panelResizing #categoryDetailColumn {
 .sePartBarFill.complete {
   background: #58a565;
 }
+
+/* ---- Optimal network finder (network.js) -- the search-bar-only spanning
+   tree planner. Docked top-right like #pastePanel (clear of the altitude
+   rail) and non-modal, since clicking the map underneath is how points get
+   added. Cyan is this tool's own signal colour, matching the links drawn on
+   the map; everything else is the shared panel language. ---------------- */
+#networkPanel {
+  position: fixed;
+  top: 72px;
+  right: calc(var(--altitude-width) + 12px);
+  z-index: 1500;
+  width: 330px;
+  /* border-box, or max-height would clamp the CONTENT box and the padding
+     and border would push the panel past the bottom of the window. */
+  box-sizing: border-box;
+  max-height: calc(100vh - 96px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-popup);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  color: var(--text);
+  font-size: 13px;
+}
+
+#networkPanelHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex: none; /* The title bar stays put; the body below it is what scrolls. */
+}
+
+/* The scrolling region. The two lists shrink first (see .networkList's flex),
+   and only once they are at their minimum does this scroll -- so on a normal
+   window nothing scrolls, and on a short one every control is still
+   reachable instead of being clipped off the bottom. */
+#networkPanelBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  /* Room for the scrollbar when it does appear, so it never sits on top of
+     the list borders. */
+  padding-right: 2px;
+}
+
+/* Only the two lists give way when space runs short. Everything else --
+   labels, buttons, the slider, the summary -- is stated as unshrinkable, so
+   the browser has exactly one place to take the space from instead of
+   distributing a few pixels across a dozen controls. */
+#networkPanelBody > * {
+  flex: none;
+}
+
+/* No min-height override on the point list: it keeps .networkList's floor, so
+   it shrinks to a couple of rows and then the body scrolls, rather than
+   collapsing to a sliver. #networkResult is a bare wrapper, so it may shrink
+   to nothing -- the list inside it has the same floor of its own. */
+#networkPointList {
+  flex: 0 1 auto;
+}
+
+#networkResult {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+#networkPanelIcon {
+  flex: none;
+}
+
+#networkPanelHeadings {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+#networkPanelTitle {
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+#networkPanelSubtitle {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+#networkPanelClose {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--faint);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+#networkPanelClose:hover {
+  color: var(--text-bright);
+}
+
+.networkSectionLabel {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 4px 0 6px;
+}
+
+.networkSectionLabel #networkPointCount {
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+/* Segmented control: the two link styles are one either/or choice, so they
+   share a single track rather than reading as two separate buttons. */
+#networkModes {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.networkSegment {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.networkSegment:hover {
+  color: var(--text);
+}
+
+.networkSegment.active {
+  background: rgba(37, 224, 255, 0.14);
+  color: #25e0ff;
+  font-weight: 600;
+}
+
+#networkModeHint {
+  margin: 7px 0 4px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.networkButtonRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.networkButtonRow button {
+  flex: 1;
+  padding: 7px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent-soft);
+}
+
+.networkButtonRow button:hover:not(:disabled) {
+  background: var(--accent-bg-hover);
+  color: var(--text-bright);
+}
+
+.networkButtonRow button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The map-picking toggle is a mode, not an action -- lit in the tool's own
+   cyan for as long as clicks are being captured, matching the hint bar at
+   the bottom of the map. */
+#networkPickBtn.active {
+  border-color: rgba(37, 224, 255, 0.55);
+  background: rgba(37, 224, 255, 0.14);
+  color: #25e0ff;
+  font-weight: 600;
+}
+
+#networkComputeBtn {
+  font-weight: 600;
+}
+
+#networkClearBtn {
+  flex: 0 0 auto !important;
+  border-color: var(--border) !important;
+  background: var(--raised) !important;
+  color: var(--muted) !important;
+}
+
+#networkClearBtn:hover:not(:disabled) {
+  color: var(--text-bright) !important;
+  background: var(--raised-hover) !important;
+}
+
+#networkCoordRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+#networkCoordRow input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+}
+
+#networkCoordRow input:focus {
+  outline: none;
+  border-color: var(--border-hover);
+}
+
+#networkCoordRow button {
+  flex: none;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--text);
+}
+
+#networkCoordRow button:hover {
+  background: var(--raised-hover);
+  color: var(--text-bright);
+}
+
+/* Both lists scroll independently and share the row shape, so points and
+   links read as the same kind of thing at a glance. */
+.networkList {
+  overflow-y: auto;
+  /* Grows to 190px when there is room and shrinks to a couple of rows when
+     there is not -- the only elastic part of the panel. */
+  flex: 1 1 auto;
+  min-height: 56px;
+  max-height: 190px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--inset);
+}
+
+.networkList:empty {
+  display: none;
+}
+
+.networkRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.networkRow:last-child {
+  border-bottom: none;
+}
+
+.networkRow:hover,
+.networkRow.hover {
+  background: rgba(37, 224, 255, 0.09);
+}
+
+/* Clicking an object that is already a point adds nothing -- this pulse (and
+   the enlarged dot on the map, see network.js's flashPoint) is what says the
+   click landed on a point that already exists rather than doing nothing. */
+.networkRow.flash {
+  animation: networkRowFlash 1s var(--panel-ease);
+}
+
+@keyframes networkRowFlash {
+  0%, 55% { background: rgba(37, 224, 255, 0.32); }
+  100% { background: transparent; }
+}
+
+.networkRowIndex {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(37, 224, 255, 0.16);
+  color: #25e0ff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.networkRowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.networkRowLabel {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.networkRowMeta {
+  font-size: 10.5px;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.networkRowRemove {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--faint);
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.networkRowRemove:hover {
+  color: var(--hidden-pink-soft);
+  background: rgba(255, 59, 129, 0.12);
+}
+
+/* The point list stops at network.js's LIST_ROW_LIMIT -- this row is what
+   says so, instead of the list just appearing to end. */
+.networkOverflowRow {
+  padding: 7px 10px;
+  font-size: 11px;
+  color: var(--faint);
+  font-style: italic;
+  text-align: center;
+}
+
+#networkResult {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  /* Shares the leftover height with the point list above it; min-height: 0
+     is what lets its own list actually shrink inside it. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#networkPanelFooter {
+  flex: none;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+#networkPanelFooter .networkButtonRow:last-child {
+  margin-bottom: 0;
+}
+
+#networkSummary {
+  margin-bottom: 9px;
+}
+
+.networkSummaryTotal {
+  font-size: 21px;
+  font-weight: 700;
+  color: #25e0ff;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.networkSummaryDetail {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+#networkCopyBtn {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--text);
+}
+
+#networkCopyBtn:hover {
+  background: var(--raised-hover);
+  color: var(--text-bright);
+}
+
+/* Destination + the length/trip priority slider (network.js). Both are
+   optional: with no destination set the tool minimises length and nothing
+   else, so the slider is not even rendered -- there is nothing to trade. */
+#networkDestinationRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--inset);
+  font-size: 12px;
+}
+
+#networkDestinationNone {
+  color: var(--faint);
+  font-style: italic;
+}
+
+#networkDestinationName {
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  color: #25e0ff;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#networkDestinationClear {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--faint);
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+#networkDestinationClear:hover {
+  color: var(--text-bright);
+  background: var(--raised-hover);
+}
+
+/* Per-row "route everything to this one" button. Dim until hovered, like the
+   row's remove button -- except on the row that IS the destination, where it
+   stays lit as the state indicator. */
+.networkRowDestination {
+  flex: none;
+  display: flex;
+  align-items: center;
+  border: none;
+  background: none;
+  color: var(--faint);
+  padding: 2px 3px;
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s ease, color 0.1s ease;
+}
+
+.networkRow:hover .networkRowDestination {
+  opacity: 1;
+}
+
+.networkRowDestination:hover {
+  color: #25e0ff;
+  background: rgba(37, 224, 255, 0.12);
+}
+
+.networkRow.isDestination {
+  background: rgba(37, 224, 255, 0.07);
+  box-shadow: inset 2px 0 0 #25e0ff;
+}
+
+.networkRow.isDestination .networkRowDestination {
+  opacity: 1;
+  color: #25e0ff;
+}
+
+#networkPriority {
+  margin-bottom: 10px;
+}
+
+#networkAlpha {
+  width: 100%;
+  margin: 2px 0 0;
+  accent-color: #25e0ff;
+  cursor: pointer;
+}
+
+#networkAlphaEnds {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--faint);
+}
+
+#networkAlphaNote {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* Trip total: the number the destination exists to show, so it is sized
+   between the headline network length and the detail lines. */
+.networkSummaryTrips {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+}
+
+.networkTripsTotal {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+}
+
+.networkTripsLabel {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Same slot and shape as the editor's placement hint (#editorHint) -- only
+   one of the two is ever up, since both own the map cursor. */
+#networkHint {
+  position: absolute;
+  bottom: 22px;
+  left: var(--map-center-x);
+  transform: translateX(-50%);
+  z-index: 600;
+  padding: 8px 16px;
+  background: var(--surface-2);
+  border: 1px solid rgba(37, 224, 255, 0.45);
+  border-radius: 999px;
+  box-shadow: var(--float-shadow);
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Per-link hover tooltip on the map. A Leaflet tooltip, so it positions
+   itself against the cursor -- restyled off Leaflet's white default onto the
+   same popup surface every other floating panel uses. */
+.leaflet-tooltip.networkLinkTooltip {
+  background: var(--surface-2);
+  border: 1px solid var(--border-popup);
+  border-radius: 8px;
+  box-shadow: var(--float-shadow);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.leaflet-tooltip.networkLinkTooltip::before {
+  display: none; /* No callout arrow: the tooltip tracks the cursor. */
+}
+
+.networkTooltipTitle {
+  font-weight: 700;
+  color: #25e0ff;
+  margin-bottom: 3px;
+}
+
+.networkTooltipLeg {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.networkTooltipRow {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.networkTooltipRow span {
+  display: inline-block;
+  width: 34px;
+  color: var(--faint);
+}

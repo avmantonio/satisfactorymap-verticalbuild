@@ -181,7 +181,34 @@ var FindItem = {};
     }
   }
 
-  var catalog = []; // [{kind:"item", label, itemPath}, {kind:"building", label, typePaths, category, subcategory, row}, {kind:"vehicle", label, typePaths, isTrain, iconUrl, row}, {kind:"wildlife", label, iconUrl, row}, {kind:"category", label, iconClassName, rows}, ...]
+  // Map tools -- things the search bar can OPEN rather than find. They exist
+  // only here: a planning tool that most sessions never touch does not earn a
+  // permanent button, but typing its name should always reach it. Unlike
+  // every other entry these are not rebuilt per save (they describe no save
+  // data), so they sit in the catalog from the first keystroke, with or
+  // without a save loaded.
+  var TOOL_ICON_URL = "data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="26" height="26">' +
+    '<path d="M5 18 L12 6 L19 15 M12 6 L6 9" fill="none" stroke="#25e0ff" stroke-width="1.6" stroke-linejoin="round"/>' +
+    '<circle cx="5" cy="18" r="2.2" fill="#25e0ff"/><circle cx="12" cy="6" r="2.2" fill="#25e0ff"/>' +
+    '<circle cx="19" cy="15" r="2.2" fill="#25e0ff"/><circle cx="6" cy="9" r="2.2" fill="#25e0ff"/>' +
+    '</svg>'
+  );
+
+  var TOOL_ENTRIES = [
+    {
+      kind: "tool",
+      label: "Optimal network finder (EMST)",
+      iconUrl: TOOL_ICON_URL,
+      open: function() {
+        if (window.NetworkTool) {
+          NetworkTool.open();
+        }
+      },
+    },
+  ];
+
+  var catalog = TOOL_ENTRIES.slice(); // [{kind:"item", label, itemPath}, {kind:"building", label, typePaths, category, subcategory, row}, {kind:"vehicle", label, typePaths, isTrain, iconUrl, row}, {kind:"wildlife", label, iconUrl, row}, {kind:"category", label, iconClassName, rows}, {kind:"tool", label, iconUrl, open}, ...]
   var itemCatalogByLabel = {}; // label -> itemPath, for an exact-match Enter on a fully typed item name.
   var buildingCatalogByLabel = {}; // label -> building catalog entry, same for a fully typed building name.
   var vehicleCatalogByLabel = {}; // label -> vehicle catalog entry, same for a fully typed vehicle name.
@@ -1312,7 +1339,9 @@ var FindItem = {};
   function selectSuggestion(entry) {
     searchInput.value = entry.label;
     hideSuggestions();
-    if (entry.kind === "building") {
+    if (entry.kind === "tool") {
+      entry.open();
+    } else if (entry.kind === "building") {
       runBuildingSearchFor(entry);
     } else if (entry.kind === "vehicle") {
       runVehicleSearchFor(entry);
@@ -1334,8 +1363,12 @@ var FindItem = {};
 
   // Whether this suggestion has any layer to show/hide at all. Everything
   // that isn't an item always does; an item only when it's also a world
-  // pickup carrying its Collectables rows (see FindItem.build).
+  // pickup carrying its Collectables rows (see FindItem.build). A tool has no
+  // layer at all -- it opens something.
   function entryHasVisibilityToggle(entry) {
+    if (entry.kind === "tool") {
+      return false;
+    }
     return entry.kind !== "item" || !!entry.rows;
   }
 
@@ -1411,10 +1444,12 @@ var FindItem = {};
     var img = document.createElement("img");
     img.className = "searchSuggestionIcon";
     img.alt = "";
-    if (entry.kind === "vehicle" || entry.kind === "wildlife" || entry.kind === "resource") {
-      // Vehicle glyphs (icons/vehicles/), creature art (icons/creatures/) and
-      // a resource's ore icon all arrive as a ready URL on the entry itself
-      // (see filters.js) -- no ClassName-keyed lookup to do.
+    if (entry.kind === "vehicle" || entry.kind === "wildlife" || entry.kind === "resource"
+        || entry.kind === "tool") {
+      // Vehicle glyphs (icons/vehicles/), creature art (icons/creatures/), a
+      // resource's ore icon and a tool's own inline glyph all arrive as a
+      // ready URL on the entry itself (see filters.js) -- no ClassName-keyed
+      // lookup to do.
       img.onerror = function() { img.onerror = null; img.src = DEFAULT_BUILDING_ICON_URL; };
       img.src = entry.iconUrl;
       if (entry.kind === "vehicle") {
@@ -1515,6 +1550,10 @@ var FindItem = {};
       ["Buildings", matchesOfKind("building")],
       ["Vehicles", matchesOfKind("vehicle")],
       ["Wildlife", matchesOfKind("wildlife")],
+      // Last: a tool is only ever reached by typing most of its name, so it
+      // never needs to compete for the top of the list with what the query
+      // more likely means.
+      ["Tools", matchesOfKind("tool")],
     ];
     currentSuggestions = groups.reduce(function(all, group) { return all.concat(group[1]); }, []);
 
@@ -1618,6 +1657,13 @@ var FindItem = {};
       } else if (layerCatalogByLabel.hasOwnProperty(typedLabel)) {
         hideSuggestions();
         runLayerSearchFor(layerCatalogByLabel[typedLabel]);
+      } else {
+        TOOL_ENTRIES.forEach(function(tool) {
+          if (tool.label === typedLabel) {
+            hideSuggestions();
+            tool.open();
+          }
+        });
       }
     } else if (e.key === "Escape") {
       hideSuggestions();
@@ -1797,7 +1843,8 @@ var FindItem = {};
     layerCatalogByLabel = {};
     wildlifeEntries.concat(categoryEntries, resourceEntries).forEach(function(entry) { layerCatalogByLabel[entry.label] = entry; });
 
-    catalog = itemEntries.concat(buildingEntries, vehicleEntries, wildlifeEntries, categoryEntries, resourceEntries);
+    catalog = itemEntries.concat(buildingEntries, vehicleEntries, wildlifeEntries, categoryEntries,
+                                 resourceEntries, TOOL_ENTRIES);
 
     window.MapApp.currentDepotItems = payload.dimensionalDepot || [];
   };
