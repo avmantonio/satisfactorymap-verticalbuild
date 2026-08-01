@@ -1385,6 +1385,50 @@ body.panelResizing #categoryDetailColumn {
   flex: none;
 }
 
+/* "Show on map" -- flies the map to this one instance and marks it (see
+   finditem.js's locateOnMap). It sits on every row of a list that can run to
+   hundreds, so it's drawn in the same muted gray as the chevrons and fallback
+   glyphs: plainly there to be found, but not competing with the label and
+   count that are the row's actual content. The hovered row's button turns
+   blue -- the app's "this is clickable" color everywhere else. */
+.itemLocationLocate {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: #7a8190;
+  cursor: pointer;
+}
+
+.itemLocationRow:hover .itemLocationLocate {
+  color: #8ab4f8;
+  border-color: #3a4356;
+}
+
+.itemLocationLocate:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.itemLocationLocate svg {
+  display: block;
+}
+
+/* The Depot row has no position to fly to, so it gets no button -- this
+   holds the column open so its label/count still line up with every other
+   row's. */
+.itemLocationLocateSpacer {
+  flex: none;
+  width: 24px;
+}
+
 /* ---- Grouped item-location list (see finditem.js's
    renderGroupedLocations) -- one expandable header row per building type,
    individual machines as indented child rows underneath. */
