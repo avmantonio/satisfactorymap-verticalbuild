@@ -494,7 +494,13 @@ var Filters = {};
     });
     rowDiv.appendChild(rowToggle.wrapper);
     rowDiv.appendChild(makeIcon(row.renderType || renderType, row.color || swatchColor, row.iconUrl));
-    rowDiv.appendChild(el("label", null, row.displayLabel || row.label));
+    var labelEl = el("label", null, row.displayLabel || row.label);
+    // row.hint: the long version of a caveat the row's label can only gesture
+    // at (see the Caves row's "approximate"), shown on hover.
+    if (row.hint) {
+      labelEl.title = row.hint;
+    }
+    rowDiv.appendChild(labelEl);
     rowDiv.appendChild(el("span", "count", String(row.count)));
     childrenDiv.appendChild(rowDiv);
     // Building rows (see buildingSearchEntries) hang onto their own checkbox
@@ -1282,6 +1288,9 @@ var Filters = {};
       if (depth && depth.length === 2) {
         rows.push(["Altitude range", Math.round(depth[0]) + " m to " + Math.round(depth[1]) + " m"]);
       }
+      // Same caveat as the sidebar row, where someone reading a size off the
+      // tooltip will actually see it.
+      rows.push(["Outline", "Approximate"]);
       var ring = caves.polylines[index];
       return { title: labels[index] || "Cave", rows: rows,
                position: ring ? EditorTool.mapPxToWorldXY(ring[0], ring[1]) : undefined };
@@ -1299,7 +1308,16 @@ var Filters = {};
         caveCount++;
       }
     });
-    return { label: "Caves", count: caveCount, color: WORLD_COLORS.caves,
+    // "(approximate)" is not modesty, it is the honest reading of the source:
+    // an outline is the game's cave fog volume plus the cave geometry inside
+    // it, which runs generous by tens of meters and can miss a bare tunnel
+    // entirely. Good enough to find a cave, wrong to trust as its wall.
+    return { label: "Caves", displayLabel: "Caves (approximate)",
+             hint: "Traced from the game's own cave fog volumes and the cave geometry inside "
+                   + "them — typically tens of meters wider than the real rock, and a "
+                   + "bare tunnel with no cave props can be missed. Use it to find a cave, "
+                   + "not to judge where its walls are.",
+             count: caveCount, color: WORLD_COLORS.caves,
              renderType: "line", buckets: [bucket] };
   }
 
