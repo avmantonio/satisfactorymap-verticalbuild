@@ -2,6 +2,17 @@
   --nav-col-width: clamp(240px, 19vw, 340px);
   --detail-col-width: 280px;
   --altitude-width: 64px;
+  /* Horizontal center OF THE MAP, for anything that floats over the middle
+     of it -- use this instead of a plain 50%, paired with the usual
+     transform: translateX(-50%).
+     The map deliberately stops short of the right edge (the altitude rail is
+     docked there, see #map's right inset), but every one of those floating
+     panels is a body-level SIBLING of #map, so their 50% is the window's
+     center, not the map's -- half a rail-width too far right. That drift is
+     invisible on its own and obvious the moment one of them sits under the
+     search pill, which IS centered on the map (#topBar reserves the same
+     rail width in its right padding). */
+  --map-center-x: calc(50% - var(--altitude-width) / 2);
   /* One shared feel for the floating panels: how they slide/settle, and the
      lifted-off-the-map shadow every floating control shares. */
   --panel-ease: cubic-bezier(0.2, 0, 0, 1);
@@ -1456,9 +1467,21 @@ body.panelResizing #categoryDetailColumn {
   transform: rotate(90deg);
 }
 
-/* "× 1,234" -- how many individual machines this summed row stands for. */
+/* The label stops stretching in a group header so the badge below can sit
+   right against it: "Constructor × 28" is one phrase and reads as one. It
+   still shrinks/ellipsizes when the name is long (min-width:0 + the overflow
+   rules it already carries). */
+.itemLocationGroupHeader .itemLocationLabel {
+  flex: 0 1 auto;
+}
+
+/* "× 1,234" -- how many individual machines this summed row stands for.
+   margin-right:auto takes over the gap-filling the label just gave up, so
+   everything after it (the count) still lands hard against the right edge,
+   in the same column as every non-grouped row's. */
 .itemLocationGroupBadge {
   flex: none;
+  margin-right: auto;
   background: #262a31;
   border: 1px solid #333844;
   border-radius: 999px;
@@ -1912,7 +1935,7 @@ body.panelResizing #categoryDetailColumn {
 #selectionPanel {
   position: absolute;
   bottom: 22px;
-  left: 50%;
+  left: var(--map-center-x);
   transform: translateX(-50%);
   z-index: 600;
   display: flex;
@@ -1980,7 +2003,7 @@ body.panelResizing #categoryDetailColumn {
 #editorToolbar {
   position: absolute;
   top: 58px;
-  left: 50%;
+  left: var(--map-center-x);
   transform: translateX(-50%);
   z-index: 600;
   display: flex;
@@ -2026,7 +2049,7 @@ body.panelResizing #categoryDetailColumn {
 #editorHint {
   position: absolute;
   bottom: 64px;
-  left: 50%;
+  left: var(--map-center-x);
   transform: translateX(-50%);
   z-index: 1401;
   padding: 7px 14px;
@@ -2277,7 +2300,7 @@ body.panelResizing #categoryDetailColumn {
 #activeFilterBanner {
   position: absolute;
   top: 68px; /* Just below the floating search pill. */
-  left: 50%;
+  left: var(--map-center-x);
   transform: translateX(-50%);
   z-index: 500;
   display: flex;
