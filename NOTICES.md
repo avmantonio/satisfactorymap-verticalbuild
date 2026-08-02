@@ -35,7 +35,12 @@ A copy of the exchange is retained by the project author.
 
 - The **Satisfactory Save Map** name, logo, and the `satisfactorymap.net`
   domain (see the README's License & trademark section).
-- Game-derived data (icons, map image, item/building tables): property of
-  Coffee Stain Studios, not distributed here. Satisfactory is a trademark of
-  Coffee Stain Studios; this project is not affiliated with or endorsed by
-  them.
+- Game-derived data (icons, map image, item/building/world tables): property
+  of Coffee Stain Studios. None of it is in this repository -- everything
+  under `game_data/generated/` and `map/static/map/icons/` is produced from
+  your own copy of the game by `game_data/extract_all.py`, and is gitignored.
+  A prebuilt `game_data.zip` of exactly those outputs is attached to a release
+  as a convenience for building and for CI; it is the game's data, not this
+  project's, and it is offered on the same terms as any other extraction of
+  assets you already own. Satisfactory is a trademark of Coffee Stain Studios;
+  this project is not affiliated with or endorsed by them.

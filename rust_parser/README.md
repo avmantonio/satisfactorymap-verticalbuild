@@ -8,7 +8,7 @@ Cargo workspace:
   `mapdata/` — the map-payload builder, save index, and the six detail
   queries the frontend uses (`describeInstance`, `findItemLocations`,
   building/vehicle/train info, selection inventory). Static game data
-  (`game_data/generated/*.json`, `game_data/sav_data/*.json`, the item-icon
+  (`game_data/generated/{docs,world}/*.json`, `game_data/curated/*.json`, the item-icon
   manifest) is embedded at compile time, so building requires the game data
   extracted first (see the root README).
 - **`wasm/` (`sav_wasm`)** — the wasm-bindgen boundary. `SaveSession::load`

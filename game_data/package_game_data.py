@@ -6,10 +6,19 @@
 #
 # What goes in (exactly the paths .gitignore keeps out of the repo, minus the
 # raw docs.json dump, which the viewer never reads at runtime):
-#   - game_data/generated/           (JSONs from extract_docs_json.py /
-#                                     extract_game_phases.py, plus
-#                                     map_highres.png from extract_map_image.py)
+#   - game_data/generated/           everything extract_all.py writes:
+#                                    docs/ (Docs.json extracts), world/ (level
+#                                    -export tables: nodes, slugs, crash sites,
+#                                    spawners, caves, world bounds) and the map
+#                                    render + tile pyramid
 #   - map/static/map/icons/          (PNGs from copy_icons.py)
+#
+# Both folders are packed recursively, so a new subfolder under generated/ is
+# picked up with no change here. The archive is the ONLY way to get a working
+# checkout without the game files -- since nothing generated is committed, an
+# archive built before the generated/{docs,world}/ split does not carry the
+# world tables and will leave the crate unable to compile; rebuild it with
+# `pack` after this reorganisation (and bump the release tag CI points at).
 #
 # Usage:
 #   py game_data/package_game_data.py pack [zipPath]     (default: game_data.zip in the repo root)

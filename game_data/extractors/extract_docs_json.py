@@ -53,7 +53,7 @@ import sys
 from pathlib import Path
 
 DOCS_JSON_PATH = Path(__file__).parent.parent / "docs.json"
-OUTPUT_DIR = Path(__file__).parent.parent / "generated"
+OUTPUT_DIR = Path(__file__).parent.parent / "generated" / "docs"
 
 SKIPPED_NATIVE_CLASS_SUFFIXES = ("FGCustomizationRecipe'",)
 RECIPE_NATIVE_CLASS_SUFFIX = "FGRecipe'"

@@ -1,40 +1,134 @@
+/* ===========================================================================
+   Design tokens
+   ---------------------------------------------------------------------------
+   Every value the UI is allowed to use. If a rule below needs a colour, size,
+   radius or spacing that isn't in here, the right move is almost always to
+   pick the nearest token rather than to add a new one -- the app used to
+   carry 19 distinct font sizes, 11 radii and 63 padding shorthands, which is
+   how two panels that were meant to look identical drifted apart.
+
+   The primitives that consume these (buttons, inputs, dialogs, rows, bars)
+   live in ui.css; this file is layout + the app's own features.
+   ========================================================================= */
 :root {
-  --nav-col-width: clamp(240px, 19vw, 340px);
-  --detail-col-width: 280px;
-  --altitude-width: 64px;
-  /* One shared feel for the floating panels: how they slide/settle, and the
-     lifted-off-the-map shadow every floating control shares. */
+  /* ---- Layout ------------------------------------------------------------
+     The three tracks of the app grid: the left dock (layers + save file), the
+     map, and the right tool dock. Panels no longer float over the map, so
+     these widths are also literally how much room the map has -- see the
+     #appShell grid in this file. */
+  --dock-left-width: clamp(248px, 20vw, 340px);
+  --dock-right-width: 320px;
+  /* The tool dock collapsed to just the altitude rail. */
+  --rail-width: 64px;
+  --appbar-height: 48px;
+
+  /* How much of the window each dock is currently covering. The docks overlay
+     the map rather than taking a column of the grid (see the app-shell block
+     below for why), so the layout no longer derives these from content and
+     they have to be stated. Everything that needs to sit clear of a dock --
+     the map's floating overlay layer, Leaflet's own controls -- insets by
+     these rather than by guessing. */
+  --dock-left-inset: var(--dock-left-width);
+  --dock-right-inset: 0px;
+
+
+  /* One shared feel for anything that moves, and the lifted shadow the
+     genuinely floating things (hints, popovers, tooltip) share. Docked
+     surfaces get a border instead -- they are attached, not hovering. */
   --panel-ease: cubic-bezier(0.2, 0, 0, 1);
   --float-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  --popover-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
 
-  /* ---- Color system: slate surfaces, one blue accent for everything
-     interactive, FICSIT orange reserved for the brand + the "get a save
-     onto the map" path (logo, Load save, progress), and the existing pink
-     kept as the "something is hidden from view" signal. */
-  --surface-0: #131519;   /* deepest chrome: top bar, sidebar footer */
-  --surface-1: #1a1d22;   /* panels: sidebar, altitude rail */
-  --surface-2: #21242b;   /* popups: modals, dropdown, tooltip, menus */
-  --raised: #23262c;      /* controls: buttons, fields, cards */
+  /* ---- Colour ------------------------------------------------------------
+     Slate surfaces, one blue accent for everything interactive, FICSIT orange
+     reserved for the brand + the "get a save onto the map" path (logo, load,
+     progress), pink as the "something is hidden from view" signal, amber for
+     pending save edits + warnings, cyan owned by the network tool. */
+  --surface-0: #131519;   /* deepest chrome: app bar, dock footers */
+  --surface-1: #1a1d22;   /* docks */
+  --surface-2: #21242b;   /* popups: dialogs, dropdowns, tooltip, menus */
+  --raised: #23262c;      /* controls: buttons, fields, cards, stat tiles */
   --raised-hover: #2b2f37;
-  --inset: #171a20;       /* wells sunk into a popup (icon frames, bar tracks) */
-  --border: #30333b;
-  --border-popup: #3a3f4a;
+  --inset: #171a20;       /* wells sunk into a surface (icon frames, tracks) */
+  --border: #30333b;      /* inside a dock */
+  --border-popup: #3a3f4a;/* around/inside a popup */
+  --border-sub: #2c2f37;  /* hairline between list rows */
   --border-hover: #4a505c;
+
   --text: #d9dde4;
   --text-bright: #fff;
-  --muted: #8a92a3;
-  --faint: #6a7180;
+  --text-dim: #c3c9d4;    /* secondary values inside a row */
+  --muted: #8a92a3;       /* labels, captions */
+  --faint: #6a7180;       /* placeholder, disabled glyphs, section kickers */
+
   --accent: #5ba3e0;
   --accent-soft: #8ab4f8;
+  --accent-bright: #aecbfa;
   --accent-bg: #2a3545;
   --accent-bg-hover: #33435a;
   --accent-border: #3a5070;
+  /* Solid selection fill -- the keyboard-highlighted suggestion row and the
+     hovered context-menu item. Deliberately louder than --accent-bg: those
+     two are "the thing you are about to commit to", not a tint. */
+  --select-bg: #2f6bd8;
+
   --brand: #f2913d;       /* FICSIT orange */
   --brand-bright: #ffa552;
+  --brand-bg: #3d2d1c;
+  --brand-border: #8a5e2e;
+
   --hidden-pink: #ff3b81;
   --hidden-pink-soft: #ff9ec2;
   --hidden-pink-bg: #3a2330;
+  --hidden-pink-bg-hover: #4a2a3c;
+  --hidden-pink-border: #6b2b47;
+
+  --warn: #ffb020;        /* bottleneck / mixed-mark warnings */
+  --warn-soft: #ffd48a;
+  --warn-text: #ffd7ae;   /* pending save edits */
+  --ok: #58a565;
+  --ok-soft: #7fd18b;
+  --danger: #ff5f56;      /* destructive actions (Delete) */
+  --danger-soft: #ff9a94;
+  --danger-bg: #3a2222;
+  --danger-border: #7a3a36;
+
+  --tool-cyan: #25e0ff;   /* the network tool's own signal colour */
+  --tool-cyan-bg: rgba(37, 224, 255, 0.14);
+  --tool-cyan-border: rgba(37, 224, 255, 0.45);
+
+  --vehicle: #f39c12;     /* matches filters.js's VEHICLE_COLOR */
+
+  /* ---- Type --------------------------------------------------------------
+     Eight steps. --fs-md is the body default. */
+  --fs-2xs: 10px;  /* small-caps kickers, meta lines */
+  --fs-xs: 11px;   /* captions, section labels, counts */
+  --fs-sm: 12px;   /* dense controls, buttons, hints */
+  --fs-md: 13px;   /* body */
+  --fs-lg: 14px;   /* list rows, nav labels */
+  --fs-xl: 15px;   /* search field, emphasis */
+  --fs-2xl: 18px;  /* dialog titles */
+  --fs-3xl: 21px;  /* headline numbers */
   --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --font-mono: "Consolas", "SF Mono", monospace;
+
+  /* ---- Spacing (4px base) ------------------------------------------------- */
+  --sp-05: 2px;
+  --sp-1: 4px;
+  --sp-15: 6px;
+  --sp-2: 8px;
+  --sp-25: 10px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+
+  /* ---- Radius ------------------------------------------------------------- */
+  --r-xs: 4px;     /* swatches, bar tracks, tiny chips */
+  --r-sm: 6px;     /* inputs, list rows, compact buttons */
+  --r-md: 8px;     /* buttons, wells, cards */
+  --r-lg: 12px;    /* dialogs, popovers, docked panel corners */
+  --r-pill: 999px;
 }
 
 html, body {
@@ -42,8 +136,354 @@ html, body {
   height: 100%;
   overflow: hidden;
   font-family: var(--font);
-  font-size: 13px;
+  font-size: var(--fs-md);
   background: #000;
+}
+
+/* ===========================================================================
+   App shell
+   ---------------------------------------------------------------------------
+   An app bar, and the map filling everything below it. The docks are pinned to
+   the window's edges ON TOP of the map:
+
+       +--------------------------------------------------+
+       |                    app bar                       |
+       +------------+------------------------+------------+
+       | left dock  |          map           | tool dock  |
+       | (layers)   |  (full width, beneath) | (+ rail)   |
+       +------------+------------------------+------------+
+
+   They still read as attached -- flush to the edge, square, full height, one
+   border -- but they are out of flow, which is the important part: THE MAP'S
+   BOX NEVER CHANGES when a dock opens or closes.
+
+   That is a deliberate reversal. The docks used to be real grid columns, so
+   the map was literally the space between them. It looked right and it cost
+   too much: every dock toggle resized the map, and Leaflet's invalidateSize
+   preserves the map's CENTRE, so the world slid sideways by half the width
+   delta (~141px for the layers dock, ~161px for a tool dock). Two attempts at
+   compensating for that were written and reverted -- see
+   docs/dock-map-anchoring.md. Not resizing the map at all removes the problem
+   rather than correcting for it: nothing to compensate, nothing to repaint,
+   nothing to get wrong.
+
+   What it costs: the map extends underneath the docks, so a sliver of world is
+   hidden behind them. Panning still reaches it, and the map keeps its full
+   width when both docks are closed.
+   ========================================================================= */
+body {
+  display: grid;
+  /* minmax(0, 1fr), not a bare 1fr: a bare `1fr` is minmax(AUTO, 1fr), so the
+     row floors at its content's min-content size and tall content pushes the
+     grid past the viewport instead of scrolling inside it. */
+  grid-template-rows: var(--appbar-height) minmax(0, 1fr);
+  background: var(--surface-0);
+  color: var(--text);
+}
+
+/* ---- App bar -------------------------------------------------------------
+   A real bar across the window. The two side sections grow equally from a
+   zero basis, which is what centres the search field regardless of what
+   either side weighs; max-content floors stop the pills being squashed, and
+   the search field gives way first on a narrow window. */
+#topBar {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-3);
+  box-sizing: border-box;
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--border);
+  /* Above both docks so the search suggestions drop over them. */
+  z-index: 10;
+}
+
+#topBarLeft, #topBarActions {
+  flex: 1 1 0;
+  min-width: max-content;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+#topBarActions {
+  justify-content: flex-end;
+}
+
+#brandCluster {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+#mainSearchWrap {
+  flex: 0 1 560px;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* ---- Left dock: layers ---------------------------------------------------- */
+#sidebar {
+  position: fixed;
+  top: var(--appbar-height);
+  left: 0;
+  bottom: 0;
+  width: var(--dock-left-width);
+  z-index: 20;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+}
+
+body.dock-hidden {
+  --dock-left-inset: 0px;
+}
+
+body.dock-hidden #sidebar {
+  display: none;
+}
+
+/* The two panes sit side by side in a double-width strip; showing the detail
+   pane slides the strip by half its width. Nothing resizes, so this is the
+   one layout animation the shell can afford. */
+#dockPager {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  width: 200%;
+  transform: translateX(0);
+  transition: transform 0.22s var(--panel-ease);
+}
+
+body.category-open #dockPager {
+  transform: translateX(-50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #dockPager { transition: none; }
+}
+
+.dockPane {
+  width: 50%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header of the detail pane: the way back, the category's colour, its name. */
+#detailHeader {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-15) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+#detailSwatch {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-xs);
+}
+
+#categoryNavHeader {
+  flex: none;
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-25);
+  border-bottom: 1px solid var(--border);
+}
+
+#categoryNavColumn {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-2) var(--sp-15);
+  box-sizing: border-box;
+}
+
+#categoryDetailPane {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-15) var(--sp-2);
+  box-sizing: border-box;
+}
+
+/* Save-file controls, pinned below the pager: dock chrome, not the content of
+   either pane, so they stay put while the panes slide. */
+#sidebarFooter {
+  flex: none;
+  max-height: 46%;
+  overflow-y: auto;
+  padding: var(--sp-3);
+  box-sizing: border-box;
+  border-top: 1px solid var(--border);
+  background: var(--surface-0);
+}
+
+/* Invisible grab strip on the dock's outer edge, lighting up as a thin accent
+   stripe on hover/drag (see panels.js). */
+.dockResizeHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 7px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 5;
+}
+
+.dockResizeHandle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 2px;
+  background: transparent;
+  transition: background-color 0.12s ease;
+}
+
+.dockResizeHandle:hover::before,
+.dockResizeHandle.dragging::before {
+  background: var(--accent);
+}
+
+body.dockResizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* ---- Map ------------------------------------------------------------------ */
+/* Fills the whole area below the app bar, dock or no dock. Its box is a
+   function of the WINDOW only, which is the entire point of this layout. */
+#map {
+  grid-row: 2;
+  min-width: 0;
+  background: #000;
+  /* Contain Leaflet's internal stacking -- its panes/zoom controls use
+     z-index values up to ~1000, which would otherwise live in the root
+     stacking context and paint over the app bar's suggestions dropdown. */
+  isolation: isolate;
+}
+
+/* Pointer-transparent layer sharing the map's grid cell. Everything that
+   still floats lives in here, so "centred over the map" is left:50% of this
+   element and nothing has to know about dock widths. Each child re-enables
+   its own pointer events. */
+/* The map fills the window, but the floating hints and bars should centre on
+   the part of it you can actually SEE, so this layer -- unlike #map -- insets
+   by whatever the docks are covering. It is the only thing that needs to know
+   the dock widths, and it costs the map nothing to tell it. */
+/* The layer the still-floating things live in: the hint bars, the selection
+   action bar, the active-filter banner.
+   
+   It spans the FULL window, exactly like #map, and never changes size for any
+   reason but a window resize. That is what makes its centre the window's
+   centre -- the same thing the app bar centres its search field on -- so a
+   hint always lines up with the search field above it, whatever the docks are
+   doing. Two earlier versions insetted it by the docks so hints would centre
+   on the *visible* map: that put them 109px out of line with the search field,
+   and, once a dock made the layer narrower than a wide bar, the auto margins
+   collapsed and the bar drifted further still.
+   
+   Trade-off: a bar wider than the gap between the docks runs underneath one.
+   The docks paint above this layer (z-index 20 vs 15), so it is clipped rather
+   than overlapping, and at any normal window width there is room to spare.
+   
+   Children are centred by `justify-self`, NOT by `left`/`right`/margins. That
+   is not a style preference: an absolutely positioned child that is
+   display:none while this layer's width changes can come back with a stale
+   USED value for a percentage or resolved `left` -- measured as declared
+   `left: 0px` but used `left: 800px`, which put the editor toolbar a quarter
+   of the window off-centre until something forced it to reflow. Grid alignment
+   never computes a `left` at all, so there is nothing to go stale. Children
+   still place themselves vertically with top/bottom. */
+#mapOverlays {
+  position: fixed;
+  inset: var(--appbar-height) 0 0 0;
+  display: grid;
+  pointer-events: none;
+  z-index: 15;
+}
+
+#mapOverlays > * {
+  justify-self: center;
+  pointer-events: auto;
+}
+
+/* ---- Right dock: tools ---------------------------------------------------- */
+#toolDock {
+  position: fixed;
+  top: var(--appbar-height);
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: row;
+  background: var(--surface-1);
+}
+
+/* Its width is content-driven (rail, tool panel, both or neither) -- these
+   mirror it for everything that has to sit clear of it. */
+body.has-rail {
+  --dock-right-inset: var(--rail-width);
+}
+
+body.tool-open {
+  --dock-right-inset: var(--dock-right-width);
+}
+
+body.tool-open.has-rail {
+  --dock-right-inset: calc(var(--dock-right-width) + var(--rail-width));
+}
+
+/* Holds whichever tool panel is open (panels.js moves them in). Collapsed to
+   nothing when none is -- which is what makes the `auto` grid track vanish. */
+#toolPanels {
+  display: none;
+  width: var(--dock-right-width);
+  min-width: 0;
+  border-left: 1px solid var(--border);
+}
+
+body.tool-open #toolPanels {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A tool panel is now a dock pane: it fills the dock, and drops the card
+   treatment (own border radius, shadow, absolute position) it needed while it
+   floated over the map. */
+#toolPanels > * {
+  position: static;
+  width: 100%;
+  max-height: none;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--sp-3);
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--text);
+  font-size: var(--fs-md);
 }
 
 /* Dark, slim scrollbars everywhere -- the browser's default light-gray bars
@@ -64,7 +504,7 @@ html, body {
 
 ::-webkit-scrollbar-thumb {
   background: #3d424c;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 2px solid transparent;
   background-clip: content-box;
 }
@@ -89,134 +529,8 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
   outline-offset: 1px;
 }
 
-/* ---- Top controls: no bar anymore -- a transparent, non-blocking overlay
-   row of individually floating controls sitting directly over the map
-   (Spotlight-style): menu + logo top-left, the search field centered, the
-   per-save status buttons top-right. pointer-events:none on the row itself
-   so the map stays pannable between the controls; each control re-enables
-   its own pointer events below. Right padding leaves room for the altitude
-   rail docked at the right edge. */
-#topBar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  box-sizing: border-box;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  /* Left padding matches #sidebar's left:12px exactly -- the brand cluster
-     docks onto the sidebar, so even a 2px offset between their left edges
-     read as a misalignment. */
-  padding: 12px 14px 0 12px;
-  padding-right: calc(var(--altitude-width) + 12px);
-  z-index: 60; /* Above the sidebar overlay (40) so the suggestions dropdown paints over it. */
-  pointer-events: none;
-  background: none;
-}
-
-#menuButton, #logoButton, #searchBox, #statusMenuWrap, .topPillButton {
-  pointer-events: auto;
-}
-
-/* The bar's two side sections (see index.html's #topBar comment): equal
-   flex grow from a ZERO basis makes them the same width whenever there's
-   room, which is what actually centers the search pill -- with the old
-   single-row layout it was only centered in the leftover space, so it sat
-   visibly off-center whenever the sides were unequal (always, and worse in
-   the desktop app once the update pill appeared). max-content floors keep
-   the pills from being squashed on narrow windows; the search pill then
-   gives way instead (flex-shrink on #mainSearchWrap). */
-#topBarLeft, #topBarActions {
-  flex: 1 1 0;
-  min-width: max-content;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  pointer-events: none;
-}
-
-#topBarActions {
-  justify-content: flex-end;
-}
-
-/* Hamburger + wordmark as ONE card (see #brandCluster in index.html) --
-   two separate floating buttons read as disconnected little islands.
-   While the sidebar is shown the card sits flush on its top edge (same
-   surface, square bottom corners, no bottom border) so it reads as the
-   panel's header; .detached (panel hidden, see panels.js) restores the
-   free-floating rounded-card look. */
-#brandCluster {
-  flex: none;
-  display: flex;
-  align-items: stretch;
-  height: 42px;
-  background: var(--surface-1);
-  border: 1px solid var(--border-popup);
-  border-bottom: none;
-  border-radius: 12px 12px 0 0;
-  box-shadow: var(--float-shadow);
-  overflow: hidden;
-  pointer-events: auto;
-  box-sizing: border-box;
-}
-
-#brandCluster.detached {
-  border-bottom: 1px solid var(--border-popup);
-  border-radius: 12px;
-}
-
-/* Top-left hamburger -- shows/hides the whole sidebar overlay (panels.js). */
-#menuButton {
-  flex: none;
-  width: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text);
-  background: none;
-  border: none;
-  border-right: 1px solid var(--border);
-  cursor: pointer;
-}
-
-#menuButton:hover {
-  background: var(--raised-hover);
-  color: var(--text-bright);
-}
-
-/* While the panel is hidden, the button stays quietly accented so it's
-   findable as "the way to get the panel back". */
-#menuButton.panelHidden {
-  background: var(--accent-bg);
-  color: var(--accent-soft);
-}
-
-#menuButton svg {
-  display: block;
-}
-
-/* The one brand moment in the chrome: a two-line FICSIT-orange wordmark
-   (small-caps kicker over the name) instead of a generic gray button. Still
-   a real button -- it navigates back to mode selection. */
-#logoButton {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 1px;
-  padding: 0 14px 0 11px;
-  background: none;
-  border: none;
-  border-left: 3px solid var(--brand);
-  cursor: pointer;
-  box-sizing: border-box;
-  text-align: left;
-}
-
 .logoKicker {
-  font-size: 9px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -225,41 +539,12 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 }
 
 .logoName {
-  font-size: 14.5px;
+  font-size: var(--fs-lg);
   font-weight: 700;
   letter-spacing: 0.01em;
   color: var(--brand);
   line-height: 1.1;
   white-space: nowrap;
-}
-
-#logoButton:hover {
-  background: var(--raised-hover);
-  border-left-color: var(--brand-bright);
-}
-
-#logoButton:hover .logoName {
-  color: var(--brand-bright);
-}
-
-#logoButton:hover .logoKicker {
-  color: var(--muted);
-}
-
-/* Spotlight-style search: a free-floating pill centered over the map (no
-   band behind it), with a search glyph inside it and a custom suggestions
-   dropdown (see #searchSuggestions) anchored directly beneath -- replacing
-   the native <datalist>, whose dropdown the browser positioned and styled
-   itself (badly, and with no room for item icons). */
-#mainSearchWrap {
-  /* Fixed 560px basis (the search pill's full width) between the two
-     equal-width side sections -- shrinks only once both sides are down to
-     their max-content floors. */
-  flex: 0 1 560px;
-  min-width: 0;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
 }
 
 #searchBox {
@@ -273,7 +558,7 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 #searchIcon {
   position: absolute;
   left: 16px;
-  color: #8a92a3;
+  color: var(--muted);
   pointer-events: none;
 }
 
@@ -282,12 +567,12 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
   box-sizing: border-box;
   height: 42px;
   font-family: var(--font);
-  font-size: 15px;
+  font-size: var(--fs-xl);
   padding: 0 18px 0 44px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--border-popup);
   background: var(--surface-2);
-  color: #eee;
+  color: var(--text);
   box-shadow: var(--float-shadow);
   transition: border-color 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
 }
@@ -299,12 +584,12 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 #mainSearchInput:focus {
   outline: none;
   border-color: var(--accent);
-  background: #262a31;
+  background: var(--raised);
   box-shadow: var(--float-shadow), 0 0 0 3px rgba(91, 163, 224, 0.18);
 }
 
 #mainSearchInput::placeholder {
-  color: #888;
+  color: var(--muted);
 }
 
 /* Custom suggestions dropdown -- anchored to #searchBox (position:relative),
@@ -316,37 +601,12 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
   right: 0;
   max-height: min(70vh, 440px);
   overflow-y: auto;
-  background: #21242b;
-  border: 1px solid #3a3f4a;
-  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-popup);
+  border-radius: var(--r-lg);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
   padding: 6px;
   z-index: 20;
-}
-
-.searchSuggestionRow {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.08s ease;
-}
-
-.searchSuggestionRow.active {
-  background: #2f6bd8;
-}
-
-.searchSuggestionRow.active .searchSuggestionLabel {
-  color: #fff;
-}
-
-.searchSuggestionIcon {
-  width: 26px;
-  height: 26px;
-  flex: none;
-  object-fit: contain;
 }
 
 /* Vehicle glyphs (icons/vehicles/*.png) are the game's white-on-transparent
@@ -354,31 +614,10 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
    map pins use (filters.js's VEHICLE_COLOR) so they hold up on any row state
    and read as vehicles next to the full-color item/building icons. */
 .searchSuggestionVehicleIcon {
-  background: #f39c12;
+  background: var(--vehicle);
   border-radius: 50%;
   padding: 4px;
   box-sizing: border-box;
-}
-
-.searchSuggestionLabel {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 14px;
-  color: #eee;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* "ITEMS" / "BUILDINGS" section divider inside the dropdown -- see
-   finditem.js's renderSuggestions, which now groups matches by kind. */
-.searchSuggestionGroupLabel {
-  padding: 7px 10px 4px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #6a7180;
 }
 
 /* Show/hide eye toggle -- on building suggestion rows AND in the building
@@ -397,8 +636,8 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #6b2b47;
-  border-radius: 8px;
+  border: 1px solid var(--hidden-pink-border);
+  border-radius: var(--r-md);
   background: var(--hidden-pink-bg);
   color: var(--hidden-pink-soft);
   cursor: pointer;
@@ -406,7 +645,7 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 
 .visibilityToggle:hover {
   border-color: var(--hidden-pink);
-  color: #fff;
+  color: var(--text-bright);
 }
 
 .visibilityToggle.isShown {
@@ -418,15 +657,7 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 .visibilityToggle.isShown:hover {
   background: var(--accent-bg-hover);
   border-color: var(--accent);
-  color: #fff;
-}
-
-/* On the keyboard/hover-highlighted (solid blue) suggestion row, the chip's
-   own tints would vanish into the background -- switch to a white outline. */
-.searchSuggestionRow.active .visibilityToggle {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.55);
-  color: #fff;
+  color: var(--text-bright);
 }
 
 .visibilityToggle svg {
@@ -441,9 +672,9 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 
 .searchSuggestionEmpty {
   padding: 10px 12px;
-  color: #888;
+  color: var(--muted);
   font-style: italic;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 /* The per-save status buttons (Dimensional Depot + the progression views --
@@ -468,11 +699,11 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
   padding: 0 13px;
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   background: var(--surface-2);
   border: 1px solid var(--border-popup);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   box-shadow: var(--float-shadow);
   cursor: pointer;
 }
@@ -501,7 +732,7 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 
 #updatePill:hover {
   background: var(--accent-bg-hover);
-  color: #fff;
+  color: var(--text-bright);
 }
 
 #updatePill:disabled {
@@ -526,7 +757,7 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
   padding: 6px;
   background: var(--surface-2);
   border: 1px solid var(--border-popup);
-  border-radius: 10px;
+  border-radius: var(--r-lg);
   box-shadow: var(--float-shadow);
   z-index: 70;
 }
@@ -539,11 +770,11 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
   padding: 7px 9px;
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-md);
   text-align: left;
   background: none;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 
@@ -558,41 +789,6 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
   height: 24px;
   object-fit: contain;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
-}
-
-/* The map owns the whole viewport (minus the altitude rail docked right) --
-   the sidebar and top controls float OVER it, so showing/hiding/resizing
-   panels never moves or re-fits the map. */
-#map {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: var(--altitude-width);
-  bottom: 0;
-  background: #000;
-  /* Contain Leaflet's internal stacking -- its panes/zoom controls use
-     z-index values up to ~1000, which would otherwise live in the root
-     stacking context and paint over the top bar's search-suggestions
-     dropdown (z-index 20 inside #topBar's z-index:10). isolate keeps all of
-     that self-contained so #topBar (and thus the dropdown) sits cleanly
-     above the map. */
-  isolation: isolate;
-}
-
-/* No level-1 category selected -- the detail column (content pane) collapses
-   to zero width rather than sitting there empty. Toggled on <body> by
-   filters.js's selectCategory/deselectAllCategories. Animated via the width
-   transitions on #sidebar/#categoryDetailColumn (the sidebar floats over the
-   map, so the map itself never moves). <body> ships WITH this class already
-   set (see index.html) so the empty detail column never flashes on screen
-   during the initial load before filters.js runs -- nothing is ever selected
-   until a save is loaded and the user clicks a category anyway. */
-body.no-category-selected #categoryDetailColumn {
-  width: 0;
-}
-
-body.no-category-selected #sidebar {
-  width: var(--nav-col-width);
 }
 
 .leaflet-container {
@@ -647,10 +843,10 @@ body.no-category-selected #sidebar {
   background: rgba(19, 21, 25, 0.72);
   color: var(--faint);
   font-family: var(--font);
-  font-size: 10.5px;
+  font-size: var(--fs-2xs);
   padding: 2px 9px;
   margin: 0;
-  border-radius: 6px 0 0 0;
+  border-radius: var(--r-sm) 0 0 0;
   white-space: nowrap;
 }
 
@@ -664,192 +860,8 @@ body.no-category-selected #sidebar {
   text-decoration: underline;
 }
 
-/* ---- Sidebar: a two-column browser -- the fixed-width nav panel (level-1
-   category list, plus the save-loading footer at its bottom) alongside the
-   detail pane (shown only when a category is selected). A flex ROW so the
-   two columns sit side by side and each runs full height; the footer lives
-   INSIDE the nav panel (not spanning the whole sidebar), so it stays at the
-   nav panel's width and doesn't stretch when the detail pane appears.
-   Floats OVER the map as a rounded card (starting below the top-left menu/
-   logo cluster) -- toggling or resizing it never moves the map. The width
-   transition animates the detail column opening/closing; the transform/
-   opacity pair is the menu button's show/hide slide. */
-#sidebar {
-  position: absolute;
-  /* Flush under the brand cluster (top 12px + 42px high, z-index above) so
-     the hamburger+logo card reads as this panel's header -- the cluster's
-     bottom edge overlaps this top border by 1px to hide the seam. */
-  top: 53px;
-  left: 12px;
-  width: calc(var(--nav-col-width) + var(--detail-col-width));
-  bottom: 12px;
-  background: var(--surface-1);
-  color: var(--text);
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: row;
-  overflow: hidden;
-  border: 1px solid var(--border-popup);
-  /* Square top-left corner: the brand cluster docks there (straight left
-     edges line up); the other three corners keep the rounded-card look. */
-  border-radius: 0 14px 14px 14px;
-  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.5);
-  z-index: 40;
-  transition: width 0.18s var(--panel-ease),
-              transform 0.28s var(--panel-ease),
-              opacity 0.22s ease;
-}
-
-#sidebar.hidden {
-  transform: translateX(calc(-100% - 24px));
-  opacity: 0;
-  pointer-events: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
   #sidebar, #categoryDetailColumn { transition: none; }
-}
-
-/* Level-1 categories -- a plain list of names (see filters.js's
-   renderTopLevelCategory), each with its own visibility toggle switch.
-   Clicking a row (anywhere but the switch) selects it as the one shown in
-   categoryDetailPane; the switch works independently of selection. Laid out
-   as a column: the Check/Uncheck-all header, then the scrollable category
-   list, then the save-loading footer pinned at the bottom. Its width is set
-   by filters.js's autoSizeNavPanel (--nav-col-width) to fit the widest
-   category label instead of a fixed guess, so no horizontal space is
-   wasted. */
-#categoryNavPanel {
-  flex: none;
-  width: var(--nav-col-width);
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-right: 1px solid var(--border);
-}
-
-/* Drag-to-resize handles (see panels.js) -- invisible 7px grab strips that
-   light up as a thin accent stripe on hover/drag. Positioned over the two
-   column right edges as direct children of #sidebar: the nav handle
-   straddles the nav/detail border; the detail handle hugs the sidebar's
-   right edge. */
-.panelResizeHandle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 7px;
-  cursor: col-resize;
-  z-index: 5;
-  touch-action: none;
-}
-
-#navResizeHandle {
-  left: calc(var(--nav-col-width) - 4px);
-}
-
-#detailResizeHandle {
-  right: 0;
-}
-
-/* With the detail column closed, its handle would sit exactly on top of the
-   nav handle at the sidebar's right edge -- there is nothing to resize, so
-   it goes away entirely. */
-body.no-category-selected #detailResizeHandle {
-  display: none;
-}
-
-.panelResizeHandle::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 2px;
-  width: 3px;
-  background: transparent;
-  transition: background-color 0.12s ease;
-}
-
-.panelResizeHandle:hover::before,
-.panelResizeHandle.dragging::before {
-  background: var(--accent);
-}
-
-/* Kill the width transitions while a handle is being dragged -- the panel
-   must track the pointer 1:1, not ease toward it. */
-body.panelResizing {
-  cursor: col-resize;
-  user-select: none;
-}
-
-body.panelResizing #sidebar,
-body.panelResizing #categoryDetailColumn {
-  transition: none;
-}
-
-#categoryNavHeader {
-  flex: none;
-  display: flex;
-  gap: 8px;
-  padding: 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-#categoryNavHeader button {
-  flex: 1 1 50%;
-  font-size: 12px;
-  padding: 7px 0;
-}
-
-/* Pink accent matches #activeFilterBanner/#activeFilterClear -- the app's
-   existing "something is hidden from view, here's how to undo it" color. */
-#resetHiddenButton {
-  flex: none;
-  margin: 0 10px 10px;
-  padding: 7px 0;
-  font-size: 12px;
-  font-weight: 600;
-  text-align: center;
-  color: #ff9ec2;
-  background: #3a2330;
-  border: 1px solid #ff3b81;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-#resetHiddenButton:hover {
-  background: #4a2a3c;
-  color: #fff;
-}
-
-#categoryNavColumn {
-  flex: 1 1 auto;
-  min-height: 0;
-  box-sizing: border-box;
-  overflow-y: auto;
-  padding: 8px 6px;
-}
-
-#categoryDetailColumn {
-  flex: none;
-  width: var(--detail-col-width);
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: width 0.18s var(--panel-ease);
-}
-
-/* Fixed at the column's full open width (the column itself clips it) so the
-   open/close animation slides the content in as one piece instead of
-   reflowing the text at every frame. */
-#categoryDetailPane {
-  flex: 1 1 auto;
-  min-height: 0;
-  width: var(--detail-col-width);
-  overflow-y: auto;
-  padding: 6px 8px;
-  box-sizing: border-box;
 }
 
 /* One row per top-level category in the nav column -- reuses .groupTitle's
@@ -862,24 +874,19 @@ body.panelResizing #categoryDetailColumn {
    margin-left:auto below), so the row's full width is actually used
    instead of everything crowding the left edge. */
 .categoryNavRow {
-  /* Explicit flex here because the base "display:flex" only lives on
-     ".filterGroup > .groupTitle", and renderTopLevelCategory relocates this
-     row OUT of its .filterGroup -- so that selector no longer matches and
-     the row would otherwise fall back to plain inline flow (which is why the
-     order/margin-left tricks below need this to take effect). */
   display: flex;
   align-items: center;
   cursor: pointer;
   user-select: none;
-  padding: 11px 14px !important;
+  padding: 11px 14px;
   margin-bottom: 6px;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   background: var(--raised);
   border: 1px solid transparent;
-  font-size: 14.5px !important;
-  text-transform: none !important;
-  letter-spacing: normal !important;
-  gap: 11px !important;
+  font-size: var(--fs-lg);
+  text-transform: none;
+  letter-spacing: normal;
+  gap: 11px;
   transition: background-color 0.1s ease, border-color 0.1s ease;
 }
 
@@ -906,7 +913,7 @@ body.panelResizing #categoryDetailColumn {
   flex: none;
   margin-left: 8px;
   color: var(--faint);
-  font-size: 15px;
+  font-size: var(--fs-xl);
   line-height: 1;
   transition: transform 0.15s ease, color 0.15s ease;
 }
@@ -917,14 +924,14 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .categoryNavRow.active .navChevron {
-  color: #8ab4f8;
+  color: var(--accent-soft);
   transform: rotate(180deg);
 }
 
 .categoryNavRow.active {
-  background: #2a3d54;
-  color: #8ab4f8;
-  box-shadow: inset 3px 0 0 #5ba3e0;
+  background: var(--accent-bg);
+  color: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 /* Bigger than the default .toggleSwitch (used everywhere else -- the
@@ -958,11 +965,11 @@ body.panelResizing #categoryDetailColumn {
 .categoryNavRow .icon {
   width: 16px;
   height: 16px;
-  border-radius: 4px !important;
+  border-radius: var(--r-xs);
 }
 
 .categoryNavRow .icon-circle {
-  border-radius: 50% !important;
+  border-radius: 50%;
 }
 
 .categoryDetailGroup {
@@ -973,43 +980,13 @@ body.panelResizing #categoryDetailColumn {
   display: block;
 }
 
-#checkAllButton, #uncheckAllButton {
-  font-size: 11px;
-  padding: 5px 7px;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--muted);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-#checkAllButton:hover, #uncheckAllButton:hover {
-  color: var(--text);
-  border-color: var(--border-hover);
-  background: var(--raised);
-}
-
-/* ---- Sidebar footer: save file picker + game settings -- everything only
-   touched around load time, tucked below the category browser instead of
-   pinned above it. */
-#sidebarFooter {
-  flex: none;
-  max-height: 46%;
-  overflow-y: auto;
-  padding: 12px;
-  box-sizing: border-box;
-  border-top: 1px solid var(--border);
-  background: var(--surface-0);
-}
-
 #loadPanelHeader {
   display: flex;
   align-items: center;
   gap: 6px;
   margin-bottom: 7px;
-  color: #8a92a3;
-  font-size: 11px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1032,7 +1009,7 @@ body.panelResizing #categoryDetailColumn {
   gap: 4px;
   color: var(--faint);
   text-decoration: none;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
 }
@@ -1053,14 +1030,14 @@ body.panelResizing #categoryDetailColumn {
   border: none;
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 #clearSaveBtn:hover {
-  color: #ff9ec2;
+  color: var(--hidden-pink-soft);
 }
 
 .loadPanelIcon {
@@ -1078,17 +1055,17 @@ body.panelResizing #categoryDetailColumn {
   gap: 7px;
   margin-top: 8px;
   padding: 9px 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--muted);
-  border: 1px dashed #4a4f5a;
-  border-radius: 6px;
+  border: 1px dashed var(--border-hover);
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 
 #uploadDropZone:hover, #uploadDropZone.drag-over {
-  color: #ffd7ae;
-  border-color: #8a5e2e;
-  background: #3d2d1c;
+  color: var(--warn-text);
+  border-color: var(--brand-border);
+  background: var(--brand-bg);
 }
 
 #uploadDropZone.uploading {
@@ -1108,10 +1085,10 @@ body.panelResizing #categoryDetailColumn {
   padding: 6px 2px 0;
   background: none;
   border: none;
-  border-top: 1px solid #2c2f37;
+  border-top: 1px solid var(--border-sub);
   color: var(--muted);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   cursor: pointer;
 }
 
@@ -1136,28 +1113,11 @@ body.panelResizing #categoryDetailColumn {
   margin-top: 7px;
 }
 
-#serverFetchForm input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 6px 8px;
-  font: inherit;
-  font-size: 12px;
-  color: var(--text);
-  background: var(--raised);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-
-#serverFetchForm input:focus {
-  outline: none;
-  border-color: var(--border-hover);
-}
-
 #serverFetchRemember {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   cursor: pointer;
   user-select: none;
@@ -1170,61 +1130,11 @@ body.panelResizing #categoryDetailColumn {
   cursor: pointer;
 }
 
-#serverFetchButton {
-  padding: 7px 8px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-#serverFetchButton:hover {
-  color: var(--text);
-  border-color: var(--border-hover);
-  background: var(--raised);
-}
-
-#serverFetchButton:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
 #loadStatus {
   margin-top: 8px;
-  color: #999;
-  font-size: 11.5px;
-  min-height: 1.2em;
-}
-
-/* Exports the current (possibly edited) save as a new .sav -- the uploaded
-   file itself is never modified (see editor.js). */
-#downloadSaveBtn {
-  display: block;
-  width: 100%;
-  margin-top: 8px;
-  padding: 7px 8px;
-  font-size: 12px;
-  font-weight: 600;
   color: var(--muted);
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-#downloadSaveBtn:hover {
-  color: var(--text);
-  border-color: var(--border-hover);
-  background: var(--raised);
-}
-
-#downloadSaveBtn:disabled {
-  opacity: 0.6;
-  cursor: default;
+  font-size: var(--fs-xs);
+  min-height: 1.2em;
 }
 
 /* The "save details" disclosure row: object-count summary chip on the left,
@@ -1240,7 +1150,7 @@ body.panelResizing #categoryDetailColumn {
   padding: 6px 2px 0;
   background: none;
   border: none;
-  border-top: 1px solid #2c2f37;
+  border-top: 1px solid var(--border-sub);
   color: var(--muted);
   font: inherit;
   cursor: pointer;
@@ -1273,32 +1183,15 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .totalObjectCountValue {
-  color: #8ab4f8;
+  color: var(--accent-soft);
   font-weight: 700;
-  font-family: "Consolas", "SF Mono", monospace;
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
 }
 
 .totalObjectCountLabel {
-  color: #777;
-  font-size: 11px;
-}
-
-#loadProgressBar {
-  display: none;
-  margin-top: 8px;
-  height: 6px;
-  background: #2a2d33;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-#loadProgressFill {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(to right, #c96f22, var(--brand));
-  border-radius: 999px;
-  transition: width 0.2s ease-out;
+  color: var(--faint);
+  font-size: var(--fs-xs);
 }
 
 /* Game-mode settings (Power Cost Multiplier / Node Purity / Node
@@ -1306,7 +1199,7 @@ body.panelResizing #categoryDetailColumn {
    display:none until a save with at least one of these set is loaded. */
 #gameSettingsPanel {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .gameSettingRow {
@@ -1317,290 +1210,36 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .gameSettingLabel {
-  color: #999;
+  color: var(--muted);
 }
 
 .gameSettingValue {
-  color: #ddd;
+  color: var(--text);
   font-weight: 500;
 }
 
-/* Shared by the item-search modal's results list and the Dimensional Depot
-   contents list (see finditem.js's renderLocationList) -- a scrollable,
-   bordered list of label/count rows. */
-.itemLocationList {
-  max-height: 56vh;
-  overflow-y: auto;
-  margin-bottom: 10px;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-}
-
-.itemLocationRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  font-size: 14px;
-  border-bottom: 1px solid #2c2f37;
-  /* Long lists (a big group expanded, the Depot's hundreds of item types)
-     shouldn't pay layout/paint for rows far offscreen -- lets the browser
-     skip them entirely until scrolled near. The intrinsic-size hint keeps
-     the scrollbar length stable while skipped. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 40px;
-}
-
-.itemLocationRow:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.itemLocationRow:last-child {
-  border-bottom: none;
-}
-
-/* Same exact->fuzzy->generic icon chain as the search dropdown (see
-   finditem.js's renderLocationList) -- keeps result lists scannable by
-   shape, not just by reading every label. */
-.itemLocationIcon {
-  width: 26px;
-  height: 26px;
+/* The Depot row has no position to fly to, so it gets no button -- this
+   holds the column open so its label/count still line up with every other
+   row's. */
+.itemLocationLocateSpacer {
   flex: none;
-  object-fit: contain;
-}
-
-.itemLocationLabel {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: #ddd;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.itemLocationCount {
-  color: #8ab4f8;
-  font-weight: 600;
-  font-size: 14px;
-  flex: none;
-}
-
-/* ---- Grouped item-location list (see finditem.js's
-   renderGroupedLocations) -- one expandable header row per building type,
-   individual machines as indented child rows underneath. */
-.itemLocationGroupHeader {
-  cursor: pointer;
-  user-select: none;
-}
-
-.itemLocationGroupHeader:hover {
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.itemLocationChevron {
-  flex: none;
-  display: inline-flex;
-  color: #7a8190;
-  line-height: 0;
-}
-
-.itemLocationChevron svg {
-  transition: transform 0.12s ease-out;
-}
-
-.itemLocationGroupHeader.expanded .itemLocationChevron svg {
-  transform: rotate(90deg);
-}
-
-/* "× 1,234" -- how many individual machines this summed row stands for. */
-.itemLocationGroupBadge {
-  flex: none;
-  background: #262a31;
-  border: 1px solid #333844;
-  border-radius: 999px;
-  padding: 1px 9px;
-  font-size: 12px;
-  color: #9aa0ab;
+  width: 24px;
 }
 
 .itemLocationChildren {
   background: rgba(0, 0, 0, 0.18);
-  border-bottom: 1px solid #2c2f37;
+  border-bottom: 1px solid var(--border-sub);
 }
 
 /* Child rows show only position + count (the type is the header's job);
    the extra left padding indents them under the header's label column. */
 .itemLocationChildRow {
   padding-left: 48px;
-  font-size: 13px;
-}
-
-.itemLocationChildRow .itemLocationLabel {
-  color: #a7adb8;
-  font-family: "Consolas", "SF Mono", monospace;
-  font-size: 12.5px;
-}
-
-.itemLocationShowMore {
-  display: block;
-  width: 100%;
-  padding: 7px 0 7px 48px;
-  text-align: left;
-  background: none;
-  border: none;
-  border-bottom: 1px solid #2c2f37;
-  color: #8ab4f8;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.itemLocationShowMore:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #aecbfa;
-}
-
-/* ---- Item search / Dimensional Depot results modal -- a single shared
-   dialog (see finditem.js's openModal), centered over the map, used for
-   both the search bar's results and the depot-icon button's contents. */
-#itemModalOverlay, #selectionModalOverlay, #buildingModalOverlay, #progressionModalOverlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* No backdrop-filter here on purpose: blurring the backdrop means every
-     repaint inside the modal (row hover, scroll, the cursor-following
-     tooltip) re-filters the entire viewport-sized map underneath. Fine on
-     the GPU, but with hardware acceleration off (user setting, RDP,
-     blocklisted driver) that software re-blur runs per frame and drops the
-     whole modal to ~10 FPS. The dim alone separates the layers well enough. */
-  background: rgba(8, 10, 14, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1500;
-}
-
-#itemModal, #selectionModal {
-  width: 640px;
-  max-width: 92vw;
-  max-height: 86vh;
-  background: var(--surface-2);
-  border: 1px solid var(--border-popup);
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-  padding: 16px 18px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  color: var(--text);
-  transform: scale(0.96);
-  opacity: 0;
-  animation: buildingModalIn 0.16s ease-out forwards;
+  font-size: var(--fs-md);
 }
 
 @media (prefers-reduced-motion: reduce) {
   #itemModal, #selectionModal { animation: none; transform: none; opacity: 1; }
-}
-
-#itemModalHeader, #selectionModalHeader {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-popup);
-  flex: none;
-}
-
-/* Same framed-icon treatment as #buildingModalIcon, one size down -- the
-   item modal's list rows are denser than the building modal's stat tiles. */
-#itemModalIcon {
-  width: 42px;
-  height: 42px;
-  flex: none;
-  object-fit: contain;
-  background: var(--inset);
-  border: 1px solid #2c2f37;
-  border-radius: 8px;
-  padding: 4px;
-  box-sizing: border-box;
-}
-
-#itemModalTitle, #selectionModalTitle {
-  font-weight: bold;
-  font-size: 19px;
-  color: #fff;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#itemModalClose, #selectionModalClose {
-  background: none;
-  border: none;
-  color: #999;
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 2px;
-}
-
-#itemModalClose:hover, #selectionModalClose:hover {
-  color: #fff;
-}
-
-#itemModalSummary, #selectionModalSummary {
-  color: #bbb;
-  font-size: 14px;
-  margin-bottom: 8px;
-  flex: none;
-}
-
-#itemModalHighlightToggle {
-  flex: none;
-  width: 100%;
-  margin-top: 4px;
-  padding: 9px 0;
-  border-radius: 8px;
-  border: 1px solid var(--accent-border);
-  background: var(--accent-bg);
-  color: var(--accent-soft);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-#itemModalHighlightToggle:hover {
-  background: var(--accent-bg-hover);
-  color: #fff;
-}
-
-/* ---- Building info window -- see finditem.js's Building object. Opened
-   from a building search suggestion (row click or Enter); shares the same
-   overlay/backdrop rule as #itemModal above, but its own dialog -- a
-   building's save-wide summary (count, recipe mix, power, combined
-   inventory) has a richer shape than an item's plain location list, so it
-   gets stat tiles and a small recipe bar chart instead of a single list. */
-#buildingModal {
-  width: 600px;
-  max-width: 92vw;
-  max-height: 86vh;
-  background: #20232a;
-  border: 1px solid #3a3f4a;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65);
-  padding: 18px 20px 16px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  color: #ddd;
-  transform: scale(0.96);
-  opacity: 0;
-  animation: buildingModalIn 0.16s ease-out forwards;
 }
 
 @keyframes buildingModalIn {
@@ -1611,51 +1250,12 @@ body.panelResizing #categoryDetailColumn {
   #buildingModal { animation: none; transform: none; opacity: 1; }
 }
 
-#buildingModalHeader {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 12px;
-  margin-bottom: 10px;
-  border-bottom: 1px solid #3a3f4a;
-  flex: none;
-}
-
-#buildingModalIcon {
-  width: 44px;
-  height: 44px;
-  flex: none;
-  object-fit: contain;
-  background: #171a20;
-  border: 1px solid #2c2f37;
-  border-radius: 8px;
-  padding: 4px;
-  box-sizing: border-box;
-}
-
 /* Vehicle-orange circle behind the white monochrome vehicle glyphs -- same
    reasoning as .searchSuggestionVehicleIcon above. */
 #buildingModalIcon.vehicleModalIcon {
-  background: #f39c12;
+  background: var(--vehicle);
   border-radius: 50%;
   padding: 7px;
-}
-
-#buildingModalHeadings {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-#buildingModalTitle {
-  font-weight: 700;
-  font-size: 18px;
-  color: #fff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Background/text color set inline per-category (see finditem.js's
@@ -1665,82 +1265,10 @@ body.panelResizing #categoryDetailColumn {
   display: inline-flex;
   align-self: flex-start;
   padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 11px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
-}
-
-#buildingModalClose {
-  flex: none;
-  background: none;
-  border: none;
-  color: #999;
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 2px;
-}
-
-#buildingModalClose:hover {
-  color: #fff;
-}
-
-#buildingModalSummary {
-  color: #bbb;
-  margin-bottom: 10px;
-  flex: none;
-}
-
-#buildingModalStats {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 14px;
-  flex: none;
-}
-
-.buildingStatTile {
-  flex: 1 1 0;
-  min-width: 0;
-  background: #262a31;
-  border: 1px solid #333844;
-  border-radius: 8px;
-  padding: 10px 12px;
-}
-
-.buildingStatValue {
-  display: block;
-  font-family: "Consolas", "SF Mono", monospace;
-  font-size: 19px;
-  font-weight: 700;
-  color: #fff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.buildingStatLabel {
-  display: block;
-  font-size: 11px;
-  color: #9aa0ab;
-  margin-top: 3px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-#buildingModalScroll {
-  overflow-y: auto;
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.buildingModalSectionLabel {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #9aa0ab;
-  margin: 4px 0 8px;
 }
 
 #buildingModalRecipes {
@@ -1760,50 +1288,17 @@ body.panelResizing #categoryDetailColumn {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #ddd;
-  font-size: 12.5px;
-}
-
-.recipeBarTrack {
-  flex: 1 1 auto;
-  height: 8px;
-  background: #171a20;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.recipeBarFill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.25s ease-out;
+  color: var(--text);
+  font-size: var(--fs-sm);
 }
 
 .recipeBarCount {
   flex: none;
   width: 36px;
   text-align: right;
-  color: #8ab4f8;
-  font-size: 12px;
+  color: var(--accent-soft);
+  font-size: var(--fs-sm);
   font-weight: 600;
-}
-
-#buildingModalHighlightToggle {
-  flex: none;
-  width: 100%;
-  margin-top: 14px;
-  padding: 9px 0;
-  border-radius: 8px;
-  border: 1px solid #3a5070;
-  background: #2a3545;
-  color: #8ab4f8;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-#buildingModalHighlightToggle:hover {
-  background: #33435a;
-  color: #fff;
 }
 
 /* ---- Right-click context menu -- see contextmenu.js. -------------------- */
@@ -1813,18 +1308,18 @@ body.panelResizing #categoryDetailColumn {
   z-index: 1700; /* Above modals (1500) and the tooltip (1000) -- the most immediate, transient UI on screen. */
   min-width: 190px;
   max-width: 280px;
-  background: #20232a;
-  border: 1px solid #3a3f4a;
-  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-popup);
+  border-radius: var(--r-md);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
   padding: 6px;
-  font-size: 12.5px;
-  color: #ddd;
+  font-size: var(--fs-sm);
+  color: var(--text);
 }
 
 .contextMenuItem {
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -1832,14 +1327,14 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .contextMenuItem:hover {
-  background: #2f6bd8;
-  color: #fff;
+  background: var(--select-bg);
+  color: var(--text-bright);
 }
 
 /* Non-actionable hint rows (e.g. "Paste here" with an empty clipboard). */
 .contextMenuItemDisabled,
 .contextMenuItemDisabled:hover {
-  color: #777;
+  color: var(--faint);
   background: none;
   cursor: default;
 }
@@ -1857,7 +1352,7 @@ body.panelResizing #categoryDetailColumn {
 #selectionRect {
   position: fixed;
   z-index: 1400;
-  border: 1.5px solid #5ba3e0;
+  border: 1.5px solid var(--accent);
   background: rgba(91, 163, 224, 0.15);
   pointer-events: none;
 }
@@ -1868,19 +1363,17 @@ body.panelResizing #categoryDetailColumn {
 #selectionPanel {
   position: absolute;
   bottom: 22px;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 600;
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 10px 10px 10px 16px;
-  background: #20232a;
-  border: 1px solid #3a3f4a;
-  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-popup);
+  border-radius: var(--r-lg);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
-  color: #eee;
-  font-size: 13px;
+  color: var(--text);
+  font-size: var(--fs-md);
 }
 
 #selectionCount {
@@ -1894,87 +1387,28 @@ body.panelResizing #categoryDetailColumn {
   align-items: center;
 }
 
-#selectionPanelButtons button {
-  flex: none;
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid #3a5070;
-  background: #2a3545;
-  color: #8ab4f8;
-}
-
-#selectionPanelButtons button:hover {
-  background: #33435a;
-  color: #fff;
-}
-
-#selectionClearBtn {
-  padding: 4px 10px !important;
-  font-size: 16px !important;
-  line-height: 1;
-  color: #999 !important;
-  background: none !important;
-  border-color: #3a3f4a !important;
-}
-
-#selectionClearBtn:hover {
-  color: #fff !important;
-  background: #2a2e36 !important;
-}
-
-#selectionPanelButtons button:disabled {
-  opacity: 0.45;
-  cursor: default;
-  color: #8ab4f8;
-  background: #2a3545;
-}
-
 /* ---- Save editor (editor.js): pending-edit toolbar, ghost placement,
    offset dialog. Same surface treatment as the selection panel. */
 #editorToolbar {
   position: absolute;
   top: 58px;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 600;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 7px 12px;
-  background: #20232a;
-  border: 1px solid #3a3f4a;
-  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-popup);
+  border-radius: var(--r-lg);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
-  color: #eee;
-  font-size: 12.5px;
+  color: var(--text);
+  font-size: var(--fs-sm);
 }
 
 #editorEditCount {
   font-weight: 600;
-  color: #ffd7ae;
+  color: var(--warn-text);
   white-space: nowrap;
-}
-
-#editorToolbar button {
-  font-size: 12px;
-  padding: 5px 11px;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid #3a5070;
-  background: #2a3545;
-  color: #8ab4f8;
-}
-
-#editorToolbar button:hover:not(:disabled) {
-  background: #33435a;
-  color: #fff;
-}
-
-#editorToolbar button:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 /* The placement ghost: selection bbox outline following the cursor. Inside
@@ -1982,64 +1416,23 @@ body.panelResizing #categoryDetailColumn {
 #editorHint {
   position: absolute;
   bottom: 64px;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 1401;
   padding: 7px 14px;
-  background: #20232a;
-  border: 1px solid #8a5e2e;
-  border-radius: 8px;
-  color: #ffd7ae;
-  font-size: 12.5px;
+  background: var(--surface-2);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--r-md);
+  color: var(--warn-text);
+  font-size: var(--fs-sm);
   pointer-events: none;
   white-space: nowrap;
-}
-
-#offsetDialogOverlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-}
-
-/* ---- Busy overlay (save-edit operations) -- see SaveLoadFlow.showBusy.
-   Above every dialog (offset 2000): while an edit is applying, nothing else
-   is interactable anyway. Plain dim, no backdrop-filter -- same
-   software-rendering rationale as the modal overlays above. */
-#busyOverlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(8, 10, 14, 0.6);
-  cursor: progress;
-}
-
-#busyBox {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  width: 320px;
-  padding: 26px 28px;
-  background: #20232a;
-  border: 1px solid #3a3f4a;
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-  color: #eee;
 }
 
 #busySpinner {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 3px solid #2a3545;
-  border-top-color: #5ba3e0;
+  border: 3px solid var(--accent-bg);
+  border-top-color: var(--accent);
   animation: busySpin 0.8s linear infinite;
 }
 
@@ -2052,111 +1445,16 @@ body.panelResizing #categoryDetailColumn {
 }
 
 #busyLabel {
-  font-size: 14px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   text-align: center;
 }
 
-#busyBar {
-  width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  background: #2a3545;
-  overflow: hidden;
-}
-
-#busyFill {
-  width: 0%;
-  height: 100%;
-  border-radius: 3px;
-  background: #5ba3e0;
-  transition: width 0.15s linear;
-}
-
 #busyPhase {
-  font-size: 12px;
-  color: #9aa7b8;
+  font-size: var(--fs-sm);
+  color: var(--muted);
   min-height: 15px;
   text-align: center;
-}
-
-#offsetDialog {
-  width: 280px;
-  padding: 16px;
-  background: #20232a;
-  border: 1px solid #3a3f4a;
-  border-radius: 10px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
-  color: #eee;
-  font-size: 13px;
-}
-
-#offsetDialogTitle {
-  font-weight: 700;
-  margin-bottom: 12px;
-}
-
-.offsetRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.offsetRow label {
-  color: #aab2c0;
-  white-space: nowrap;
-}
-
-.offsetRow input, .offsetRow select {
-  width: 90px;
-  padding: 5px 7px;
-  font-size: 13px;
-  color: #eee;
-  background: #16181d;
-  border: 1px solid #3a3f4a;
-  border-radius: 6px;
-}
-
-#offsetDialogButtons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-#offsetDialogButtons button {
-  font-size: 12px;
-  padding: 6px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid #3a5070;
-  background: #2a3545;
-  color: #8ab4f8;
-}
-
-#offsetDialogButtons button:hover {
-  background: #33435a;
-  color: #fff;
-}
-
-/* Paste placement panel: same visual language as #offsetDialog but docked
-   top-right and NON-modal -- map clicks pick the position while it's open. */
-#pastePanel {
-  position: fixed;
-  top: 72px;
-  /* Clear the altitude rail docked at the screen's right edge. */
-  right: calc(var(--altitude-width) + 12px);
-  z-index: 1500;
-  width: 300px;
-  padding: 16px;
-  background: #20232a;
-  border: 1px solid #3a3f4a;
-  border-radius: 10px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
-  color: #eee;
-  font-size: 13px;
 }
 
 #pastePanelTitle {
@@ -2169,7 +1467,7 @@ body.panelResizing #categoryDetailColumn {
   flex-direction: column;
   gap: 4px;
   margin-bottom: 10px;
-  color: #aab2c0;
+  color: var(--muted);
 }
 
 #pastePosModes label {
@@ -2180,14 +1478,14 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .pastePanelDivider {
-  border-top: 1px solid #3a3f4a;
+  border-top: 1px solid var(--border-popup);
   margin: 10px 0;
 }
 
 #pasteResult {
   margin-top: 10px;
-  color: #8ab4f8;
-  font-size: 12px;
+  color: var(--accent-soft);
+  font-size: var(--fs-sm);
   min-height: 15px;
 }
 
@@ -2198,29 +1496,14 @@ body.panelResizing #categoryDetailColumn {
   margin-top: 10px;
 }
 
-#pastePanelButtons button {
-  font-size: 12px;
-  padding: 6px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid #3a5070;
-  background: #2a3545;
-  color: #8ab4f8;
-}
-
-#pastePanelButtons button:hover {
-  background: #33435a;
-  color: #fff;
-}
-
 #pastePanelApplyBtn {
   font-weight: 600;
 }
 
 /* Download button turns amber once edits are pending. */
 #downloadSaveBtn.edited {
-  color: #ffd7ae;
-  border-color: #8a5e2e;
+  color: var(--warn-text);
+  border-color: var(--brand-border);
 }
 
 /* Floating "a find-item filter is active" banner -- shown over the map (the
@@ -2233,20 +1516,18 @@ body.panelResizing #categoryDetailColumn {
 #activeFilterBanner {
   position: absolute;
   top: 68px; /* Just below the floating search pill. */
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 500;
   display: flex;
   align-items: center;
   gap: 10px;
   max-width: 90vw;
   padding: 8px 8px 8px 14px;
-  background: #20232a;
-  border: 1px solid #ff3b81;
-  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--hidden-pink);
+  border-radius: var(--r-pill);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-  color: #eee;
-  font-size: 13px;
+  color: var(--text);
+  font-size: var(--fs-md);
 }
 
 #activeFilterLabel {
@@ -2256,52 +1537,15 @@ body.panelResizing #categoryDetailColumn {
   text-overflow: ellipsis;
 }
 
-#activeFilterBanner button {
-  flex: none;
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  cursor: pointer;
-  border: 1px solid #3a3f4a;
-  background: #2a2e36;
-  color: #ddd;
-}
-
-#activeFilterBanner button:hover {
-  border-color: #666;
-  color: #fff;
-}
-
 #activeFilterClear {
-  border-color: #ff3b81 !important;
-  background: #3a2330 !important;
-  color: #ff9ec2 !important;
+  border-color: var(--hidden-pink);
+  background: var(--hidden-pink-bg);
+  color: var(--hidden-pink-soft);
 }
 
 #activeFilterClear:hover {
-  background: #4a2a3c !important;
-  color: #fff !important;
-}
-
-/* Vertical altitude filter, docked to the right edge of the screen --
-   vertical gives much more usable travel/precision than a narrow
-   horizontal slider would in the same sidebar width. */
-#altitudePanel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: var(--altitude-width);
-  background: var(--surface-1);
-  color: var(--text);
-  box-sizing: border-box;
-  padding: 4px;
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  overflow: hidden;
+  background: var(--hidden-pink-bg-hover);
+  color: var(--text-bright);
 }
 
 .altitudeTitle {
@@ -2310,19 +1554,19 @@ body.panelResizing #categoryDetailColumn {
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #888;
+  color: var(--muted);
 }
 
 .altitudeTitleIcon {
-  color: #5ba3e0;
+  color: var(--accent);
 }
 
 .altitudeValue {
-  font-size: 11px;
-  color: #bbb;
+  font-size: var(--fs-xs);
+  color: var(--muted);
   margin: 2px 0;
   flex: none;
 }
@@ -2347,8 +1591,8 @@ body.panelResizing #categoryDetailColumn {
   left: 50%;
   transform: translateX(-50%);
   width: 4px;
-  background: #3a3a3a;
-  border-radius: 2px;
+  background: var(--border);
+  border-radius: var(--r-xs);
   pointer-events: none;
 }
 
@@ -2368,7 +1612,7 @@ body.panelResizing #categoryDetailColumn {
   padding: 0 8px;
   background-color: var(--accent);
   background-clip: content-box;
-  border-radius: 2px;
+  border-radius: var(--r-xs);
   pointer-events: auto;
   cursor: grab;
   touch-action: none;
@@ -2432,7 +1676,7 @@ body.panelResizing #categoryDetailColumn {
   width: 32px;
   height: 23px;
   border: 6px solid transparent;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   background: #ddd;
   background-clip: padding-box;
   box-shadow: inset 0 0 0 1px #555;
@@ -2445,7 +1689,7 @@ body.panelResizing #categoryDetailColumn {
   width: 32px;
   height: 23px;
   border: 6px solid transparent;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   background: #ddd;
   background-clip: padding-box;
   box-shadow: inset 0 0 0 1px #555;
@@ -2466,16 +1710,16 @@ body.panelResizing #categoryDetailColumn {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
-  background: #23262c;
-  border: 1px solid #3a3a3a;
-  border-radius: 7px;
+  color: var(--muted);
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 
 #altitudeResetButton:hover {
-  color: #fff;
-  border-color: #666;
+  color: var(--text-bright);
+  border-color: var(--faint);
 }
 
 #altitudeResetButton svg {
@@ -2486,81 +1730,19 @@ body.panelResizing #categoryDetailColumn {
   margin-bottom: 2px;
 }
 
-.filterGroup > .groupTitle {
+/* Not scoped to `.filterGroup >`: renderTopLevelCategory RELOCATES a group's
+   title row out of its .filterGroup and into the dock's category list, and a
+   child combinator would stop matching the moment it did -- which is exactly
+   why .categoryNavRow below used to re-force every property with !important. */
+.groupTitle {
   font-weight: bold;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 5px;
   padding: 4px 3px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   user-select: none;
-}
-
-/* Animated on/off switch standing in for a native checkbox (see filters.js's
-   makeToggle) -- the real <input type=checkbox> is visually hidden but still
-   drives all the existing .checked/"change" logic, so this is pure styling. */
-.toggleSwitch {
-  position: relative;
-  display: inline-block;
-  flex: none;
-  width: 26px;
-  height: 15px;
-  cursor: pointer;
-}
-
-.toggleSwitch input {
-  position: absolute;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  cursor: pointer;
-}
-
-.toggleSlider {
-  position: absolute;
-  inset: 0;
-  background: #4a4d54;
-  border-radius: 999px;
-  transition: background-color 0.15s ease;
-}
-
-.toggleSlider::before {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: #ddd;
-  transition: transform 0.15s ease;
-}
-
-.toggleSwitch input:checked + .toggleSlider {
-  background: var(--accent);
-}
-
-.toggleSwitch input:checked + .toggleSlider::before {
-  transform: translateX(11px);
-  background: #fff;
-}
-
-.toggleSwitch input:focus-visible + .toggleSlider {
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.6);
-}
-
-/* Mixed state: a group whose children are partly hidden (see
-   refreshGroupCheckboxes in filters.js). Same accent family as "on" but
-   visibly dimmer, knob parked in the middle. */
-.toggleSwitch input:indeterminate + .toggleSlider {
-  background: #3a5070;
-}
-
-.toggleSwitch input:indeterminate + .toggleSlider::before {
-  transform: translateX(5.5px);
-  background: #c8d4e4;
 }
 
 .categoryNavRow .toggleSwitch input:indeterminate + .toggleSlider::before {
@@ -2574,7 +1756,7 @@ body.panelResizing #categoryDetailColumn {
 .expandToggle {
   display: inline-block;
   width: 10px;
-  color: #888;
+  color: var(--muted);
   cursor: pointer;
   flex: none;
 }
@@ -2597,7 +1779,7 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .icon-rect {
-  border-radius: 2px;
+  border-radius: var(--r-xs);
 }
 
 .icon-line {
@@ -2612,7 +1794,7 @@ body.panelResizing #categoryDetailColumn {
 .filterChildren {
   margin-left: 14px;
   padding-left: 7px;
-  border-left: 1px solid #35383e;
+  border-left: 1px solid var(--border);
 }
 
 .filterRow {
@@ -2620,10 +1802,10 @@ body.panelResizing #categoryDetailColumn {
   align-items: center;
   gap: 5px;
   padding: 3px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
 }
 
-.filterRow:hover, .filterGroup > .groupTitle:hover {
+.filterRow:hover, .groupTitle:hover {
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -2635,7 +1817,7 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .filterRow .count {
-  color: #888;
+  color: var(--muted);
   margin-left: auto;
   padding-left: 4px;
   flex: none;
@@ -2647,18 +1829,18 @@ body.panelResizing #categoryDetailColumn {
    the label), so the pane reads as a proper list that actually uses its
    width. Scoped to #categoryDetailPane so the nav column's own
    .categoryNavRow overrides and the modal/tooltip toggles are untouched. */
-#categoryDetailPane .filterGroup > .groupTitle {
+#categoryDetailPane .groupTitle {
   padding: 7px 9px;
-  border-radius: 6px;
-  font-size: 13.5px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-md);
   gap: 9px;
 }
 
 #categoryDetailPane .filterRow {
   padding: 6px 9px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   gap: 9px;
-  font-size: 13.5px;
+  font-size: var(--fs-md);
 }
 
 /* The label grows to fill so whatever comes after it (the switch, and for
@@ -2720,24 +1902,30 @@ body.panelResizing #categoryDetailColumn {
 
 /* Hover tooltip -- a plain fixed-position div that follows the cursor (see
    tooltip.js); not a Leaflet popup, since popups are anchored/click-oriented. */
+/* The tooltip is a top-layer popover (see tooltip.js's ensureElement): it has
+   to be able to paint above a modal <dialog>, and no z-index can do that.
+   The overrides below undo the UA's [popover] defaults -- it centres popovers
+   with inset:0 + margin:auto, and tooltip.js positions this one itself. */
 #tt-tooltip {
-  display: none;
   position: fixed;
-  z-index: 1000;
-  background: #20232a;
-  color: #ddd;
-  border: 1px solid #3a3f4a;
-  border-radius: 8px;
-  padding: 12px 14px;
-  pointer-events: none;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+  inset: auto;
+  margin: 0;
+  padding: var(--sp-3) var(--sp-3);
+  width: max-content;
   min-width: 260px;
   max-width: 380px;
-  font-family: sans-serif;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-popup);
+  border-radius: var(--r-md);
+  box-shadow: var(--popover-shadow);
+  pointer-events: none;
+  font-family: var(--font);
+  overflow: visible;
 }
 
 .tt-popup {
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.5;
   max-height: 70vh;
   overflow-y: auto;
@@ -2745,19 +1933,11 @@ body.panelResizing #categoryDetailColumn {
 
 .tt-title {
   font-weight: bold;
-  font-size: 15px;
-  color: #fff;
+  font-size: var(--fs-xl);
+  color: var(--text-bright);
   margin-bottom: 8px;
   padding-bottom: 6px;
-  border-bottom: 1px solid #3a3f4a;
-}
-
-/* Lifts the tooltip over the modal overlay (z 1500) when shown from a
-   modal's location list (see tooltip.js's Tooltip.showFloating) -- the
-   default 1000 only ever had to beat the map. Still under #contextMenu
-   (1700). */
-#tt-tooltip.tt-above-modals {
-  z-index: 1600;
+  border-bottom: 1px solid var(--border-popup);
 }
 
 /* The find-item "quantity in here" callout (see tooltip.js's
@@ -2775,21 +1955,21 @@ body.panelResizing #categoryDetailColumn {
   gap: 10px;
   background: rgba(255, 59, 129, 0.13);
   border: 1px solid rgba(255, 59, 129, 0.4);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 5px 9px;
   margin-top: 4px;
-  font-size: 13.5px;
+  font-size: var(--fs-md);
 }
 
 .tt-highlight-row .tt-row-label {
-  color: #ff9ec2;
+  color: var(--hidden-pink-soft);
   font-weight: 600;
 }
 
 .tt-highlight-row .tt-row-value {
-  color: #fff;
+  color: var(--text-bright);
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: var(--fs-lg);
 }
 
 .tt-row {
@@ -2800,13 +1980,13 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .tt-row-label {
-  color: #9aa0ab;
+  color: var(--muted);
 }
 
 .tt-row-value {
   text-align: right;
   overflow-wrap: anywhere;
-  color: #eee;
+  color: var(--text);
   font-weight: 500;
 }
 
@@ -2818,7 +1998,7 @@ body.panelResizing #categoryDetailColumn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #9aa0ab;
+  color: var(--muted);
 }
 
 .tt-copy-icon-btn {
@@ -2827,7 +2007,7 @@ body.panelResizing #categoryDetailColumn {
   border: none;
   padding: 0;
   margin: 0;
-  color: #8ab4f8;
+  color: var(--accent-soft);
   cursor: pointer;
   line-height: 0;
   /* Tooltips are pointer-events:none until pinned (see #tt-tooltip) -- this
@@ -2836,23 +2016,23 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .tt-copy-icon-btn:hover {
-  color: #aecbfa;
+  color: var(--accent-bright);
 }
 
 .tt-copy-icon-btn-done {
-  color: #6fcf97;
+  color: var(--ok-soft);
 }
 
 .tt-section {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid #2c2f37;
+  border-top: 1px solid var(--border-sub);
 }
 
 .tt-section-title {
-  color: #8ab4f8;
+  color: var(--accent-soft);
   font-weight: bold;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 4px;
@@ -2866,17 +2046,17 @@ body.panelResizing #categoryDetailColumn {
 .tt-warning {
   background: rgba(255, 176, 32, 0.10);
   border: 1px solid rgba(255, 176, 32, 0.45);
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   padding: 7px 8px 8px;
 }
 
 .tt-warning .tt-section-title {
-  color: #ffb020;
+  color: var(--warn);
 }
 
 .tt-warning-text {
-  color: #ffd48a;
-  font-size: 12.5px;
+  color: var(--warn-soft);
+  font-size: var(--fs-sm);
   line-height: 1.4;
 }
 
@@ -2886,9 +2066,9 @@ body.panelResizing #categoryDetailColumn {
   padding: 4px 9px;
   background: rgba(255, 176, 32, 0.16);
   border: 1px solid rgba(255, 176, 32, 0.55);
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   color: #ffcf7d;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   cursor: pointer;
   /* Inherits the tooltip's own pointer-events (none until pinned) -- the
      button is only ever actually clickable once pinned, same as the copy
@@ -2901,29 +2081,29 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .tt-loading, .tt-error {
-  color: #999;
+  color: var(--muted);
   font-style: italic;
 }
 
 .tt-error {
-  color: #e07070;
+  color: var(--danger-soft);
 }
 
 .tt-raw {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid #2c2f37;
+  border-top: 1px solid var(--border-sub);
 }
 
 .tt-raw summary {
   cursor: pointer;
-  color: #8ab4f8;
-  font-size: 12px;
+  color: var(--accent-soft);
+  font-size: var(--fs-sm);
   font-weight: 500;
 }
 
 .tt-raw summary:hover {
-  color: #aecbfa;
+  color: var(--accent-bright);
 }
 
 .tt-raw-list {
@@ -2935,7 +2115,7 @@ body.panelResizing #categoryDetailColumn {
 
 .tt-raw-row {
   padding: 5px 0;
-  border-bottom: 1px solid #2c2f37;
+  border-bottom: 1px solid var(--border-sub);
 }
 
 .tt-raw-row:last-child {
@@ -2943,104 +2123,23 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .tt-raw-row-label {
-  color: #8ab4f8;
-  font-size: 11px;
+  color: var(--accent-soft);
+  font-size: var(--fs-xs);
   font-weight: 600;
   margin-bottom: 2px;
 }
 
 .tt-raw-row-value {
-  color: #ccc;
-  font-family: "Consolas", "SF Mono", monospace;
-  font-size: 11px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
   line-height: 1.4;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
-/* ---- Progression modal (see progression.js) -- the shared dialog behind
-   the top bar's MAM / alternate recipes / AWESOME Shop / HUB milestones /
-   Space Elevator buttons. Same overlay as #itemModal (selector above);
-   the dialog itself is a bit wider and its body is one scroll area of
-   sections instead of a single flat list. */
-#progressionModal {
-  width: 540px;
-  max-width: 92vw;
-  max-height: 84vh;
-  background: var(--surface-2);
-  border: 1px solid var(--border-popup);
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-  padding: 16px 18px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  color: var(--text);
-  transform: scale(0.96);
-  opacity: 0;
-  animation: buildingModalIn 0.16s ease-out forwards;
-}
-
 @media (prefers-reduced-motion: reduce) {
   #progressionModal { animation: none; transform: none; opacity: 1; }
-}
-
-#progressionModalHeader {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-popup);
-  flex: none;
-}
-
-#progressionModalIcon {
-  width: 36px;
-  height: 36px;
-  flex: none;
-  object-fit: contain;
-  background: var(--inset);
-  border: 1px solid #2c2f37;
-  border-radius: 8px;
-  padding: 4px;
-  box-sizing: border-box;
-}
-
-#progressionModalTitle {
-  font-weight: bold;
-  font-size: 17px;
-  color: #fff;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#progressionModalClose {
-  background: none;
-  border: none;
-  color: #999;
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 2px;
-}
-
-#progressionModalClose:hover {
-  color: #fff;
-}
-
-#progressionModalSummary {
-  color: #bbb;
-  margin-bottom: 8px;
-  flex: none;
-}
-
-#progressionModalBody {
-  overflow-y: auto;
-  min-height: 0;
 }
 
 .progressionSection {
@@ -3061,66 +2160,32 @@ body.panelResizing #categoryDetailColumn {
 }
 
 .progressionSectionTitle {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
-  color: #eee;
+  color: var(--text);
 }
 
 /* Small "n / total" tally on a section header; turns green when complete. */
 .progressionSectionCount {
-  font-size: 12px;
-  color: #8a919e;
+  font-size: var(--fs-sm);
+  color: var(--muted);
   flex: none;
   margin-left: auto;
 }
 
 .progressionSectionCount.complete {
-  color: #7fd18b;
+  color: var(--ok-soft);
 }
 
 /* e.g. the MAM's "not discovered yet" tag on a research tree the save has
    never unlocked (tree header still listed so the gap is visible). */
 .progressionSectionTag {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: #b48a5a;
   border: 1px solid #4a3b28;
   background: rgba(180, 138, 90, 0.12);
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   padding: 1px 6px;
-}
-
-/* Thin per-section completion bar under the header. */
-.progressionBarTrack {
-  height: 3px;
-  border-radius: 2px;
-  background: var(--inset);
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-
-.progressionBarFill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-}
-
-.progressionBarFill.complete {
-  background: #58a565;
-}
-
-.progressionList {
-  border: 1px solid #3a3a3a;
-  border-radius: 4px;
-}
-
-/* A row stacks its always-visible main line over an optional expandable
-   cost list (see .progressionCostList), so the row itself is a column and
-   .progressionRowMain is the flex line the icon/label/status sit on. */
-.progressionRow {
-  display: flex;
-  flex-direction: column;
-  padding: 5px 8px;
-  border-bottom: 1px solid #2c2f37;
 }
 
 .progressionRowMain {
@@ -3128,14 +2193,6 @@ body.panelResizing #categoryDetailColumn {
   align-items: center;
   gap: 10px;
   min-width: 0;
-}
-
-.progressionRow:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.progressionRow:last-child {
-  border-bottom: none;
 }
 
 /* Entries the save hasn't unlocked/purchased yet -- kept in the list (seeing
@@ -3158,7 +2215,7 @@ body.panelResizing #categoryDetailColumn {
 .progressionRowLabel {
   flex: 1 1 auto;
   min-width: 0;
-  color: #ddd;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3174,36 +2231,8 @@ body.panelResizing #categoryDetailColumn {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  color: #c3c9d4;
-}
-
-/* "▸ cost" expander on rows whose requirement list is too long to show
-   inline -- unfolds .progressionCostList below the row's main line. */
-.progressionCostToggle {
-  flex: none;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #4a505c;
-  border-radius: 5px;
-  color: #c3c9d4;
-  font-size: 12px;
-  padding: 3px 9px;
-  cursor: pointer;
-}
-
-.progressionCostToggle:hover {
-  color: #fff;
-  border-color: #6a7180;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.progressionCostToggle .chev {
-  display: inline-block;
-  transition: transform 0.12s ease;
-}
-
-.progressionCostToggle.open .chev {
-  transform: rotate(90deg);
+  font-size: var(--fs-md);
+  color: var(--text-dim);
 }
 
 .progressionCostList {
@@ -3217,8 +2246,8 @@ body.panelResizing #categoryDetailColumn {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
-  color: #d3d8e0;
+  font-size: var(--fs-md);
+  color: var(--text-dim);
 }
 
 .progressionCostIcon {
@@ -3230,42 +2259,42 @@ body.panelResizing #categoryDetailColumn {
 
 .progressionCostAmount {
   flex: none;
-  color: #9ec4fa;
+  color: var(--accent-soft);
   font-weight: 600;
 }
 
 .progressionRowStatus.done {
-  color: #7fd18b;
-  font-size: 13px;
+  color: var(--ok-soft);
+  font-size: var(--fs-md);
   font-weight: 600;
 }
 
 .progressionRowStatus.countValue {
-  color: #8ab4f8;
+  color: var(--accent-soft);
   font-weight: 500;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 /* Space Elevator view: headline phase status + per-part delivery rows with
    their own mini progress bars. */
 .progressionPhaseBanner {
-  border: 1px solid #3a3f4a;
+  border: 1px solid var(--border-popup);
   background: var(--inset);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   padding: 9px 12px;
   margin-bottom: 10px;
-  color: #ddd;
+  color: var(--text);
 }
 
 .progressionPhaseBanner .phaseTitle {
   font-weight: 600;
-  color: #fff;
-  font-size: 14px;
+  color: var(--text-bright);
+  font-size: var(--fs-lg);
 }
 
 .progressionPhaseBanner .phaseNote {
-  font-size: 12px;
-  color: #8a919e;
+  font-size: var(--fs-sm);
+  color: var(--muted);
   margin-top: 2px;
 }
 
@@ -3281,20 +2310,727 @@ body.panelResizing #categoryDetailColumn {
   padding: 7px 8px;
 }
 
-.sePartBarTrack {
-  height: 4px;
-  border-radius: 2px;
+#networkPanelHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex: none; /* The title bar stays put; the body below it is what scrolls. */
+}
+
+/* The scrolling region. The two lists shrink first (see .networkList's flex),
+   and only once they are at their minimum does this scroll -- so on a normal
+   window nothing scrolls, and on a short one every control is still
+   reachable instead of being clipped off the bottom. */
+#networkPanelBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  /* Room for the scrollbar when it does appear, so it never sits on top of
+     the list borders. */
+  padding-right: 2px;
+}
+
+/* Only the two lists give way when space runs short. Everything else --
+   labels, buttons, the slider, the summary -- is stated as unshrinkable, so
+   the browser has exactly one place to take the space from instead of
+   distributing a few pixels across a dozen controls. */
+#networkPanelBody > * {
+  flex: none;
+}
+
+/* No min-height override on the point list: it keeps .networkList's floor, so
+   it shrinks to a couple of rows and then the body scrolls, rather than
+   collapsing to a sliver. #networkResult is a bare wrapper, so it may shrink
+   to nothing -- the list inside it has the same floor of its own. */
+#networkPointList {
+  flex: 0 1 auto;
+}
+
+#networkResult {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+#networkPanelIcon {
+  flex: none;
+}
+
+#networkPanelHeadings {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+#networkPanelTitle {
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+#networkPanelSubtitle {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.kicker #networkPointCount {
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  margin-left: 6px;
+}
+
+#networkModeHint {
+  margin: 7px 0 4px;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.networkButtonRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+/* The map-picking toggle is a mode, not an action -- lit in the tool's own
+   cyan for as long as clicks are being captured, matching the hint bar at
+   the bottom of the map. */
+#networkPickBtn.active {
+  border-color: rgba(37, 224, 255, 0.55);
+  background: rgba(37, 224, 255, 0.14);
+  color: var(--tool-cyan);
+  font-weight: 600;
+}
+
+#networkComputeBtn {
+  font-weight: 600;
+}
+
+#networkCoordRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.networkList:empty {
+  display: none;
+}
+
+.networkRow:hover,
+.networkRow.hover {
+  background: rgba(37, 224, 255, 0.09);
+}
+
+/* Clicking an object that is already a point adds nothing -- this pulse (and
+   the enlarged dot on the map, see network.js's flashPoint) is what says the
+   click landed on a point that already exists rather than doing nothing. */
+.networkRow.flash {
+  animation: networkRowFlash 1s var(--panel-ease);
+}
+
+@keyframes networkRowFlash {
+  0%, 55% { background: rgba(37, 224, 255, 0.32); }
+  100% { background: transparent; }
+}
+
+.networkRowIndex {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(37, 224, 255, 0.16);
+  color: var(--tool-cyan);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.networkRowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The point list stops at network.js's LIST_ROW_LIMIT -- this row is what
+   says so, instead of the list just appearing to end. */
+.networkOverflowRow {
+  padding: 7px 10px;
+  font-size: var(--fs-xs);
+  color: var(--faint);
+  font-style: italic;
+  text-align: center;
+}
+
+#networkResult {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  /* Shares the leftover height with the point list above it; min-height: 0
+     is what lets its own list actually shrink inside it. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#networkPanelFooter {
+  flex: none;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+#networkPanelFooter .networkButtonRow:last-child {
+  margin-bottom: 0;
+}
+
+#networkSummary {
+  margin-bottom: 9px;
+}
+
+.networkSummaryTotal {
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  color: var(--tool-cyan);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.networkSummaryDetail {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Destination + the length/trip priority slider (network.js). Both are
+   optional: with no destination set the tool minimises length and nothing
+   else, so the slider is not even rendered -- there is nothing to trade. */
+#networkDestinationRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
   background: var(--inset);
+  font-size: var(--fs-sm);
+}
+
+#networkDestinationNone {
+  color: var(--faint);
+  font-style: italic;
+}
+
+#networkDestinationName {
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  color: var(--tool-cyan);
+  font-weight: 600;
+  white-space: nowrap;
   overflow: hidden;
-  margin: 5px 0 1px 30px;
+  text-overflow: ellipsis;
 }
 
-.sePartBarFill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
+#networkDestinationClear {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--faint);
+  font-size: var(--fs-xl);
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
 }
 
-.sePartBarFill.complete {
-  background: #58a565;
+#networkDestinationClear:hover {
+  color: var(--text-bright);
+  background: var(--raised-hover);
+}
+
+.networkRow.isDestination {
+  background: rgba(37, 224, 255, 0.07);
+  box-shadow: inset 2px 0 0 var(--tool-cyan);
+}
+
+.networkRow.isDestination .networkRowDestination {
+  opacity: 1;
+  color: var(--tool-cyan);
+}
+
+#networkPriority {
+  margin-bottom: 10px;
+}
+
+#networkAlpha {
+  width: 100%;
+  margin: 2px 0 0;
+  accent-color: var(--tool-cyan);
+  cursor: pointer;
+}
+
+#networkAlphaEnds {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-2xs);
+  color: var(--faint);
+}
+
+#networkAlphaNote {
+  margin-top: 5px;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* Trip total: the number the destination exists to show, so it is sized
+   between the headline network length and the detail lines. */
+.networkSummaryTrips {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+}
+
+.networkTripsTotal {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--text-bright);
+  font-variant-numeric: tabular-nums;
+}
+
+.networkTripsLabel {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+/* Same slot and shape as the editor's placement hint (#editorHint) -- only
+   one of the two is ever up, since both own the map cursor. */
+#networkHint {
+  position: absolute;
+  bottom: 22px;
+  z-index: 600;
+  padding: 8px 16px;
+  background: var(--surface-2);
+  border: 1px solid rgba(37, 224, 255, 0.45);
+  border-radius: var(--r-pill);
+  box-shadow: var(--float-shadow);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Per-link hover tooltip on the map. A Leaflet tooltip, so it positions
+   itself against the cursor -- restyled off Leaflet's white default onto the
+   same popup surface every other floating panel uses. */
+.leaflet-tooltip.networkLinkTooltip {
+  background: var(--surface-2);
+  border: 1px solid var(--border-popup);
+  border-radius: var(--r-md);
+  box-shadow: var(--float-shadow);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.leaflet-tooltip.networkLinkTooltip::before {
+  display: none; /* No callout arrow: the tooltip tracks the cursor. */
+}
+
+.networkTooltipTitle {
+  font-weight: 700;
+  color: var(--tool-cyan);
+  margin-bottom: 3px;
+}
+
+.networkTooltipLeg {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.networkTooltipRow {
+  font-size: var(--fs-xs);
+  color: var(--text);
+}
+
+.networkTooltipRow span {
+  display: inline-block;
+  width: 34px;
+  color: var(--faint);
+}
+
+/* ===========================================================================
+   Feature adjustments to the ui.css primitives
+   ---------------------------------------------------------------------------
+   Everything below tweaks a shared primitive for one specific place. The test
+   for whether a rule belongs here rather than in ui.css: would every other
+   user of that primitive want it too? If yes it goes in ui.css instead.
+   ========================================================================= */
+
+/* Search dropdown rows are a picker, not a data table -- no hairlines between
+   them, and each row is its own rounded target inside the popover. */
+#searchSuggestions .row {
+  padding: var(--sp-2) var(--sp-25);
+  border-bottom: none;
+  border-radius: var(--r-md);
+  content-visibility: visible; /* At most ~20 rows; skipping costs more than it saves. */
+}
+
+#searchSuggestions .kicker {
+  padding: var(--sp-15) var(--sp-25) var(--sp-1);
+  margin: 0;
+}
+
+/* A group header states "Constructor × 28" as one phrase, so the label stops
+   growing and the badge sits right against it; margin-right:auto on the badge
+   takes over the gap-filling, keeping the count in the same right-hand column
+   as every ungrouped row's. */
+.itemLocationGroupHeader .row-label {
+  flex: 0 1 auto;
+}
+
+.itemLocationGroupBadge {
+  margin-right: auto;
+}
+
+/* Child rows show position + count only (the type is the header's job). The
+   extra left padding indents them under the header's label column. */
+.itemLocationChildRow {
+  padding-left: 48px;
+  font-size: var(--fs-md);
+}
+
+.itemLocationChildLabel {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.itemLocationShowMore {
+  width: 100%;
+  justify-content: flex-start;
+  padding-left: 48px;
+  color: var(--accent-soft);
+  border: none;
+  border-bottom: 1px solid var(--border-sub);
+  border-radius: 0;
+}
+
+/* "Show on map" sits on every row of a list that can run to hundreds, so it
+   stays quiet until its row is hovered rather than competing with the label
+   and count that are the row's actual content. */
+.itemLocationLocate {
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.row:hover .itemLocationLocate,
+.itemLocationLocate:focus-visible {
+  opacity: 1;
+}
+
+/* A progression row stacks its always-visible main line over an optional
+   expandable cost list, so the row itself is a column and .progressionRowMain
+   is the flex line the icon/label/status sit on. */
+.progressionRow {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: var(--sp-15) var(--sp-2);
+}
+
+/* The tool's own cyan, not the generic hover tint -- these rows are points in
+   a network drawn in that colour on the map. */
+.networkRow:hover,
+.networkRow.hover {
+  background: rgba(37, 224, 255, 0.09);
+}
+
+.networkSegment.active {
+  color: var(--tool-cyan);
+  background: var(--tool-cyan-bg);
+}
+
+#networkPickBtn.active {
+  border-color: var(--tool-cyan-border);
+  background: var(--tool-cyan-bg);
+  color: var(--tool-cyan);
+}
+
+#networkCoordRow .field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The busy dialog is a centred stack, not the usual head/body/foot. */
+#busyBox {
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-6);
+  text-align: center;
+}
+
+/* align-items:center above would otherwise shrink the progress bar to its
+   (zero) content width. */
+#busyBox .bar {
+  align-self: stretch;
+}
+
+#loadProgressBar {
+  margin-top: var(--sp-2);
+}
+
+#categoryNavHeader .btn {
+  flex: 1 1 50%;
+}
+
+/* ===========================================================================
+   Docked-layout adjustments
+   ---------------------------------------------------------------------------
+   What the panels needed once they stopped floating: the altitude rail became
+   a flex child of the tool dock rather than a strip pinned to the window, the
+   tool panels became dock panes, and the surviving floating elements are now
+   positioned inside #mapOverlays (which IS the map), so their offsets are
+   measured from the map rather than from the window.
+   ========================================================================= */
+
+/* ---- Altitude rail: the tool dock's permanent right-hand strip ------------
+   Hidden until a save is loaded (altitude.js). Because the dock's grid track
+   is `auto`, hiding it costs zero width -- which is what removed the dead
+   64px black strip that used to sit beside the map on first load. */
+#altitudePanel {
+  flex: none;
+  width: var(--rail-width);
+  box-sizing: border-box;
+  padding: var(--sp-1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  overflow: hidden;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  color: var(--text);
+}
+
+/* ---- Tool panels as dock panes ------------------------------------------- */
+
+/* The network finder already split itself into header / scrolling body /
+   pinned footer, which is exactly the shape a dock pane wants. */
+#networkPanel {
+  font-size: var(--fs-md);
+}
+
+/* The paste panel is a single short form, so it scrolls as one piece rather
+   than growing a pinned footer it does not need. */
+#pastePanel {
+  overflow-y: auto;
+}
+
+#pastePanelTitle {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: var(--sp-3);
+}
+
+/* ---- Floating overlays, now measured from the map ------------------------- */
+
+/* Just under the app bar rather than 68px down the window. */
+#activeFilterBanner {
+  top: var(--sp-3);
+}
+
+#editorToolbar {
+  top: var(--sp-3);
+}
+
+/* ---- App-bar controls ----------------------------------------------------
+   Everything in the bar is 34px tall so the 48px bar has an even 7px of air
+   above and below, and the bar reads as one row rather than a stack of
+   differently sized islands. */
+#mainSearchInput {
+  height: 34px;
+  font-size: var(--fs-lg);
+  box-shadow: none;
+}
+
+.topPillButton {
+  height: 34px;
+  box-shadow: none;
+}
+
+#menuButton {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+}
+
+/* The one brand moment in the chrome: a two-line FICSIT-orange wordmark
+   (small-caps kicker over the name). No longer a card of its own -- it is
+   part of the bar. */
+#logoButton {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  height: 34px;
+  padding: 0 var(--sp-2);
+  background: none;
+  border: none;
+  border-left: 3px solid var(--brand);
+  border-radius: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+#logoButton:hover .logoName { color: var(--brand-bright); }
+#logoButton:hover .logoKicker { color: var(--muted); }
+
+/* ---- Dock empty state ----------------------------------------------------- */
+#dockEmptyState {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-6) var(--sp-4);
+  text-align: center;
+  color: var(--faint);
+}
+
+#dockEmptyState svg {
+  color: var(--brand);
+  opacity: 0.65;
+}
+
+.dockEmptyTitle {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.dockEmptyText {
+  margin: 0;
+  max-width: 26ch;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.dockEmptyText strong {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+/* Brand mark (not a control -- see index.html). */
+#logoMark {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  height: 34px;
+  padding: 0 var(--sp-2);
+  border-left: 3px solid var(--brand);
+  user-select: none;
+}
+
+/* ===========================================================================
+   Responsive
+   ---------------------------------------------------------------------------
+   The app had no layout media queries at all, so at 1024px the left dock ate
+   a third of the window and at 800px the search field was crushed to nothing.
+   Three steps, each removing whatever is costing the map the most room at
+   that width.
+   ========================================================================= */
+
+/* The dock's remembered width is a preference, not a promise: cap it as a
+   share of the window so a 340px dock does not eat half a 900px screen. */
+@media (max-width: 1200px) {
+  #sidebar {
+    width: min(var(--dock-left-width), 32vw);
+  }
+}
+
+/* Below this the pills lose their labels -- the icons are unambiguous next to
+   each other, and the search field is worth more than the words.
+   The threshold is set by geometry, not taste: the app bar centres its search
+   field by giving both side sections an equal share of the leftover space, and
+   that only holds while each side's content FITS its share. With labels the
+   right-hand cluster needs ~260px, and it stops fitting at about this width --
+   below which the search field would start drifting off-centre. */
+@media (max-width: 1150px) {
+  #mainSearchWrap {
+    flex: 1 1 auto;
+  }
+
+  .topPillButton > span:not(#updatePillLabel) {
+    display: none;
+  }
+
+  .topPillButton {
+    padding: 0 var(--sp-2);
+  }
+}
+
+/* Narrow enough that a dock covering a third of the window leaves the map
+   unusable. The docks already overlay at every size, so this only caps how
+   much they may cover -- and panels.js starts the left one collapsed here, so
+   the map is what you land on. */
+@media (max-width: 820px) {
+  #sidebar {
+    width: min(var(--dock-left-width), 78vw);
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.45);
+  }
+
+  #toolDock {
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.45);
+  }
+
+  #toolPanels {
+    width: min(var(--dock-right-width), 78vw);
+  }
+
+  /* Dragging a width is a pointer-and-space affordance; neither applies here. */
+  .dockResizeHandle {
+    display: none;
+  }
+
+  /* The brand wordmark is the first thing worth dropping: the favicon and the
+     page title already say what this is. */
+  #logoMark {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  #mainSearchInput {
+    font-size: var(--fs-md);
+  }
+}
+
+/* Leaflet's controls live inside #map, which runs under the docks -- push them
+   clear. Each side insets by its own dock (unlike #mapOverlays above): these
+   hug an edge rather than centring on anything, so there is nothing to keep
+   symmetric. Untransitioned for the same reason as #mapOverlays. */
+.leaflet-right {
+  right: var(--dock-right-inset);
+}
+
+.leaflet-left {
+  left: var(--dock-left-inset);
 }

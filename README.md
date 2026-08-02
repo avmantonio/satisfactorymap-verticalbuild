@@ -23,6 +23,11 @@ up to **15 seconds at a time** — WebGL rendering instead of DOM markers
 - **The whole factory, mapped** — buildings by build-menu category,
   belts/pipes/railways/power lines as curves, resource nodes with purity,
   vehicles, trains, players, collectables and crash sites.
+- **The world itself** — every **cave** on the map outlined with its name,
+  area and depth; the damaging **world border** and the altitudes it starts
+  at; and where the water you can actually swim in and pump from ends, which
+  is well inside the ocean the game draws. None of it shows on the in-game
+  map — it's traced from the game's own level data.
 - **Find anything** — search across every inventory in the save ("where did
   I leave my hard drives?"), per-building tooltips with recipe, power,
   clock speed and belt/pipe **bottleneck detection**.
@@ -81,9 +86,9 @@ Everything — site, parser, desktop app, data extraction — is covered in
 The Rust parser is a port of
 [GreyHak/sat_sav_parse](https://github.com/GreyHak/sat_sav_parse), validated
 field-by-field against the Python reference with bit-exact differential
-gates. The static world tables in `game_data/sav_data/` were originally
-converted from that project; they now regenerate from the game's own level
-data (validated 1:1 against the originals — see
+gates. The static world tables (resource nodes, slugs, crash sites…) were
+originally converted from that project; they now regenerate from the game's
+own level data (validated 1:1 against the originals — see
 `game_data/extractors/extract_collectables.py`). This project wouldn't
 exist without GreyHak's format work.
 
@@ -100,7 +105,9 @@ publish their source, including when only serving the app. The canonical
 instance is [satisfactorymap.net](https://satisfactorymap.net/).
 
 Satisfactory is a trademark of Coffee Stain Studios. The game-derived data
-(icons, map image, item/building tables) belongs to Coffee Stain Studios and
-is not distributed in this repository — see
-[CONTRIBUTING.md](CONTRIBUTING.md). This project is not affiliated with or
-endorsed by Coffee Stain Studios.
+(icons, map image, item/building/world tables) belongs to Coffee Stain
+Studios: none of it is committed here — it is extracted from your own copy of
+the game by `game_data/extract_all.py`, or unpacked from the convenience
+archive attached to a release (see [game_data/README.md](game_data/README.md)
+and [CONTRIBUTING.md](CONTRIBUTING.md)). This project is not affiliated with
+or endorsed by Coffee Stain Studios.

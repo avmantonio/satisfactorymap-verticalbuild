@@ -391,7 +391,7 @@ Every consumable plant on the map (~5,300), grouped by the item it yields:
 `Desc_Berry_C` (Paleberry, from `BP_BerryBush_C`), `Desc_Nut_C` (Beryl Nut,
 `BP_NutBush_C`), `Desc_Shroom_C` (Bacon Agaric, `BP_Shroom_01_C`). Produced
 by `game_data/extractors/extract_collectables.py` from the same
-world-partition cell exports as the `sav_data/` tables; positions are
+world-partition cell exports as the other `world/` tables; positions are
 world-space centimeters, keys are the actor path names as a save spells
 them.
 

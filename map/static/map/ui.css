@@ -1,0 +1,657 @@
+/* ===========================================================================
+   UI primitives
+   ---------------------------------------------------------------------------
+   The shared vocabulary every feature builds from: buttons, fields, dialogs,
+   list rows, bars, toggles, chips. Before this file existed the app carried
+   four separate modal implementations, five progress bars, six list-row
+   shapes and thirteen copies of the same accent-button declaration, which is
+   why panels that were meant to match slowly stopped matching.
+
+   Rules:
+     - Only tokens from map.css's :root. No raw hex, no off-scale sizes.
+     - Nothing here knows about the map, saves or any specific feature; the
+       feature files style *content*, not chrome.
+     - The JS side is ui.js -- same split.
+   ========================================================================= */
+
+/* ---- Buttons -------------------------------------------------------------
+   Four intents, one shape. .btn on its own is the quiet default (an outlined
+   control that recedes); the modifiers say "this is the action", "this
+   destroys something", "this is a bare glyph".
+   Sizes: .btn is the standard 30px control, .btn-lg the 38px full-width
+   commit button at the foot of a dialog, .btn-sm the dense 24px one that sits
+   inside a list row. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-15);
+  box-sizing: border-box;
+  min-height: 30px;
+  padding: var(--sp-15) var(--sp-3);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--raised);
+  border-color: var(--border-hover);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The action the panel exists for. */
+.btn-primary {
+  color: var(--accent-soft);
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.btn-primary:hover:not(:disabled) {
+  color: var(--text-bright);
+  background: var(--accent-bg-hover);
+  border-color: var(--accent);
+}
+
+/* Destructive and unrecoverable-looking, because deleting objects rewrites
+   the save. Undo exists, but the button should not read like "Copy". */
+.btn-danger {
+  color: var(--danger-soft);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+
+.btn-danger:hover:not(:disabled) {
+  color: var(--text-bright);
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+/* No chrome at all until hovered -- for glyphs that sit inside another
+   control's row (a close X, a per-row remove). */
+.btn-ghost {
+  color: var(--faint);
+  border-color: transparent;
+  background: none;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--text-bright);
+  background: var(--raised-hover);
+  border-color: transparent;
+}
+
+.btn-icon {
+  padding: 0;
+  width: 30px;
+  min-width: 30px;
+}
+
+.btn-sm {
+  min-height: 24px;
+  padding: var(--sp-05) var(--sp-2);
+  font-size: var(--fs-xs);
+}
+
+.btn-sm.btn-icon {
+  width: 24px;
+  min-width: 24px;
+}
+
+.btn-lg {
+  min-height: 38px;
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-md);
+  border-radius: var(--r-md);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn svg,
+.btn img {
+  flex: none;
+  display: block;
+}
+
+/* Segmented control: N mutually exclusive options sharing one track, so they
+   read as one either/or choice instead of N separate buttons. */
+.segmented {
+  display: flex;
+  gap: var(--sp-05);
+  padding: var(--sp-05);
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.segmented > .btn {
+  flex: 1;
+  min-height: 26px;
+  border-color: transparent;
+  background: none;
+  font-weight: 500;
+}
+
+.segmented > .btn:hover:not(:disabled) {
+  background: none;
+  border-color: transparent;
+  color: var(--text);
+}
+
+.segmented > .btn.active {
+  color: var(--accent-soft);
+  background: var(--accent-bg);
+  font-weight: 600;
+}
+
+/* ---- Fields ------------------------------------------------------------- */
+.field {
+  box-sizing: border-box;
+  min-height: 30px;
+  padding: var(--sp-15) var(--sp-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.field:hover {
+  border-color: var(--border-hover);
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(91, 163, 224, 0.18);
+}
+
+.field:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.field::placeholder {
+  color: var(--faint);
+}
+
+/* Label + field on one line, the field right-aligned in a fixed column so a
+   stack of them lines up regardless of label length. */
+.fieldRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.fieldRow > label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+.fieldRow > .field {
+  flex: none;
+  width: 104px;
+}
+
+/* ---- Dialogs -------------------------------------------------------------
+   Native <dialog> + showModal(). The browser then owns the focus trap, focus
+   restore, Escape, inert background and -- the part that actually mattered
+   here -- top-layer stacking, so dialogs no longer need to pick a z-index and
+   compete with the tool panels.
+
+   Structure:  <dialog class="dlg"><div class="dlg-inner"> … </div></dialog>
+   The outer element is a transparent, padding-less box filling the viewport,
+   which is what makes "clicked the backdrop" detectable as a click whose
+   target is the <dialog> itself (see ui.js). */
+.dlg {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dlg::backdrop {
+  /* No backdrop-filter, deliberately: blurring means every repaint inside the
+     dialog (row hover, scroll, the cursor-following tooltip) re-filters the
+     whole viewport-sized map underneath. Free on the GPU, but with hardware
+     acceleration off (user setting, RDP, blocklisted driver) that runs in
+     software every frame and drops the dialog to ~10 FPS. The dim alone
+     separates the layers well enough. */
+  background: rgba(8, 10, 14, 0.6);
+}
+
+.dlg-inner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.97);
+  opacity: 0;
+  animation: dlgIn 0.16s var(--panel-ease) forwards;
+
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 640px;
+  max-width: 92vw;
+  max-height: 86vh;
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border-popup);
+  border-radius: var(--r-lg);
+  box-shadow: var(--popover-shadow);
+}
+
+@keyframes dlgIn {
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dlg-inner {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.dlg-sm .dlg-inner { width: 340px; }
+.dlg-md .dlg-inner { width: 560px; }
+
+.dlg-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  margin-bottom: var(--sp-25);
+  border-bottom: 1px solid var(--border-popup);
+}
+
+/* Framed game icon at the head of a dialog. */
+.dlg-icon {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  padding: var(--sp-1);
+  box-sizing: border-box;
+  background: var(--inset);
+  border: 1px solid var(--border-sub);
+  border-radius: var(--r-md);
+}
+
+.dlg-headings {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.dlg-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--text-bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dlg-headings .dlg-title {
+  flex: none;
+}
+
+.dlg-summary {
+  flex: none;
+  margin-bottom: var(--sp-2);
+  color: var(--muted);
+  font-size: var(--fs-lg);
+}
+
+/* The one scrolling region. Everything else in a dialog is flex:none, so the
+   browser has exactly one place to take space from. */
+.dlg-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dlg-foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+/* ---- Lists ---------------------------------------------------------------
+   One row shape for every list in the app: search suggestions, item
+   locations, progression entries, network points, depot contents. */
+.list {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow-y: auto;
+}
+
+.list:empty {
+  display: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-25);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-lg);
+  border-bottom: 1px solid var(--border-sub);
+  /* Long lists (an expanded building group, the Depot's hundreds of item
+     types) shouldn't pay layout/paint for rows far offscreen. The
+     intrinsic-size hint keeps the scrollbar length stable while skipped. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 40px;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row-hover:hover,
+.row.is-hoverable:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.row-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.row-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.row-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-meta {
+  font-size: var(--fs-2xs);
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-count {
+  flex: none;
+  color: var(--accent-soft);
+  font-weight: 600;
+}
+
+/* Solid selection fill -- the keyboard/pointer-highlighted row in a picker.
+   Louder than a hover tint on purpose: this is the row Enter will commit to. */
+.row-active {
+  background: var(--select-bg);
+}
+
+.row-active .row-label,
+.row-active .row-count,
+.row-active .row-meta {
+  color: var(--text-bright);
+}
+
+/* ---- Chips, kickers, stat tiles ------------------------------------------ */
+
+/* The small-caps label that names a block of controls. */
+.kicker {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: var(--sp-1) 0 var(--sp-15);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--raised);
+  border: 1px solid var(--border-popup);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* A single headline number with its label underneath. */
+.statTile {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--sp-25) var(--sp-3);
+  background: var(--raised);
+  border: 1px solid var(--border-popup);
+  border-radius: var(--r-md);
+}
+
+.statTiles {
+  display: flex;
+  gap: var(--sp-25);
+}
+
+.statValue {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--text-bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statLabel {
+  display: block;
+  margin-top: var(--sp-05);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---- Bars ----------------------------------------------------------------
+   One track/fill pair behind every progress readout: save loading, the busy
+   overlay, per-recipe mix, progression completion, Space Elevator deliveries.
+   Height is set by a modifier so a 3px section rule and a 6px loading bar are
+   still the same component. */
+.bar {
+  overflow: hidden;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--inset);
+}
+
+.bar-thin { height: 3px; }
+.bar-tall { height: 8px; }
+
+.bar-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.2s ease-out;
+}
+
+.bar-fill.is-complete { background: var(--ok); }
+.bar-fill.is-brand { background: linear-gradient(to right, #c96f22, var(--brand)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar-fill { transition: none; }
+}
+
+/* ---- Toggle switch -------------------------------------------------------
+   Stands in for a native checkbox (see ui.js's UI.toggle): the real
+   <input type=checkbox> is still there and still drives every .checked /
+   "change" code path, so this is pure styling.
+   --sw-w/--sw-h/--sw-knob let a caller resize one instance (the dock's
+   category rows use a bigger switch than a nested filter row) without
+   redeclaring the whole component. */
+.toggleSwitch {
+  --sw-w: 26px;
+  --sw-h: 15px;
+  --sw-knob: 11px;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: var(--sw-w);
+  height: var(--sw-h);
+  cursor: pointer;
+}
+
+.toggleSwitch-md { --sw-w: 34px; --sw-h: 19px; --sw-knob: 13px; }
+.toggleSwitch-lg { --sw-w: 40px; --sw-h: 22px; --sw-knob: 16px; }
+
+.toggleSwitch input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.toggleSlider {
+  position: absolute;
+  inset: 0;
+  background: #4a4d54;
+  border-radius: var(--r-pill);
+  transition: background-color 0.15s ease;
+}
+
+.toggleSlider::before {
+  content: "";
+  position: absolute;
+  top: calc((var(--sw-h) - var(--sw-knob)) / 2);
+  left: calc((var(--sw-h) - var(--sw-knob)) / 2);
+  width: var(--sw-knob);
+  height: var(--sw-knob);
+  border-radius: 50%;
+  background: #ddd;
+  transition: transform 0.15s ease;
+}
+
+.toggleSwitch input:checked + .toggleSlider {
+  background: var(--accent);
+}
+
+.toggleSwitch input:checked + .toggleSlider::before {
+  transform: translateX(calc(var(--sw-w) - var(--sw-h)));
+  background: var(--text-bright);
+}
+
+.toggleSwitch input:focus-visible + .toggleSlider {
+  box-shadow: 0 0 0 2px rgba(91, 163, 224, 0.6);
+}
+
+/* Mixed state: a group whose children are partly hidden. Same accent family
+   as "on" but visibly dimmer, knob parked in the middle. */
+.toggleSwitch input:indeterminate + .toggleSlider {
+  background: var(--accent-border);
+}
+
+.toggleSwitch input:indeterminate + .toggleSlider::before {
+  transform: translateX(calc((var(--sw-w) - var(--sw-h)) / 2));
+  background: #c8d4e4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggleSlider, .toggleSlider::before { transition: none; }
+}
+
+/* ---- Chevron -------------------------------------------------------------
+   One glyph, rotated by state, everywhere a thing expands: dock nav rows,
+   dropdowns, disclosure toggles, expandable list groups. Replaces the five
+   separate implementations (three SVGs, two text glyphs) the app had. */
+.chev {
+  flex: none;
+  display: inline-flex;
+  color: var(--faint);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.chev svg { display: block; }
+
+.is-open > .chev,
+.chev.is-open { transform: rotate(180deg); }
+
+.chev-right { transform: rotate(-90deg); }
+.is-open > .chev-right,
+.chev-right.is-open { transform: rotate(0deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .chev { transition: none; }
+}
+
+/* ---- Utility ------------------------------------------------------------- */
+.u-mono { font-family: var(--font-mono); }
+.u-tabular { font-variant-numeric: tabular-nums; }
+.u-grow { flex: 1 1 auto; min-width: 0; }
+.u-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Visible only to screen readers -- the accessible name for controls whose
+   visible content is a bare glyph. */
+.u-srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The dialog body takes initial focus (see ui.js's open) so the browser does
+   not ring the close button; it is a focus target, not an interactive one. */
+.dlg-inner:focus {
+  outline: none;
+}

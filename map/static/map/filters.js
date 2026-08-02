@@ -76,6 +76,13 @@ var Filters = {};
   // hand-picked label file.
   var HARD_DRIVE_ICON_URL = "icons/items/HardDrive.png";
 
+  // No FGItemDescriptor (above), but a Desc_ entry in readableNameCorrections
+  // all the same -- so "Hard Drive" IS in the searchable item catalog (see the
+  // rust core's list_searchable_items), and this is the key its crash-site
+  // rows get registered under for the search bar's eye (see
+  // collectableToggleRows).
+  var HARD_DRIVE_ITEM_CLASS = "Desc_HardDrive_C";
+
   // Resource node icons -- keyed by the save's own resourceType pathName
   // (see sav_map_data.collectResourceNodes), which is exactly the ClassName
   // the raw resource's own per-class icon is stored under (see
@@ -262,6 +269,7 @@ var Filters = {};
     "Collectables": true,
     "Spawners": true,
     "Dropped Items": true,
+    "World": true,
   };
 
   function savedGroupStateForStack() {
@@ -405,27 +413,8 @@ var Filters = {};
     });
   }
 
-  function el(tag, className, text) {
-    var e = document.createElement(tag);
-    if (className) e.className = className;
-    if (text !== undefined) e.textContent = text;
-    return e;
-  }
-
-  // A checkbox wrapped in a <label> with a slider span, styled in map.css as
-  // an animated on/off switch instead of a native checkbox. The <label>
-  // wrapping means clicking anywhere on the switch (handle or track) toggles
-  // the underlying real <input type=checkbox> exactly like a native
-  // checkbox would -- so all existing .checked/"change"-event logic below
-  // needs no changes, only what gets appended to the DOM.
-  function makeToggle() {
-    var wrapper = el("label", "toggleSwitch");
-    var checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    wrapper.appendChild(checkbox);
-    wrapper.appendChild(el("span", "toggleSlider"));
-    return { wrapper: wrapper, checkbox: checkbox };
-  }
+  var el = UI.el;
+  var makeToggle = UI.toggle;
 
   function makeIcon(renderType, color, url) {
     var icon = el("span", "icon icon-" + renderType);
@@ -493,7 +482,13 @@ var Filters = {};
     });
     rowDiv.appendChild(rowToggle.wrapper);
     rowDiv.appendChild(makeIcon(row.renderType || renderType, row.color || swatchColor, row.iconUrl));
-    rowDiv.appendChild(el("label", null, row.displayLabel || row.label));
+    var labelEl = el("label", null, row.displayLabel || row.label);
+    // row.hint: the long version of a caveat the row's label can only gesture
+    // at (see the Caves row's "approximate"), shown on hover.
+    if (row.hint) {
+      labelEl.title = row.hint;
+    }
+    rowDiv.appendChild(labelEl);
     rowDiv.appendChild(el("span", "count", String(row.count)));
     childrenDiv.appendChild(rowDiv);
     // Building rows (see buildingSearchEntries) hang onto their own checkbox
@@ -698,6 +693,23 @@ var Filters = {};
   // purity colors, so no single row's color represents it.
   Filters.resourceColor = function() { return PURITY_COLORS.NORMAL; };
 
+  // Item ClassName -> the Collectables sidebar rows for that same pickup
+  // (Remaining/Collected, or a hard drive's three states -- see
+  // buildCollectablesSection/buildHardDrivesGroup). A handful of items -- the
+  // three slugs, Somersloop, Mercer Sphere, Hard Drive -- are ALSO world
+  // pickups with a map layer of their own, so "Mercer Sphere" in the search
+  // bar honestly means two things: what's stashed in inventories (the item
+  // search's answer) and what's still lying out there (this layer). Rather
+  // than a second, near-identical dropdown entry for the layer, the one item
+  // suggestion gets the same show/hide eye a layer row has -- driving these
+  // real sidebar checkboxes, never a second source of truth. Absent for every
+  // other item, which is what makes the eye appear on exactly these six rows
+  // and nowhere else.
+  var collectableToggleRows = {};
+  Filters.getCollectableToggleRows = function(itemPath) {
+    return collectableToggleRows[itemPath] || null;
+  };
+
   // Whole-category search entries: a handful of logistics families whose rows
   // are scattered across build-menu subcategories (one row per mark), so
   // "show me every belt" isn't a single toggle anywhere in the sidebar. Each
@@ -725,31 +737,18 @@ var Filters = {};
       });
   };
 
-  // Leaflet doesn't notice its container resized just because a CSS
-  // width/left value changed -- invalidateSize() is the real API for that,
-  // and it's what actually fires the "resize" event BucketedCanvasLayer
-  // already listens for (see map.js's onAdd), so the canvas/tiles catch up
-  // to the map filling (or giving back) the space the detail column just
-  // vacated.
-  function notifyMapResized() {
-    if (window.MapApp && MapApp.map) {
-      MapApp.map.invalidateSize();
-    }
-  }
-
-  // Sizes the nav panel to fit the widest category card instead of a fixed
-  // guess, so it wastes no horizontal space (and the map gets the rest).
-  // Measured by momentarily letting the list size to its content -- each
-  // card's label has flex:1, so at max-content it collapses to the label's
-  // natural (un-stretched) width, making the column exactly as wide as its
-  // longest row. Clamped so the save dropdown / Check-Uncheck header stay
-  // usable at the low end and the map never loses an absurd amount at the
-  // high end. Writes the result to --nav-col-width (which #map/#sidebar/
-  // #categoryNavPanel all derive from) and pokes Leaflet to catch the resize.
+  // Sizes the dock to fit the widest category card instead of a fixed guess,
+  // so it wastes no horizontal space (and the map gets the rest). Measured by
+  // momentarily letting the list size to its content -- each card's label has
+  // flex:1, so at max-content it collapses to the label's natural
+  // (un-stretched) width, making the dock exactly as wide as its longest row.
+  // Clamped so the save panel and the Check/Uncheck header stay usable at the
+  // low end and the map never loses an absurd amount at the high end.
+  // Leaflet is not poked here: panels.js watches the map element itself.
   function autoSizeNavPanel() {
-    // A hand-dragged width (see panels.js's resize handles, persisted across
+    // A hand-dragged width (see panels.js's resize handle, persisted across
     // sessions) always wins over the automatic fit -- otherwise every save
-    // load would snap the panel back and silently undo the user's resize.
+    // load would snap the dock back and silently undo the user's resize.
     if (window.Panels && Panels.storedNavWidth() !== null) {
       return;
     }
@@ -761,28 +760,33 @@ var Filters = {};
     navColumn.style.width = "max-content";
     var natural = navColumn.offsetWidth;
     navColumn.style.width = previous;
-    var width = Math.max(232, Math.min(natural + 8, 380));
-    document.documentElement.style.setProperty("--nav-col-width", width + "px");
-    notifyMapResized();
+    var width = Math.max(248, Math.min(natural + 24, 380));
+    document.documentElement.style.setProperty("--dock-left-width", width + "px");
   }
 
+  // Selection now drives the dock's two-pane push navigation (panels.js)
+  // rather than opening a second column: the dock keeps its width, so
+  // browsing categories never resizes the map.
   function deselectAllCategories() {
     categoryEntries.forEach(function(entry) {
       entry.navRow.classList.remove("active");
       entry.detailGroup.classList.remove("active");
     });
-    document.body.classList.add("no-category-selected");
-    notifyMapResized();
+    Panels.showCategoryList();
   }
 
   function selectCategory(navRow, detailGroup) {
+    var selected = null;
     categoryEntries.forEach(function(entry) {
       var isThis = entry.navRow === navRow;
       entry.navRow.classList.toggle("active", isThis);
       entry.detailGroup.classList.toggle("active", isThis);
+      if (isThis) {
+        selected = entry;
+      }
     });
-    document.body.classList.remove("no-category-selected");
-    notifyMapResized();
+    Panels.showCategoryDetail(selected ? selected.title : "",
+                              selected ? selected.color : null);
   }
 
   function renderTopLevelCategory(navList, detailPane, title, renderType, swatchColor, content, options) {
@@ -800,12 +804,10 @@ var Filters = {};
 
     titleRow.classList.add("categoryNavRow");
     // Disclosure chevron at the far right edge (after the toggle switch):
-    // these rows open the detail column with the category's subcategory
-    // rows, but nothing about a color chip + label + switch said "openable"
-    // -- rows read as pure visibility toggles. Flips to point left when the
-    // category is the selected one ("click again to close"), via
-    // .categoryNavRow.active .navChevron in map.css.
-    titleRow.appendChild(el("span", "navChevron", "›"));
+    // these rows push the dock to the category's contents, but nothing about
+    // a colour chip + label + switch said "openable" -- rows read as pure
+    // visibility toggles without it.
+    titleRow.appendChild(UI.chevron(14, "chev-right navChevron"));
     navList.appendChild(titleRow);
 
     var detailGroup = el("div", "categoryDetailGroup");
@@ -823,13 +825,20 @@ var Filters = {};
       }
     });
 
-    categoryEntries.push({ navRow: titleRow, detailGroup: detailGroup });
-
     // See bucketCategoryCheckbox's doc comment above -- `title` carries a
     // trailing " (1,234)" total count (most call sites) that reads oddly
     // repeated in a right-click menu, so it's stripped for display only;
     // the checkbox itself doesn't care either way.
     var cleanTitle = title.replace(/\s*\([\d,]+\)\s*$/, "");
+
+    // title/color travel with the entry so the detail pane's header can name
+    // the category you pushed into, in its own colour.
+    categoryEntries.push({
+      navRow: titleRow,
+      detailGroup: detailGroup,
+      title: cleanTitle,
+      color: renderType === "icon" ? null : swatchColor,
+    });
     result.buckets.forEach(function(bucket) {
       bucketCategoryCheckbox[bucket.key] = result.checkbox;
       bucketCategoryLabel[bucket.key] = cleanTitle;
@@ -1041,17 +1050,20 @@ var Filters = {};
     // Mercer Sphere groups above use.
     var collectedCount = total - rows[0].count;
     var title = "Hard Drives (" + collectedCount + "/" + total + ")";
-    return { total: total, result: renderGroup(childrenDiv, title, "icon", HARD_DRIVE_COLORS.hasDrive, rows, { startCollapsed: true, iconUrl: url }) };
+    return { total: total, rows: rows, result: renderGroup(childrenDiv, title, "icon", HARD_DRIVE_COLORS.hasDrive, rows, { startCollapsed: true, iconUrl: url }) };
   }
 
   function buildCollectablesSection(navList, detailPane, payload) {
     var collectables = payload.collectables;
+    // itemPath: the pickup's own item descriptor ClassName -- the key the item
+    // search looks these rows up by (see collectableToggleRows). Same classes
+    // the rust core's COLLECTABLE_ITEMS table uses.
     var kinds = [
-      { key: "slugsBlue", label: "Blue Power Slug", color: SLUG_COLORS.slugsBlue },
-      { key: "slugsYellow", label: "Yellow Power Slug", color: SLUG_COLORS.slugsYellow },
-      { key: "slugsPurple", label: "Purple Power Slug", color: SLUG_COLORS.slugsPurple },
-      { key: "somersloops", label: "Somersloop", color: SOMERSLOOP_COLOR },
-      { key: "mercerSpheres", label: "Mercer Sphere", color: MERCER_SPHERE_COLOR },
+      { key: "slugsBlue", itemPath: "Desc_Crystal_C", label: "Blue Power Slug", color: SLUG_COLORS.slugsBlue },
+      { key: "slugsYellow", itemPath: "Desc_Crystal_mk2_C", label: "Yellow Power Slug", color: SLUG_COLORS.slugsYellow },
+      { key: "slugsPurple", itemPath: "Desc_Crystal_mk3_C", label: "Purple Power Slug", color: SLUG_COLORS.slugsPurple },
+      { key: "somersloops", itemPath: "Desc_WAT1_C", label: "Somersloop", color: SOMERSLOOP_COLOR },
+      { key: "mercerSpheres", itemPath: "Desc_WAT2_C", label: "Mercer Sphere", color: MERCER_SPHERE_COLOR },
     ];
     var hardDriveTotal = pointCount(payload.hardDrives.hasDrive, 3) +
       pointCount(payload.hardDrives.empty, 3) + pointCount(payload.hardDrives.dismantled, 3);
@@ -1093,11 +1105,15 @@ var Filters = {};
         // already found) is the number worth seeing at a glance here.
         var kindTitle = kind.label + "s (" + collectedCount + "/" + (remainingCount + collectedCount) + ")";
         var result = renderGroup(childrenDiv, kindTitle, "icon", kind.color, rows, { startCollapsed: true, iconUrl: url });
+        // Registered AFTER renderGroup, so every row already carries the live
+        // checkbox appendLeafRow attached (see collectableToggleRows).
+        collectableToggleRows[kind.itemPath] = rows;
         checkboxes.push(result.checkbox);
         allBuckets = allBuckets.concat(result.buckets);
       });
       if (hardDriveTotal > 0) {
         var hardDriveGroup = buildHardDrivesGroup(childrenDiv, payload);
+        collectableToggleRows[HARD_DRIVE_ITEM_CLASS] = hardDriveGroup.rows;
         checkboxes.push(hardDriveGroup.result.checkbox);
         allBuckets = allBuckets.concat(hardDriveGroup.result.buckets);
       }
@@ -1236,6 +1252,129 @@ var Filters = {};
     }
     var total = rows.reduce(function(s, r) { return s + r.count; }, 0);
     renderTopLevelCategory(navList, detailPane, "Dropped Items (" + total + ")", "circle", DROPPED_ITEM_COLOR, rows);
+  }
+
+  // ---- World (the map's own features, not the player's) ---------------------
+
+  // Three static layers the game never draws on its own map, all traced from
+  // the cooked level data and identical for every save: the caves, the
+  // damaging world border, and the edge of the real water. They share a
+  // category because they answer the same kind of question -- "what is the
+  // terrain actually like here?" -- and because none of them belongs to the
+  // save being viewed.
+  //
+  // Colors: orchid for caves, red for the thing that damages you, cyan for
+  // water. None collides with a line layer (belts orange, pipes green, power
+  // yellow, hypertubes blue, rails white, vehicle paths grey).
+  var WORLD_COLORS = {
+    caves: "#c66bff",
+    worldPerimeter: "#ff5a4d",
+    waterLimit: "#35d0f5",
+  };
+
+  // payload.caves (see the rust core's collect_caves): one line per cave
+  // outline ring, all in a single bucket so the whole layer is one checkbox.
+  // Outlines rather than fills: the renderer draws lines, and an outline
+  // reads better over a factory than 84 translucent blobs. The shape is the
+  // game's own cave fog volume plus the cave geometry inside it, so it is
+  // generous by tens of meters -- "the cave is in here", not a survey.
+  function buildCavesRow(payload) {
+    var caves = payload.caves;
+    if (!caves || !caves.polylines || caves.polylines.length === 0) {
+      return null;
+    }
+    var labels = caves.labels || [];
+    var areas = caves.areas || [];
+    var depths = caves.depths || [];
+    var tooltipInfo = function(index) {
+      var rows = [];
+      var area = areas[index];
+      if (typeof area === "number") {
+        rows.push(["Area", area >= 10000 ? (area / 10000).toFixed(1) + " ha"
+                                         : Math.round(area).toLocaleString() + " m²"]);
+      }
+      var depth = depths[index];
+      if (depth && depth.length === 2) {
+        rows.push(["Altitude range", Math.round(depth[0]) + " m to " + Math.round(depth[1]) + " m"]);
+      }
+      // Same caveat as the sidebar row, where someone reading a size off the
+      // tooltip will actually see it.
+      rows.push(["Outline", "Approximate"]);
+      var ring = caves.polylines[index];
+      return { title: labels[index] || "Cave", rows: rows,
+               position: ring ? EditorTool.mapPxToWorldXY(ring[0], ring[1]) : undefined };
+    };
+    var bucket = makeLineBucket("caves", "Cave", WORLD_COLORS.caves, caves.polylines,
+      caves.ids, "static", tooltipInfo, 3);
+    // The count is caves, not rings: a cave whose footprint came out in two
+    // touching pieces is still one cave.
+    var seen = {};
+    var caveCount = 0;
+    (caves.ids || []).forEach(function(id) {
+      var caveId = String(id).split("#")[0];
+      if (!seen[caveId]) {
+        seen[caveId] = true;
+        caveCount++;
+      }
+    });
+    // "(approximate)" is not modesty, it is the honest reading of the source:
+    // an outline is the game's cave fog volume plus the cave geometry inside
+    // it, which runs generous by tens of meters and can miss a bare tunnel
+    // entirely. Good enough to find a cave, wrong to trust as its wall.
+    return { label: "Caves", displayLabel: "Caves (approximate)",
+             hint: "Traced from the game's own cave fog volumes and the cave geometry inside "
+                   + "them — typically tens of meters wider than the real rock, and a "
+                   + "bare tunnel with no cave props can be missed. Use it to find a cave, "
+                   + "not to judge where its walls are.",
+             count: caveCount, color: WORLD_COLORS.caves,
+             renderType: "line", buckets: [bucket] };
+  }
+
+  // payload.mapLimits (see the rust core's collect_map_limits): the world
+  // border is where the out-of-bounds damage volumes start; the water limit
+  // is where swimmable, extractor-valid water ends -- which is well inside
+  // the ocean the game draws, so on the west side there is a 334 m strip
+  // that looks like sea and holds no water at all. One row per ring, so the
+  // two toggle independently.
+  //
+  // Every ring is drawn at sea level: a line's z only feeds the altitude
+  // filter and depth sorting, and these are limits rather than structures --
+  // see the collector for why that beats their real span.
+  function buildLimitRows(payload) {
+    var limits = payload.mapLimits;
+    if (!limits || !limits.polylines || limits.polylines.length === 0) {
+      return [];
+    }
+    return limits.polylines.map(function(ring, index) {
+      // kind, not ids[index]: bulk id arrays come back with the instance-name
+      // prefix re-added (see save_client.js's expandPayloadIds), which is
+      // fine for the hit-test identity but would wreck a color/key lookup.
+      var kind = (limits.kinds || [])[index] || String(index);
+      var label = (limits.labels || [])[index] || "Limit";
+      var color = WORLD_COLORS[kind] || NEUTRAL_COLOR;
+      var detailRows = (limits.rows || [])[index] || [];
+      var tooltipInfo = function() {
+        return { title: label, rows: detailRows,
+                 position: EditorTool.mapPxToWorldXY(ring[0], ring[1]) };
+      };
+      var bucket = makeLineBucket("limit:" + kind, label, color, [ring],
+        [(limits.ids || [])[index] || kind], "static", tooltipInfo, 3);
+      return { label: label, count: 1, color: color, renderType: "line",
+               buckets: [bucket] };
+    });
+  }
+
+  function buildWorldSection(navList, detailPane, payload) {
+    var rows = [];
+    var caveRow = buildCavesRow(payload);
+    if (caveRow) {
+      rows.push(caveRow);
+    }
+    rows = rows.concat(buildLimitRows(payload));
+    if (rows.length === 0) {
+      return;
+    }
+    renderTopLevelCategory(navList, detailPane, "World", "line", WORLD_COLORS.caves, rows);
   }
 
   // ---- HUB ------------------------------------------------------------------
@@ -1685,6 +1824,22 @@ var Filters = {};
     return total;
   }
 
+  // The dock's empty state (see #dockEmptyState in index.html): shown while
+  // there is no save, because an empty category list otherwise reads as a
+  // broken panel rather than "nothing loaded yet".
+  function setEmptyState(empty) {
+    var el = document.getElementById("dockEmptyState");
+    if (el) {
+      el.style.display = empty ? "" : "none";
+    }
+    // Nothing to check or uncheck until there is a save -- the header is two
+    // dead buttons above an empty list otherwise.
+    var header = document.getElementById("categoryNavHeader");
+    if (header) {
+      header.style.display = empty ? "none" : "";
+    }
+  }
+
   Filters.build = function(payload) {
     // Bottleneck markers belong to the save being replaced -- and clearing
     // them here (rather than letting clearBuckets silently drop them) is what
@@ -1697,11 +1852,13 @@ var Filters = {};
     var detailPane = document.getElementById("categoryDetailPane");
     navList.innerHTML = "";
     detailPane.innerHTML = "";
+    setEmptyState(false);
     categoryEntries = [];
     buildingSearchEntries = [];
     vehicleSearchEntries = [];
     wildlifeSearchEntries = [];
     resourceSearchEntries = [];
+    collectableToggleRows = {};
     layerCategoryRows = { belts: [], lifts: [], pipes: [] };
     bucketLayerCheckbox = {};
     bucketLayerLabel = {};
@@ -1718,6 +1875,7 @@ var Filters = {};
     buildCollectablesSection(navList, detailPane, payload);
     buildSpawnersSection(navList, detailPane, payload);
     buildDroppedItemsSection(navList, detailPane, payload);
+    buildWorldSection(navList, detailPane, payload);
 
     // Fit the nav panel to the category labels now that they all exist.
     autoSizeNavPanel();
@@ -1758,11 +1916,13 @@ var Filters = {};
     }
     document.getElementById("categoryNavColumn").innerHTML = "";
     document.getElementById("categoryDetailPane").innerHTML = "";
+    setEmptyState(true);
     categoryEntries = [];
     buildingSearchEntries = [];
     vehicleSearchEntries = [];
     wildlifeSearchEntries = [];
     resourceSearchEntries = [];
+    collectableToggleRows = {};
     layerCategoryRows = { belts: [], lifts: [], pipes: [] };
     bucketLayerCheckbox = {};
     bucketLayerLabel = {};
@@ -1856,6 +2016,11 @@ var Filters = {};
   // than just disabled) when there's nothing to reset, matching how e.g.
   // #gameSettingsPanel/#altitudePanel only appear once relevant.
   var resetHiddenButton = document.getElementById("resetHiddenButton");
+  // The dock's Back button and Escape both pop the detail pane, and popping
+  // it has to clear the row selection too -- so they route through here
+  // rather than just sliding the pager back (see panels.js).
+  Filters.deselectAllCategories = deselectAllCategories;
+
   Filters.refreshHiddenObjectsIndicator = function() {
     if (!resetHiddenButton) {
       return;

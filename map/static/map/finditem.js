@@ -63,19 +63,20 @@ var FindItem = {};
     return pos === -1 ? path : path.slice(pos + 1);
   }
 
-  var overlay = document.getElementById("itemModalOverlay");
+  // Both dialogs are native <dialog>s driven through UI.dialog: it owns the
+  // X button, the backdrop click and Escape, and calls back into the module's
+  // one teardown function (see the onClose wiring below openModal).
+  var itemDialog = UI.dialog("itemModal");
   var modalIcon = document.getElementById("itemModalIcon");
   var modalTitle = document.getElementById("itemModalTitle");
   var modalSummary = document.getElementById("itemModalSummary");
   var modalList = document.getElementById("itemModalList");
-  var modalClose = document.getElementById("itemModalClose");
   var modalHighlightToggle = document.getElementById("itemModalHighlightToggle");
 
-  var buildingOverlay = document.getElementById("buildingModalOverlay");
+  var buildingDialog = UI.dialog("buildingModal");
   var buildingModalIcon = document.getElementById("buildingModalIcon");
   var buildingModalTitle = document.getElementById("buildingModalTitle");
   var buildingModalCategory = document.getElementById("buildingModalCategory");
-  var buildingModalClose = document.getElementById("buildingModalClose");
   var buildingModalSummary = document.getElementById("buildingModalSummary");
   var buildingModalStats = document.getElementById("buildingModalStats");
   var buildingModalRecipes = document.getElementById("buildingModalRecipes");
@@ -181,7 +182,34 @@ var FindItem = {};
     }
   }
 
-  var catalog = []; // [{kind:"item", label, itemPath}, {kind:"building", label, typePaths, category, subcategory, row}, {kind:"vehicle", label, typePaths, isTrain, iconUrl, row}, {kind:"wildlife", label, iconUrl, row}, {kind:"category", label, iconClassName, rows}, ...]
+  // Map tools -- things the search bar can OPEN rather than find. They exist
+  // only here: a planning tool that most sessions never touch does not earn a
+  // permanent button, but typing its name should always reach it. Unlike
+  // every other entry these are not rebuilt per save (they describe no save
+  // data), so they sit in the catalog from the first keystroke, with or
+  // without a save loaded.
+  var TOOL_ICON_URL = "data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="26" height="26">' +
+    '<path d="M5 18 L12 6 L19 15 M12 6 L6 9" fill="none" stroke="#25e0ff" stroke-width="1.6" stroke-linejoin="round"/>' +
+    '<circle cx="5" cy="18" r="2.2" fill="#25e0ff"/><circle cx="12" cy="6" r="2.2" fill="#25e0ff"/>' +
+    '<circle cx="19" cy="15" r="2.2" fill="#25e0ff"/><circle cx="6" cy="9" r="2.2" fill="#25e0ff"/>' +
+    '</svg>'
+  );
+
+  var TOOL_ENTRIES = [
+    {
+      kind: "tool",
+      label: "Optimal network finder (EMST)",
+      iconUrl: TOOL_ICON_URL,
+      open: function() {
+        if (window.NetworkTool) {
+          NetworkTool.open();
+        }
+      },
+    },
+  ];
+
+  var catalog = TOOL_ENTRIES.slice(); // [{kind:"item", label, itemPath}, {kind:"building", label, typePaths, category, subcategory, row}, {kind:"vehicle", label, typePaths, isTrain, iconUrl, row}, {kind:"wildlife", label, iconUrl, row}, {kind:"category", label, iconClassName, rows}, {kind:"tool", label, iconUrl, open}, ...]
   var itemCatalogByLabel = {}; // label -> itemPath, for an exact-match Enter on a fully typed item name.
   var buildingCatalogByLabel = {}; // label -> building catalog entry, same for a fully typed building name.
   var vehicleCatalogByLabel = {}; // label -> vehicle catalog entry, same for a fully typed vehicle name.
@@ -196,12 +224,7 @@ var FindItem = {};
   var lastResult = null; // The currently-open item modal's search result, if it's a searchable one (null for the Depot view).
   var lastBuilding = null; // {entry, info} for the currently-open building modal.
 
-  function el(tag, className, text) {
-    var e = document.createElement(tag);
-    if (className) e.className = className;
-    if (text !== undefined) e.textContent = text;
-    return e;
-  }
+  var el = UI.el;
 
   // rows: [label, countText, iconKind?, classNameOrPath?] -- iconKind
   // ("item"/"building") prepends the matching icon (see attachIconWithFallback),
@@ -210,10 +233,10 @@ var FindItem = {};
   function renderLocationList(container, rows) {
     container.innerHTML = "";
     rows.forEach(function(pair) {
-      var row = el("div", "itemLocationRow");
+      var row = el("div", "row row-hover itemLocationRow");
       if (pair[2]) {
         var img = document.createElement("img");
-        img.className = "itemLocationIcon";
+        img.className = "row-icon";
         img.alt = "";
         // Depot/location lists can run to hundreds of rows -- don't fetch/
         // decode offscreen icons up front (same reasoning as progression.js).
@@ -226,8 +249,8 @@ var FindItem = {};
         }
         row.appendChild(img);
       }
-      row.appendChild(el("span", "itemLocationLabel", pair[0]));
-      row.appendChild(el("span", "itemLocationCount", pair[1]));
+      row.appendChild(el("span", "row-label", pair[0]));
+      row.appendChild(el("span", "row-count", pair[1]));
       container.appendChild(row);
     });
   }
@@ -244,11 +267,6 @@ var FindItem = {};
   // GROUP_CHUNK_SIZE children at a time, so expanding a 5000-machine group
   // never builds 5000 rows in one go.
   var GROUP_CHUNK_SIZE = 150;
-
-  var CHEVRON_SVG =
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14">' +
-    '<polyline points="9 6 15 12 9 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg>';
 
   function buildDisplayGroups(locations, itemPath) {
     var groupsByLabel = {};
@@ -324,7 +342,7 @@ var FindItem = {};
 
   function groupIcon(group) {
     var img = document.createElement("img");
-    img.className = "itemLocationIcon";
+    img.className = "row-icon";
     img.alt = "";
     img.loading = "lazy";
     img.decoding = "async";
@@ -336,10 +354,129 @@ var FindItem = {};
     return img;
   }
 
+  // ---- "Show on map" (the per-location crosshair button) --------------------
+  //
+  // A location row's coordinates say where a machine is; this button actually
+  // takes you there. It centers the map on that one instance, marks it with a
+  // single unmistakable pin -- a SOLID highlight-colored disc, where every
+  // other pin on the map is white-filled -- and gets the modal out of the way
+  // so there's something to look at. From there the same floating banner the
+  // highlight uses takes over: "Details" reopens the list right where it was,
+  // "Clear filter" drops the marker.
+  //
+  // Deliberately independent of the "Show only these on map" highlight: the
+  // question this answers is "where is THIS one", which is worth asking
+  // without also blanking every other layer for context.
+  var LOCATE_BUCKET_KEY = "find-item-locate";
+  // Zoom 0 is ~1 map-unit-per-screen-pixel (roughly a meter), so 3 puts a
+  // single machine comfortably on screen with its neighbors around it. Only
+  // ever zooms IN -- see locateOnMap.
+  var LOCATE_ZOOM = 3;
+  var LOCATE_ICON_URL = "data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">' +
+    '<circle cx="12" cy="12" r="5.5" fill="none" stroke="#fff" stroke-width="2.4"/>' +
+    '<path d="M12 1.5V5M12 19v3.5M1.5 12H5M19 12h3.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>' +
+    '</svg>'
+  );
+  // The button glyph -- the same crosshair, in the row's own text color.
+  var LOCATE_BUTTON_SVG =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="15" height="15">' +
+    '<circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="1.9"/>' +
+    '<path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>' +
+    '</svg>';
+
+  var located = null; // The location currently marked on the map, or null.
+
+  // Drops the marker. Leaves any active highlight alone (they're independent),
+  // but does take the banner down with it when the marker was the only reason
+  // it was up.
+  function clearLocate() {
+    if (!located) {
+      return;
+    }
+    located = null;
+    MapApp.layer.removeBucketByKey(LOCATE_BUCKET_KEY);
+    if (!highlighting) {
+      banner.style.display = "none";
+    }
+    MapApp.layer.requestRedraw();
+  }
+
+  // Everything a search can leave sitting on the map: the isolate/highlight
+  // and the "Show on map" marker. The two are independent of each other, but
+  // every "put the map back" control -- Esc, the banner's Clear, starting a
+  // fresh search -- means both at once.
+  function clearMapMarks() {
+    clearHighlight();
+    clearLocate();
+  }
+
+  function locateOnMap(loc) {
+    if (!loc.position || !window.MapApp || !MapApp.map) {
+      return;
+    }
+    clearLocate(); // At most one marker at a time -- this row supersedes the last.
+    MapApp.layer.addBucket({
+      key: LOCATE_BUCKET_KEY,
+      label: loc.label,
+      color: "#ffffff", // The pin's outline...
+      pinFillColor: HIGHLIGHT_COLOR, // ...around a filled disc, so this one pin can't be read as just another white pickup marker.
+      visible: true,
+      renderType: "icon",
+      pointStride: 3,
+      points: new Float32Array([loc.position[0], loc.position[1], loc.position[2]]),
+      ids: [loc.instanceName],
+      // Same split as the search highlight's pins: a real building serves its
+      // full /api/instance detail, a static pickup has no live actor to ask.
+      tooltipKind: "static",
+      tooltipInfo: function() {
+        return { title: loc.label, rows: [], position: loc.worldPosition };
+      },
+      tooltipServerId: function() {
+        return loc.typePath ? loc.instanceName : null;
+      },
+      iconUrl: LOCATE_ICON_URL,
+      iconOpacity: 1,
+    });
+    located = loc;
+    // Never zooms back OUT on someone who was already looking closer than this.
+    MapApp.map.setView(L.latLng(loc.position[1], loc.position[0]),
+                       Math.max(MapApp.map.getZoom(), LOCATE_ZOOM));
+    Tooltip.hide(); // The row hover that launched this is about to lose its row.
+    itemDialog.close();
+    // locationChildLabel is the coordinates when there are any, and falls back
+    // to the label -- which would read "Storage Container at Storage
+    // Container", so the "at ..." half is dropped in that case.
+    bannerLabel.textContent = "Marked on map: " + loc.label +
+      (loc.worldPosition ? " at " + locationChildLabel(loc) : "");
+    banner.style.display = "flex";
+    MapApp.layer.requestRedraw();
+  }
+
+  // Rows for the Dimensional Depot (a single global inventory) have no
+  // position at all -- nothing to fly to, so they get no button rather than a
+  // dead one.
+  function makeLocateButton(loc) {
+    if (!loc.position) {
+      return el("span", "itemLocationLocateSpacer");
+    }
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-ghost btn-sm btn-icon itemLocationLocate";
+    btn.innerHTML = LOCATE_BUTTON_SVG;
+    btn.title = "Show this " + loc.label + " on the map";
+    btn.addEventListener("click", function(e) {
+      e.stopPropagation(); // Never also expand/collapse the group header this may sit on.
+      locateOnMap(loc);
+    });
+    return btn;
+  }
+
   function childLocationRow(loc, unit, itemLabel) {
-    var row = el("div", "itemLocationRow itemLocationChildRow");
-    row.appendChild(el("span", "itemLocationLabel", locationChildLabel(loc)));
-    row.appendChild(el("span", "itemLocationCount", loc.count.toLocaleString() + unit));
+    var row = el("div", "row row-hover itemLocationRow itemLocationChildRow");
+    row.appendChild(el("span", "row-label itemLocationChildLabel", locationChildLabel(loc)));
+    row.appendChild(el("span", "row-count", loc.count.toLocaleString() + unit));
+    row.appendChild(makeLocateButton(loc));
     attachLocationHover(row, loc, unit, itemLabel);
     return row;
   }
@@ -348,23 +485,27 @@ var FindItem = {};
     container.innerHTML = "";
     groups.forEach(function(group) {
       if (group.locations.length === 1) {
-        var row = el("div", "itemLocationRow");
+        var row = el("div", "row row-hover itemLocationRow");
         row.appendChild(groupIcon(group));
-        row.appendChild(el("span", "itemLocationLabel", group.label));
-        row.appendChild(el("span", "itemLocationCount", group.totalCount.toLocaleString() + unit));
+        row.appendChild(el("span", "row-label", group.label));
+        row.appendChild(el("span", "row-count", group.totalCount.toLocaleString() + unit));
+        row.appendChild(makeLocateButton(group.locations[0]));
         attachLocationHover(row, group.locations[0], unit, itemLabel);
         container.appendChild(row);
         return;
       }
 
-      var header = el("div", "itemLocationRow itemLocationGroupHeader");
-      var chevron = el("span", "itemLocationChevron");
-      chevron.innerHTML = CHEVRON_SVG;
-      header.appendChild(chevron);
+      var header = el("div", "row row-hover row-clickable itemLocationRow itemLocationGroupHeader");
+      header.appendChild(UI.chevron(13, "chev-right"));
       header.appendChild(groupIcon(group));
-      header.appendChild(el("span", "itemLocationLabel", group.label));
-      header.appendChild(el("span", "itemLocationGroupBadge", "× " + group.locations.length.toLocaleString()));
-      header.appendChild(el("span", "itemLocationCount", group.totalCount.toLocaleString() + unit));
+      header.appendChild(el("span", "row-label", group.label));
+      header.appendChild(el("span", "chip itemLocationGroupBadge", "× " + group.locations.length.toLocaleString()));
+      header.appendChild(el("span", "row-count", group.totalCount.toLocaleString() + unit));
+      // "Show on map" belongs to individual machines, not to a summed row
+      // standing for hundreds of them -- but the column still has to hold its
+      // width here, or the header's count would sit 34px right of its own
+      // children's.
+      header.appendChild(el("span", "itemLocationLocateSpacer"));
       container.appendChild(header);
 
       var childrenWrap = el("div", "itemLocationChildren");
@@ -387,7 +528,7 @@ var FindItem = {};
         }
         var remaining = group.locations.length - rendered;
         if (remaining > 0) {
-          showMore = el("button", "itemLocationShowMore",
+          showMore = el("button", "btn btn-ghost itemLocationShowMore",
             "Show " + Math.min(GROUP_CHUNK_SIZE, remaining).toLocaleString() + " more (" + remaining.toLocaleString() + " remaining)");
           showMore.type = "button";
           showMore.addEventListener("click", renderChunk);
@@ -401,7 +542,7 @@ var FindItem = {};
           renderChunk();
         }
         childrenWrap.style.display = expand ? "block" : "none";
-        header.classList.toggle("expanded", expand);
+        header.classList.toggle("is-open", expand);
       });
     });
   }
@@ -478,6 +619,11 @@ var FindItem = {};
       return;
     }
 
+    // Before savedVisibility is captured, so the locate marker's own bucket
+    // never gets folded into the "restore this later" snapshot -- and it has
+    // nothing left to say anyway: the highlight pins every result, that one
+    // included.
+    clearLocate();
     savedVisibility = {};
     MapApp.layer.buckets.forEach(function(b) {
       savedVisibility[b.key] = b.visible;
@@ -598,6 +744,7 @@ var FindItem = {};
 
   function showEntryHighlight(entry) {
     var rows = entryRows(entry);
+    clearLocate(); // See showHighlight -- must happen before the snapshot below.
     savedVisibility = {};
     MapApp.layer.buckets.forEach(function(b) {
       savedVisibility[b.key] = b.visible;
@@ -669,31 +816,31 @@ var FindItem = {};
 
   function openModal(title) {
     modalTitle.textContent = title;
-    banner.style.display = "none"; // The modal and its map-view banner are never shown together.
-    overlay.style.display = "flex";
+    banner.style.display = "none"; // The dialog and its map-view banner are never shown together.
+    itemDialog.open();
   }
 
-  // Closing the modal (X / backdrop / Escape) must NOT revert an active
+  // Closing the dialog (X / backdrop / Escape) must NOT revert an active
   // find-item filter -- that's the banner's job. If a filter is live, closing
-  // the modal just returns to the map view (banner reappears); otherwise
-  // there's nothing to keep, so lastResult is dropped.
-  function closeItemModal() {
-    overlay.style.display = "none";
+  // just returns to the map view (banner reappears); otherwise there's nothing
+  // to keep, so lastResult is dropped.
+  //
+  // One teardown for all three dismissal routes: UI.dialog fires this on the
+  // <dialog>'s own "close" event, whichever of them caused it.
+  itemDialog.onClose(function() {
     Tooltip.hide(); // A row-hover tooltip (see attachLocationHover) shouldn't outlive the list it belongs to.
-    if (highlighting) {
-      banner.style.display = "flex";
+    if (highlighting || located) {
+      banner.style.display = "flex"; // A live filter OR a locate marker keeps the list one "Details" click away.
     } else {
       lastResult = null;
       lastKind = null;
     }
+  });
+
+  function closeItemModal() {
+    itemDialog.close();
   }
 
-  modalClose.addEventListener("click", closeItemModal);
-  overlay.addEventListener("click", function(e) {
-    if (e.target === overlay) {
-      closeItemModal(); // Click on the backdrop, not the dialog itself.
-    }
-  });
   // Wheel-scrolling the list slides a different row under the (unmoved)
   // cursor without any mouseleave/mouseenter firing -- drop the tooltip
   // rather than leave it showing a row that's no longer under the pointer;
@@ -728,7 +875,7 @@ var FindItem = {};
   function showResult(result) {
     lastResult = result;
     lastKind = "item";
-    clearHighlight();
+    clearMapMarks();
     openModal(result.label);
     fillModalFromResult(result);
     modalHighlightToggle.textContent = "Show only these on map";
@@ -804,52 +951,36 @@ var FindItem = {};
     buildingModalCategory.style.background = chip.color + "26"; // ~15% alpha tint, hex-appended (2-digit alpha).
     buildingModalCategory.style.color = chip.color;
     banner.style.display = "none";
-    buildingOverlay.style.display = "flex";
+    buildingDialog.open();
   }
 
-  function closeBuildingModal() {
-    buildingOverlay.style.display = "none";
+  buildingDialog.onClose(function() {
     if (highlighting) {
       banner.style.display = "flex";
     } else {
       lastBuilding = null;
       lastKind = null;
     }
-  }
-
-  buildingModalClose.addEventListener("click", closeBuildingModal);
-  buildingOverlay.addEventListener("click", function(e) {
-    if (e.target === buildingOverlay) {
-      closeBuildingModal();
-    }
   });
 
-  document.addEventListener("keydown", function(e) {
-    // One layer per Escape press: every module's Escape handler lives on
-    // document, so without this the same keypress would close a modal AND
-    // cancel a placement AND clear a highlight at once. The first handler to
-    // act calls preventDefault(); the rest bail on e.defaultPrevented.
-    if (e.key !== "Escape" || e.defaultPrevented) {
-      return;
+  function closeBuildingModal() {
+    buildingDialog.close();
+  }
+
+  // Escape inside either dialog is the browser's job now. What is left is the
+  // case with no dialog open at all: something is still live on the map (an
+  // isolate filter, a locate marker) and Escape should revert it. Registered
+  // as the lowest-priority layer so a dropdown or an in-progress placement
+  // gets the press first (see ui.js's UI.LAYER).
+  UI.onEscape(UI.LAYER.view, function() {
+    if (!highlighting && !located) {
+      return false;
     }
-    if (overlay.style.display !== "none") {
-      closeItemModal();
-      e.preventDefault();
-    } else if (buildingOverlay.style.display !== "none") {
-      closeBuildingModal();
-      e.preventDefault();
-    } else if (highlighting) {
-      clearHighlight(); // No modal open, but a filter is live on the map -- Esc reverts it.
-      e.preventDefault();
-    }
+    clearMapMarks();
+    return true;
   });
 
-  function statTile(value, label) {
-    var tile = el("div", "buildingStatTile");
-    tile.appendChild(el("span", "buildingStatValue", value));
-    tile.appendChild(el("span", "buildingStatLabel", label));
-    return tile;
-  }
+  var statTile = UI.statTile;
 
   function formatMW(mw) {
     return mw.toLocaleString(undefined, { maximumFractionDigits: 1 }) + " MW";
@@ -862,17 +993,15 @@ var FindItem = {};
   // the section color, so a resource's purity bars can wear the same
   // green/orange/red the map paints those nodes in.
   function appendBarSection(title, rows, barColor) {
-    buildingModalRecipes.appendChild(el("div", "buildingModalSectionLabel", title));
+    buildingModalRecipes.appendChild(UI.kicker(title));
     var maxCount = rows.reduce(function(m, r) { return Math.max(m, r.count); }, 1);
     rows.forEach(function(barRow) {
       var row = el("div", "recipeBarRow");
       row.appendChild(el("span", "recipeBarLabel", barRow.label));
-      var track = el("div", "recipeBarTrack");
-      var fill = el("div", "recipeBarFill");
-      fill.style.width = Math.max(3, (barRow.count / maxCount) * 100) + "%";
-      fill.style.background = barRow.color || barColor;
-      track.appendChild(fill);
-      row.appendChild(track);
+      var bar = UI.bar("tall");
+      bar.fill.style.width = Math.max(3, (barRow.count / maxCount) * 100) + "%";
+      bar.fill.style.background = barRow.color || barColor;
+      row.appendChild(bar.wrap);
       row.appendChild(el("span", "recipeBarCount", barRow.count.toLocaleString()));
       buildingModalRecipes.appendChild(row);
     });
@@ -956,7 +1085,7 @@ var FindItem = {};
 
     if (info.fuelInventory && info.fuelInventory.length > 0) {
       buildingModalRecipes.appendChild(el("div", "buildingModalSectionLabel", "Fuel loaded"));
-      var fuelList = el("div", "itemLocationList");
+      var fuelList = el("div", "list");
       renderLocationList(fuelList, info.fuelInventory.map(function(entryRow) {
         return [entryRow.label, entryRow.count.toLocaleString() + (entryRow.isFluid ? " m³" : ""), "item", entryRow.item];
       }));
@@ -1066,7 +1195,7 @@ var FindItem = {};
     searchGeneration++; // Orphan any in-flight fetch -- this modal supersedes it.
     lastBuilding = { entry: entry, info: null };
     lastKind = "building";
-    clearHighlight();
+    clearMapMarks();
     openBuildingModal(entry);
     fillerForEntry(entry)(entry, null);
     buildingModalHighlightToggle.textContent = "Show only this on map";
@@ -1101,7 +1230,7 @@ var FindItem = {};
         }
         lastBuilding = { entry: entry, info: info };
         lastKind = "building";
-        clearHighlight();
+        clearMapMarks();
         fillFromInfo(entry, info);
         buildingModalHighlightToggle.textContent = "Show only this on map";
       })
@@ -1161,6 +1290,7 @@ var FindItem = {};
   // ---- Spotlight-style suggestions dropdown -------------------------------
 
   function hideSuggestions() {
+    searchInput.setAttribute("aria-expanded", "false");
     suggestionsEl.style.display = "none";
     currentSuggestions = [];
     currentRowElements = [];
@@ -1171,17 +1301,35 @@ var FindItem = {};
     activeIndex = index;
     for (var i = 0; i < currentRowElements.length; i++) {
       var isActive = i === index;
-      currentRowElements[i].classList.toggle("active", isActive);
+      currentRowElements[i].classList.toggle("row-active", isActive);
+      currentRowElements[i].setAttribute("aria-selected", String(isActive));
       if (isActive && currentRowElements[i].scrollIntoView) {
         currentRowElements[i].scrollIntoView({ block: "nearest" });
       }
     }
+    // The combobox keeps focus while the arrow keys walk the list, so this is
+    // what tells a screen reader which option is current.
+    var active = currentRowElements[index];
+    if (active) {
+      searchInput.setAttribute("aria-activedescendant", active.id);
+    } else {
+      searchInput.removeAttribute("aria-activedescendant");
+    }
+  }
+
+  // Committing a suggestion ends the search: leaving the query in the field
+  // made the bar read as though a search were still running, and the next one
+  // had to start by clearing it.
+  function clearSearchField() {
+    searchInput.value = "";
+    hideSuggestions();
   }
 
   function selectSuggestion(entry) {
-    searchInput.value = entry.label;
-    hideSuggestions();
-    if (entry.kind === "building") {
+    clearSearchField();
+    if (entry.kind === "tool") {
+      entry.open();
+    } else if (entry.kind === "building") {
       runBuildingSearchFor(entry);
     } else if (entry.kind === "vehicle") {
       runVehicleSearchFor(entry);
@@ -1199,6 +1347,17 @@ var FindItem = {};
   // rows, so this is never a second source of truth for visibility.
   function entryRows(entry) {
     return entry.rows || [entry.row];
+  }
+
+  // Whether this suggestion has any layer to show/hide at all. Everything
+  // that isn't an item always does; an item only when it's also a world
+  // pickup carrying its Collectables rows (see FindItem.build). A tool has no
+  // layer at all -- it opens something.
+  function entryHasVisibilityToggle(entry) {
+    if (entry.kind === "tool") {
+      return false;
+    }
+    return entry.kind !== "item" || !!entry.rows;
   }
 
   function entryIsShown(entry) {
@@ -1222,9 +1381,13 @@ var FindItem = {};
   // pink-hidden class, and tooltip all in one place.
   function refreshVisibilityToggle(btn, entry) {
     var isShown = entryIsShown(entry);
+    // A collectable ITEM's eye toggles the world pickups, not the item -- so
+    // it says so ("Show Mercer Sphere pickups"), since on that one row the
+    // bare label would just as plausibly mean the stacks in your inventories.
+    var what = entry.kind === "item" ? entry.label + " pickups" : entry.label;
     btn.classList.toggle("isShown", isShown);
     btn.innerHTML = isShown ? EYE_OPEN_SVG : EYE_OFF_SVG;
-    btn.title = isShown ? "Hide " + entry.label + " on the map" : "Show " + entry.label + " on the map";
+    btn.title = isShown ? "Hide " + what + " on the map" : "Show " + what + " on the map";
   }
 
   // The show/hide eye button on a suggestion row -- see the header comment.
@@ -1265,14 +1428,18 @@ var FindItem = {};
   }
 
   function suggestionRow(entry, index) {
-    var row = el("div", "searchSuggestionRow");
+    var row = el("div", "row row-clickable searchSuggestionRow");
+    row.id = "searchSuggestion-" + index;
+    row.setAttribute("role", "option");
     var img = document.createElement("img");
-    img.className = "searchSuggestionIcon";
+    img.className = "row-icon searchSuggestionIcon";
     img.alt = "";
-    if (entry.kind === "vehicle" || entry.kind === "wildlife" || entry.kind === "resource") {
-      // Vehicle glyphs (icons/vehicles/), creature art (icons/creatures/) and
-      // a resource's ore icon all arrive as a ready URL on the entry itself
-      // (see filters.js) -- no ClassName-keyed lookup to do.
+    if (entry.kind === "vehicle" || entry.kind === "wildlife" || entry.kind === "resource"
+        || entry.kind === "tool") {
+      // Vehicle glyphs (icons/vehicles/), creature art (icons/creatures/), a
+      // resource's ore icon and a tool's own inline glyph all arrive as a
+      // ready URL on the entry itself (see filters.js) -- no ClassName-keyed
+      // lookup to do.
       img.onerror = function() { img.onerror = null; img.src = DEFAULT_BUILDING_ICON_URL; };
       img.src = entry.iconUrl;
       if (entry.kind === "vehicle") {
@@ -1287,9 +1454,9 @@ var FindItem = {};
     // "(Category)" spelled out on the row itself, not just implied by the
     // group heading above it -- one glance has to say "this toggles a whole
     // family", not "this is a building called Conveyor Belts".
-    row.appendChild(el("span", "searchSuggestionLabel",
+    row.appendChild(el("span", "row-label searchSuggestionLabel",
       entry.kind === "category" ? entry.label + " (Category)" : entry.label));
-    if (entry.kind !== "item") {
+    if (entryHasVisibilityToggle(entry)) {
       row.appendChild(makeVisibilityToggle(entry));
     }
     // mousedown (not click) + preventDefault so selecting doesn't first
@@ -1303,22 +1470,52 @@ var FindItem = {};
     return row;
   }
 
-  // Substring match, case-insensitive, with prefix matches sorted first so
-  // typing "iron" surfaces "Iron Plate"/"Iron Rod" ahead of "Reinforced Iron
-  // Plate". Each kind is matched/capped independently, then rendered as its
-  // own labeled group ("ITEMS" / "BUILDINGS") -- skipped when only one kind
-  // has any matches, so a query that's obviously just an item (or just a
+  // Case-insensitive match, best-fitting first. A label matches either as a
+  // whole-query substring, or -- looser -- by containing every WORD of the
+  // query somewhere, in any order. The loose pass is what makes "coal node"
+  // find "Coal Ore (Resource Node)": the parenthesised kind suffix is a real
+  // part of those labels and exactly how people say them out loud, but no
+  // contiguous substring of the label spans it, so a strict test could never
+  // reach past it. Ranking keeps the tight matches on top, so typing "iron"
+  // still surfaces "Iron Plate"/"Iron Rod" ahead of "Reinforced Iron Plate",
+  // and an exact phrase always beats a scattered-words hit.
+  //
+  // Each kind is matched/capped independently, then rendered as its own
+  // labeled group ("ITEMS" / "BUILDINGS") -- skipped when only one kind has
+  // any matches, so a query that's obviously just an item (or just a
   // building) doesn't show an empty section header for the other.
+  var NO_MATCH = 3;
+
+  function matchRank(label, q, words) {
+    var lower = label.toLowerCase();
+    var at = lower.indexOf(q);
+    if (at === 0) {
+      return 0; // Starts with the whole query.
+    }
+    if (at !== -1) {
+      return 1; // Contains it verbatim.
+    }
+    for (var i = 0; i < words.length; i++) {
+      if (lower.indexOf(words[i]) === -1) {
+        return NO_MATCH;
+      }
+    }
+    return 2; // Holds every word, just not together.
+  }
+
   function matchCatalog(entries, q) {
-    var matches = entries.filter(function(entry) {
-      return entry.label.toLowerCase().indexOf(q) !== -1;
+    var words = q.split(/\s+/).filter(Boolean);
+    var scored = [];
+    entries.forEach(function(entry) {
+      var rank = matchRank(entry.label, q, words);
+      if (rank !== NO_MATCH) {
+        scored.push({ entry: entry, rank: rank });
+      }
     });
-    matches.sort(function(a, b) {
-      var aPrefix = a.label.toLowerCase().indexOf(q) === 0 ? 0 : 1;
-      var bPrefix = b.label.toLowerCase().indexOf(q) === 0 ? 0 : 1;
-      return aPrefix - bPrefix;
-    });
-    return matches.slice(0, MAX_SUGGESTIONS_PER_KIND);
+    // Rank alone: within one rank the catalog's own order (alphabetical by
+    // label) is the sensible tiebreak, and Array#sort is stable.
+    scored.sort(function(a, b) { return a.rank - b.rank; });
+    return scored.slice(0, MAX_SUGGESTIONS_PER_KIND).map(function(s) { return s.entry; });
   }
 
   function renderSuggestions(query) {
@@ -1343,6 +1540,10 @@ var FindItem = {};
       ["Buildings", matchesOfKind("building")],
       ["Vehicles", matchesOfKind("vehicle")],
       ["Wildlife", matchesOfKind("wildlife")],
+      // Last: a tool is only ever reached by typing most of its name, so it
+      // never needs to compete for the top of the list with what the query
+      // more likely means.
+      ["Tools", matchesOfKind("tool")],
     ];
     currentSuggestions = groups.reduce(function(all, group) { return all.concat(group[1]); }, []);
 
@@ -1351,6 +1552,7 @@ var FindItem = {};
     if (currentSuggestions.length === 0) {
       suggestionsEl.appendChild(el("div", "searchSuggestionEmpty", "No matching item, resource, building, vehicle, creature or category."));
       suggestionsEl.style.display = "block";
+      searchInput.setAttribute("aria-expanded", "true");
       activeIndex = -1;
       return;
     }
@@ -1364,7 +1566,7 @@ var FindItem = {};
         return;
       }
       if (showGroupLabels) {
-        suggestionsEl.appendChild(el("div", "searchSuggestionGroupLabel", group[0]));
+        suggestionsEl.appendChild(el("div", "kicker searchSuggestionGroupLabel", group[0]));
       }
       groupEntries.forEach(function(entry) {
         var row = suggestionRow(entry, index);
@@ -1377,6 +1579,7 @@ var FindItem = {};
     activeIndex = 0;
     setActive(0);
     suggestionsEl.style.display = "block";
+    searchInput.setAttribute("aria-expanded", "true");
   }
 
   searchInput.addEventListener("input", function() {
@@ -1446,6 +1649,13 @@ var FindItem = {};
       } else if (layerCatalogByLabel.hasOwnProperty(typedLabel)) {
         hideSuggestions();
         runLayerSearchFor(layerCatalogByLabel[typedLabel]);
+      } else {
+        TOOL_ENTRIES.forEach(function(tool) {
+          if (tool.label === typedLabel) {
+            hideSuggestions();
+            tool.open();
+          }
+        });
       }
     } else if (e.key === "Escape") {
       hideSuggestions();
@@ -1466,11 +1676,11 @@ var FindItem = {};
   // filtering, this button reads "Show all layers again" and reverts.)
   modalHighlightToggle.addEventListener("click", function() {
     if (highlighting) {
-      clearHighlight();
+      clearMapMarks();
     } else if (lastResult) {
       showHighlight(lastResult);
       modalHighlightToggle.textContent = "Show all layers again";
-      overlay.style.display = "none";
+      itemDialog.close();
       bannerLabel.textContent = "Showing only: " + lastResult.label;
       banner.style.display = "flex";
     }
@@ -1481,11 +1691,11 @@ var FindItem = {};
   // building a synthetic bucket.
   buildingModalHighlightToggle.addEventListener("click", function() {
     if (highlighting) {
-      clearHighlight();
+      clearMapMarks();
     } else if (lastBuilding) {
       showEntryHighlight(lastBuilding.entry);
       buildingModalHighlightToggle.textContent = "Show all layers again";
-      buildingOverlay.style.display = "none";
+      buildingDialog.close();
       bannerLabel.textContent = "Showing only: " + lastBuilding.entry.label;
       banner.style.display = "flex";
     }
@@ -1494,13 +1704,15 @@ var FindItem = {};
   // Banner "Clear filter" reverts the filter; "Details" reopens the full list/
   // modal for whichever kind is currently isolated (keeping the filter
   // active -- closing that back up returns to the banner).
-  bannerClear.addEventListener("click", clearHighlight);
+  bannerClear.addEventListener("click", clearMapMarks); // The banner is the one control for both.
   bannerDetails.addEventListener("click", function() {
     if (lastKind === "item" && lastResult) {
       fillModalFromResult(lastResult);
-      modalHighlightToggle.textContent = "Show all layers again";
+      // The list may be open over a live filter, over a bare locate marker, or
+      // over both -- only the filter is what this button reverts.
+      modalHighlightToggle.textContent = highlighting ? "Show all layers again" : "Show only these on map";
       banner.style.display = "none";
-      overlay.style.display = "flex";
+      itemDialog.open();
     } else if (lastKind === "building" && lastBuilding) {
       openBuildingModal(lastBuilding.entry);
       fillerForEntry(lastBuilding.entry)(lastBuilding.entry, lastBuilding.info);
@@ -1544,12 +1756,13 @@ var FindItem = {};
     // all find-item state rather than trying to "revert" against buckets that
     // no longer exist.
     searchGeneration++; // Orphan any in-flight search from the old save.
-    overlay.style.display = "none";
-    buildingOverlay.style.display = "none";
+    itemDialog.close();
+    buildingDialog.close();
     banner.style.display = "none";
     highlighting = false;
     highlightedEntry = null;
     savedVisibility = null;
+    located = null; // Filters.build already dropped every bucket, this one included.
     lastResult = null;
     lastBuilding = null;
     lastKind = null;
@@ -1559,7 +1772,18 @@ var FindItem = {};
     hideSuggestions();
 
     var itemEntries = (payload.itemCatalog || []).map(function(entry) {
-      return { kind: "item", label: entry.label, itemPath: entry.itemPath };
+      // `rows`, for the handful of items that are ALSO world pickups with a
+      // Collectables layer of their own (the slugs, Somersloop, Mercer
+      // Sphere, Hard Drive -- see filters.js's collectableToggleRows), is
+      // what gives this suggestion the same show/hide eye a building/layer
+      // row has, read through the very same entryRows() path. Null for every
+      // other item, which keeps their rows label-only.
+      return {
+        kind: "item",
+        label: entry.label,
+        itemPath: entry.itemPath,
+        rows: Filters.getCollectableToggleRows ? Filters.getCollectableToggleRows(entry.itemPath) : null,
+      };
     });
     itemCatalogByLabel = {};
     itemEntries.forEach(function(entry) { itemCatalogByLabel[entry.label] = entry.itemPath; });
@@ -1611,7 +1835,8 @@ var FindItem = {};
     layerCatalogByLabel = {};
     wildlifeEntries.concat(categoryEntries, resourceEntries).forEach(function(entry) { layerCatalogByLabel[entry.label] = entry; });
 
-    catalog = itemEntries.concat(buildingEntries, vehicleEntries, wildlifeEntries, categoryEntries, resourceEntries);
+    catalog = itemEntries.concat(buildingEntries, vehicleEntries, wildlifeEntries, categoryEntries,
+                                 resourceEntries, TOOL_ENTRIES);
 
     window.MapApp.currentDepotItems = payload.dimensionalDepot || [];
   };

@@ -1,5 +1,5 @@
 """Extract every creature spawner on the map -- world position + spawned
-creature class -- into game_data/generated/creatureSpawners.json.
+creature class -- into game_data/generated/world/creatureSpawners.json.
 
 Reads the FModel-style JSON export of the game paks (the same extraction dump
 extract_game_phases.py and copy_icons.py read): the world-partition cell
@@ -21,7 +21,7 @@ reference only points at a live creature instance while one is streamed in
 near a player, so classifying from saves comes out nearly empty in practice.
 The cooked level data's mCreatureClass is the static truth.
 
-Also writes game_data/generated/creatures.json: official display name + icon
+Also writes game_data/generated/world/creatures.json: official display name + icon
 per creature class. The class-to-name join comes from the FGCreatureDescriptor
 assets in the same dump (<Content>/FactoryGame/Character/Creature/
 CreatureDescriptors/): each descriptor carries mCreatureClass and an
@@ -71,7 +71,7 @@ DESCRIPTORS_SUBDIR = os.path.join("FactoryGame", "Character", "Creature", "Creat
 # Loose file from the pak, exported raw via FModel (see docstring NOTE);
 # lives under Content/Localization/, not Content/FactoryGame/.
 WORLD_DATA_CSV = os.path.join("Localization", "StringTables", "World_Data.csv")
-OUTPUT_DIR = os.path.join(REPO_ROOT, "game_data", "generated")
+OUTPUT_DIR = os.path.join(REPO_ROOT, "game_data", "generated", "world")
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "creatureSpawners.json")
 NAMES_OUTPUT_PATH = os.path.join(OUTPUT_DIR, "creatures.json")
 
@@ -265,6 +265,9 @@ def main():
         if creature in creatures:
             creatures[creature]["displayName"] = displayName
     creatures = dict(sorted(creatures.items()))
+    # Both files land in generated/world/, which does not exist on a checkout
+    # that has never run the extractors (nothing generated is committed).
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     with open(NAMES_OUTPUT_PATH, "w", encoding="utf-8", newline="\n") as f:
         json.dump(creatures, f, ensure_ascii=False, indent=1)
         f.write("\n")

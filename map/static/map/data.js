@@ -34,7 +34,10 @@
   // top progress bar above was easy to miss on big operations, leaving no
   // clear sign that anything was happening. Shown after a short delay so
   // instant edits don't flash it.
-  var busyOverlay = document.getElementById("busyOverlay");
+  // A modal <dialog> rather than a plain overlay: the browser then makes the
+  // page genuinely inert while the worker crunches, and top-layer order (by
+  // promotion time) puts this above any dialog that was already open.
+  var busyDialog = UI.dialog("busyDialog");
   var busyLabel = document.getElementById("busyLabel");
   var busyFill = document.getElementById("busyFill");
   var busyPhase = document.getElementById("busyPhase");
@@ -45,10 +48,10 @@
     busyLabel.textContent = label || "Working…";
     busyPhase.textContent = "";
     busyFill.style.width = "0%";
-    if (busyTimer === null && busyOverlay.style.display === "none") {
+    if (busyTimer === null && !busyDialog.isOpen()) {
       busyTimer = setTimeout(function() {
         busyTimer = null;
-        busyOverlay.style.display = "flex";
+        busyDialog.open();
       }, BUSY_SHOW_DELAY_MS);
     }
   }
@@ -63,7 +66,7 @@
       clearTimeout(busyTimer);
       busyTimer = null;
     }
-    busyOverlay.style.display = "none";
+    busyDialog.close();
   }
 
   // Load panel: always-on drop zone + hidden file input (the click target).

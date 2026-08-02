@@ -152,6 +152,202 @@ pub fn collect_spawners(_scan: &SaveScan) -> Value {
     Value::Array(entries.into_iter().map(|(_, _, v)| v).collect())
 }
 
+/// The map's two invisible edges -- static world data (the embedded
+/// worldBounds.json, see game_data/extractors/extract_world_bounds.py), not
+/// save actors, so the result is the same for every save:
+///
+///  - the world perimeter: the safe side of the damage volumes that hurt you
+///    for leaving the map, plus the altitudes they start at,
+///  - the water limit: where the swimmable, extractor-valid water actually
+///    ends, which is far inside the ocean the game renders.
+///
+/// Both go out as closed rings in map pixels, ready for one line bucket, with
+/// the tooltip rows alongside. Ring z is 0 (sea level) rather than the
+/// volumes' real span (the perimeter walls run from -9.6 km to +10.4 km):
+/// these are limits, not structures, and a line's altitude is only used for
+/// the altitude filter and depth sorting -- so a narrowed altitude window
+/// that excludes sea level hides them, which beats a tooltip claiming the
+/// border sits 10 km up.
+pub fn collect_map_limits(_scan: &SaveScan) -> Value {
+    map_limits_value()
+}
+
+fn map_limits_value() -> Value {
+    let bounds = &gamedata::get().world_bounds;
+    let mut polylines: Vec<Value> = Vec::new();
+    let mut ids: Vec<Value> = Vec::new();
+    let mut kinds: Vec<Value> = Vec::new();
+    let mut labels: Vec<Value> = Vec::new();
+    let mut rows: Vec<Value> = Vec::new();
+
+    let mut push_ring = |kind: &str, label: &str, ring: &[[f64; 2]], detail: Vec<Value>| {
+        if ring.len() < 3 {
+            return;
+        }
+        let mut points: Vec<Value> = Vec::with_capacity(ring.len() * 3 + 3);
+        for &[x, y] in ring {
+            let [px, py] = project_xy(x, y);
+            points.push(jnum(px));
+            points.push(jnum(py));
+            points.push(jnum(0.0));
+        }
+        // Close the loop: the line renderer draws an open polyline.
+        let first = [points[0].clone(), points[1].clone(), points[2].clone()];
+        points.extend(first);
+        polylines.push(Value::Array(points));
+        // These rings are not save actors, so their "ids" are synthetic --
+        // and the payload's id-slimming mirror re-adds the instance-name
+        // prefix to any bulk id without a ':' (see slim_payload_value). The
+        // "mapLimit:" prefix is what keeps them intact end to end; `kinds`
+        // carries the bare name for the frontend to key colors off.
+        ids.push(Value::String(format!("mapLimit:{kind}")));
+        kinds.push(Value::String(kind.to_string()));
+        labels.push(Value::String(label.to_string()));
+        rows.push(Value::Array(detail));
+    };
+
+    let perimeter = &bounds.perimeter;
+    let mut detail = vec![json!(["Cross it", "Damage over time"])];
+    if let Some(ceiling) = perimeter.ceiling_z {
+        detail.push(json!(["Damage above", format!("{:.0} m", world_z_to_meters(ceiling))]));
+    }
+    if let Some(floor) = perimeter.floor_z {
+        detail.push(json!(["Damage below", format!("{:.0} m", world_z_to_meters(floor))]));
+    }
+    push_ring("worldPerimeter", "World border", &perimeter.polygon, detail);
+
+    let water = &bounds.water;
+    let mut detail = vec![json!(["Outside it", "No swimmable water"])];
+    if let Some(ocean) = water.visual_ocean_bbox {
+        // The headline fact: the sea you can see is an order of magnitude
+        // bigger than the sea that exists.
+        let visual_km = (ocean[2] - ocean[0]) / 100_000.0;
+        let real_km = (water.extent_bbox[2] - water.extent_bbox[0]) / 100_000.0;
+        detail.push(json!(["Real water spans", format!("{real_km:.1} km")]));
+        detail.push(json!(["Rendered ocean spans", format!("{visual_km:.0} km")]));
+    }
+    push_ring("waterLimit", "Water limit", &water.outer_ring, detail);
+
+    json!({"polylines": polylines, "ids": ids, "kinds": kinds, "labels": labels, "rows": rows})
+}
+
+#[cfg(test)]
+mod map_limit_tests {
+    use super::*;
+
+    #[test]
+    fn both_limits_come_out_as_closed_rings_with_tooltip_rows() {
+        let limits = map_limits_value();
+        let polylines = limits["polylines"].as_array().unwrap();
+        let kinds: Vec<&str> =
+            limits["kinds"].as_array().unwrap().iter().map(|i| i.as_str().unwrap()).collect();
+        assert_eq!(kinds, ["worldPerimeter", "waterLimit"]);
+        assert_eq!(polylines.len(), 2);
+        // Every id must survive the payload's id-slimming mirror untouched,
+        // which is exactly what the ':' buys (see the collector).
+        for id in limits["ids"].as_array().unwrap() {
+            assert!(id.as_str().unwrap().contains(':'), "id {id} would get re-prefixed client-side");
+        }
+        for ring in polylines {
+            let points = ring.as_array().unwrap();
+            assert!(points.len() >= 12 && points.len() % 3 == 0);
+            assert_eq!(&points[0..3], &points[points.len() - 3..], "ring not closed");
+            // Projected into the 0..8192 map-pixel space, with room for the
+            // border sitting slightly outside the rendered map.
+            for xy in points.chunks_exact(3) {
+                for v in &xy[0..2] {
+                    let value = v.as_f64().unwrap();
+                    assert!((-2000.0..10192.0).contains(&value), "off-map point {value}");
+                }
+            }
+        }
+        for detail in limits["rows"].as_array().unwrap() {
+            assert!(!detail.as_array().unwrap().is_empty());
+        }
+    }
+}
+
+/// Cave outlines -- static world data (the embedded caves.json, see
+/// game_data/extractors/extract_caves.py), not save actors: nothing in a save
+/// records a cave, so the cooked level data is the only source and the result
+/// is the same for every save.
+///
+/// One entry per outline ring, in caves.json order (north to south), so the
+/// frontend can hand the whole thing to one line bucket: `polylines` are
+/// closed loops in map pixels with the cave's floor altitude as z, and the
+/// parallel `labels`/`areas`/`depths` arrays carry what the tooltip shows.
+/// Caves the game never named are numbered by that same order, so every label
+/// is unique and stable across loads.
+pub fn collect_caves(_scan: &SaveScan) -> Value {
+    caves_value()
+}
+
+fn caves_value() -> Value {
+    let mut polylines: Vec<Value> = Vec::new();
+    let mut ids: Vec<Value> = Vec::new();
+    let mut labels: Vec<Value> = Vec::new();
+    let mut areas: Vec<Value> = Vec::new();
+    let mut depths: Vec<Value> = Vec::new();
+    for (index, cave) in gamedata::get().caves.caves.iter().enumerate() {
+        let label = cave.name.clone().unwrap_or_else(|| format!("Cave {}", index + 1));
+        // Altitude of the cave floor: what the altitude slider filters on, and
+        // what the tooltip reports as depth. No zRange (a cave traced purely
+        // from mesh origins) sinks to 0 rather than dropping the ring.
+        let [min_z, max_z] = cave.z_range.unwrap_or([0.0, 0.0]);
+        for (ring_index, ring) in cave.rings.iter().enumerate() {
+            let mut points: Vec<Value> = Vec::with_capacity(ring.len() / 2 * 3 + 3);
+            for pair in ring.chunks_exact(2) {
+                let [px, py] = project_xy(pair[0], pair[1]);
+                points.push(jnum(px));
+                points.push(jnum(py));
+                points.push(jnum(world_z_to_meters(min_z)));
+            }
+            if points.len() < 9 {
+                continue; // fewer than three vertices: not a ring
+            }
+            // Close the loop: the line renderer draws an open polyline.
+            let first = [points[0].clone(), points[1].clone(), points[2].clone()];
+            points.extend(first);
+            polylines.push(Value::Array(points));
+            ids.push(Value::String(format!("{}#{}", cave.id, ring_index)));
+            labels.push(Value::String(label.clone()));
+            areas.push(jnum(cave.area_m2));
+            depths.push(json!([jnum(world_z_to_meters(min_z)), jnum(world_z_to_meters(max_z))]));
+        }
+    }
+    json!({
+        "polylines": polylines,
+        "ids": ids,
+        "labels": labels,
+        "areas": areas,
+        "depths": depths,
+    })
+}
+
+#[cfg(test)]
+mod cave_tests {
+    use super::*;
+
+    #[test]
+    fn every_cave_ring_is_a_closed_loop_with_a_unique_label() {
+        let caves = caves_value();
+        let polylines = caves["polylines"].as_array().unwrap();
+        assert!(polylines.len() >= gamedata::get().caves.caves.len());
+        for ring in polylines {
+            let points = ring.as_array().unwrap();
+            assert!(points.len() >= 12 && points.len() % 3 == 0, "ring of {} values", points.len());
+            assert_eq!(&points[0..3], &points[points.len() - 3..], "ring not closed");
+        }
+        let labels: Vec<&str> =
+            caves["labels"].as_array().unwrap().iter().map(|l| l.as_str().unwrap()).collect();
+        assert_eq!(labels.len(), polylines.len());
+        let ids: Vec<&str> =
+            caves["ids"].as_array().unwrap().iter().map(|i| i.as_str().unwrap()).collect();
+        let unique: std::collections::HashSet<&&str> = ids.iter().collect();
+        assert_eq!(unique.len(), ids.len(), "duplicate ring id");
+    }
+}
+
 #[cfg(test)]
 mod spawner_label_tests {
     use super::*;

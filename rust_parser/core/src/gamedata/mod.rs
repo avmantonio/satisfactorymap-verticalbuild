@@ -4,13 +4,16 @@
 //! crate therefore requires game_data extracted (same prerequisite the app
 //! itself has always had).
 //!
-//! - game_data/sav_data/*.json: committed world tables regenerated from the
-//!   game's level exports by game_data/extractors/extract_collectables.py
-//!   (key order load-bearing and preserved across regenerations), plus two
-//!   hand-curated files (readableNameCorrections.json, typePaths.json).
-//! - game_data/generated/*.json + game_data/category*.json: extracted from
-//!   the game's Docs.json by game_data/extractors/extract_docs_json.py (gitignored,
-//!   regenerable; documented in game_data/SCHEMA.md).
+//! Two sources, split by who writes them:
+//!
+//! - game_data/curated/*.json: hand-maintained inputs, committed. Nothing
+//!   generates these; they are edited by a person.
+//! - game_data/generated/{docs,world}/*.json: everything game_data/extract_all.py
+//!   produces -- gitignored, and shipped separately in game_data.zip (see
+//!   game_data/README.md). docs/ comes from the game's Docs.json
+//!   (documented in game_data/SCHEMA.md); world/ from the FModel level-export
+//!   dump. Neither is in the repository, so a clone must run extract_all.py
+//!   or unpack the archive before this crate will compile.
 
 use indexmap::IndexMap;
 use serde::Deserialize;
@@ -49,6 +52,67 @@ pub struct CreatureInfo {
 /// creatureSpawners.json: {creatureShortClass|"unknown": {instancePathName: [x,y,z]}}
 pub type CreatureSpawnerMap = IndexMap<String, IndexMap<String, [f64; 3]>>;
 
+/// worldBounds.json's `perimeter`: the safe side of the map's damaging edge
+/// (see game_data/extractors/extract_world_bounds.py). Static world geometry
+/// -- identical for every save, like the creature spawners.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Perimeter {
+    /// Closed loop in world cm; the first point is NOT repeated at the end.
+    pub polygon: Vec<[f64; 2]>,
+    /// World cm: the damage slabs start above this / below this. None if the
+    /// dump ever stops carrying one of them.
+    pub ceiling_z: Option<f64>,
+    pub floor_z: Option<f64>,
+}
+
+/// worldBounds.json's `water`: where the swimmable, extractor-valid water
+/// ends -- which is nowhere near where the rendered ocean ends.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WaterLimit {
+    /// Closed loop in world cm; first point NOT repeated.
+    pub outer_ring: Vec<[f64; 2]>,
+    /// [minX, minY, maxX, maxY] over every water volume.
+    pub extent_bbox: [f64; 4],
+    /// [minX, minY, maxX, maxY] of the rendered ocean planes (far larger).
+    pub visual_ocean_bbox: Option<[f64; 4]>,
+}
+
+#[derive(Deserialize)]
+pub struct WorldBounds {
+    pub perimeter: Perimeter,
+    pub water: WaterLimit,
+}
+
+/// caves.json: one connected cave system, traced from the cooked level data
+/// (see game_data/extractors/extract_caves.py). Static world geometry -- the
+/// same for every save, like the creature spawners.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Cave {
+    pub id: String,
+    /// The game's own name for the cave, when it named it; else None (the
+    /// payload numbers those instead).
+    pub name: Option<String>,
+    /// [minX, minY, maxX, maxY] in world cm.
+    pub bbox: [f64; 4],
+    /// [minZ, maxZ] in world cm; None when no source carried a Z.
+    pub z_range: Option<[f64; 2]>,
+    pub area_m2: f64,
+    /// Atmosphere volume actor names inside this cave (traceability only).
+    #[allow(dead_code)]
+    pub volumes: Vec<String>,
+    /// Outer rings, each a flat [x0, y0, x1, y1, ...] loop in world cm; the
+    /// first point is NOT repeated at the end.
+    pub rings: Vec<Vec<f64>>,
+}
+
+#[derive(Deserialize)]
+pub struct Caves {
+    pub caves: Vec<Cave>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TypePaths {
@@ -60,7 +124,7 @@ pub struct TypePaths {
 }
 
 pub struct GameData {
-    // -- game_data/sav_data/ (converted Python literals) --
+    // -- game_data/generated/world/ (FModel level-export extracts) --
     pub resource_purity: ResourcePurityMap,
     pub power_slugs: PowerSlugs,
     pub somersloops: CollectibleMap,
@@ -70,8 +134,10 @@ pub struct GameData {
     pub free_dropped_items: IndexMap<String, Vec<(i64, [f64; 3], String)>>,
     pub readable_name_corrections: IndexMap<String, String>,
     pub type_paths: TypePaths,
+    pub world_bounds: WorldBounds,
+    pub caves: Caves,
 
-    // -- game_data/generated/ + game_data/ (Docs.json extracts) --
+    // -- game_data/generated/docs/ + game_data/curated/ --
     // Kept as ordered JSON maps: consumers pick the fields they need, and
     // iteration order must match Python's json.load dict order.
     pub building_categories: serde_json::Map<String, serde_json::Value>,
@@ -82,8 +148,7 @@ pub struct GameData {
     pub recipes: serde_json::Map<String, serde_json::Value>,
     pub schematics: serde_json::Map<String, serde_json::Value>,
     pub game_phases: serde_json::Map<String, serde_json::Value>,
-    // -- game_data/generated/ (FModel level-export extracts; see
-    //    game_data/extractors/extract_spawners.py) --
+    // -- game_data/generated/world/ (see extract_spawners.py) --
     pub creatures: IndexMap<String, CreatureInfo>,
     pub creature_spawners: CreatureSpawnerMap,
 }
@@ -102,35 +167,37 @@ fn parse<T: serde::de::DeserializeOwned>(name: &str, s: &str) -> T {
 pub fn get() -> &'static GameData {
     static DATA: OnceLock<GameData> = OnceLock::new();
     DATA.get_or_init(|| GameData {
-        resource_purity: parse("resourcePurity.json", embed!("sav_data/resourcePurity.json")),
-        power_slugs: parse("powerSlugs.json", embed!("sav_data/powerSlugs.json")),
-        somersloops: parse("somersloops.json", embed!("sav_data/somersloops.json")),
-        mercer_spheres: parse("mercerSpheres.json", embed!("sav_data/mercerSpheres.json")),
-        crash_sites: parse("crashSites.json", embed!("sav_data/crashSites.json")),
+        resource_purity: parse("resourcePurity.json", embed!("generated/world/resourcePurity.json")),
+        power_slugs: parse("powerSlugs.json", embed!("generated/world/powerSlugs.json")),
+        somersloops: parse("somersloops.json", embed!("generated/world/somersloops.json")),
+        mercer_spheres: parse("mercerSpheres.json", embed!("generated/world/mercerSpheres.json")),
+        crash_sites: parse("crashSites.json", embed!("generated/world/crashSites.json")),
         free_dropped_items: parse(
             "freeDroppedItems.json",
-            embed!("sav_data/freeDroppedItems.json"),
+            embed!("generated/world/freeDroppedItems.json"),
         ),
         readable_name_corrections: parse(
             "readableNameCorrections.json",
-            embed!("sav_data/readableNameCorrections.json"),
+            embed!("curated/readableNameCorrections.json"),
         ),
-        type_paths: parse("typePaths.json", embed!("sav_data/typePaths.json")),
+        type_paths: parse("typePaths.json", embed!("curated/typePaths.json")),
+        world_bounds: parse("worldBounds.json", embed!("generated/world/worldBounds.json")),
+        caves: parse("caves.json", embed!("generated/world/caves.json")),
         building_categories: parse(
             "buildingCategories.json",
-            embed!("generated/buildingCategories.json"),
+            embed!("generated/docs/buildingCategories.json"),
         ),
-        category_labels: parse("categoryLabels.json", embed!("categoryLabels.json")),
-        category_overrides: parse("categoryOverrides.json", embed!("categoryOverrides.json")),
-        buildings: parse("buildings.json", embed!("generated/buildings.json")),
-        items: parse("items.json", embed!("generated/items.json")),
-        recipes: parse("recipes.json", embed!("generated/recipes.json")),
-        schematics: parse("schematics.json", embed!("generated/schematics.json")),
-        game_phases: parse("gamePhases.json", embed!("generated/gamePhases.json")),
-        creatures: parse("creatures.json", embed!("generated/creatures.json")),
+        category_labels: parse("categoryLabels.json", embed!("curated/categoryLabels.json")),
+        category_overrides: parse("categoryOverrides.json", embed!("curated/categoryOverrides.json")),
+        buildings: parse("buildings.json", embed!("generated/docs/buildings.json")),
+        items: parse("items.json", embed!("generated/docs/items.json")),
+        recipes: parse("recipes.json", embed!("generated/docs/recipes.json")),
+        schematics: parse("schematics.json", embed!("generated/docs/schematics.json")),
+        game_phases: parse("gamePhases.json", embed!("generated/docs/gamePhases.json")),
+        creatures: parse("creatures.json", embed!("generated/world/creatures.json")),
         creature_spawners: parse(
             "creatureSpawners.json",
-            embed!("generated/creatureSpawners.json"),
+            embed!("generated/world/creatureSpawners.json"),
         ),
     })
 }
@@ -176,6 +243,25 @@ mod tests {
         assert!(d.mercer_spheres.len() > 200);
         assert!(d.crash_sites.len() > 90);
         assert!(d.free_dropped_items.len() >= 50);
+        // The map's edge: a closed polygon around a ~7.9 x 7.0 km area, and a
+        // water ring inside the same order of magnitude. Loose bounds -- this
+        // guards against an empty/garbled table, not against a map change.
+        let perimeter = &d.world_bounds.perimeter;
+        assert!(perimeter.polygon.len() >= 4, "perimeter {:?}", perimeter.polygon.len());
+        assert!(perimeter.ceiling_z.unwrap_or(0.0) > 0.0);
+        assert!(perimeter.floor_z.unwrap_or(0.0) < 0.0);
+        let width = perimeter.polygon.iter().map(|p| p[0]).fold(f64::MIN, f64::max)
+            - perimeter.polygon.iter().map(|p| p[0]).fold(f64::MAX, f64::min);
+        assert!((500_000.0..1_500_000.0).contains(&width), "perimeter width {width}");
+        assert!(d.world_bounds.water.outer_ring.len() >= 4);
+        assert!(d.caves.caves.len() > 50, "caves {}", d.caves.caves.len());
+        assert!(d.caves.caves.iter().all(|c| !c.rings.is_empty()));
+        // Every ring is a flat x,y list of at least a triangle.
+        assert!(d
+            .caves
+            .caves
+            .iter()
+            .all(|c| c.rings.iter().all(|r| r.len() >= 6 && r.len() % 2 == 0)));
         assert!(d.buildings.len() > 400);
         assert!(d.recipes.len() > 300);
         assert!(d.schematics.len() > 200);

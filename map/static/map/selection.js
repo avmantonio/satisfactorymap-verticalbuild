@@ -23,11 +23,10 @@ var SelectionTool = {};
   var deleteBtn = document.getElementById("selectionDeleteBtn");
   var clearBtn = document.getElementById("selectionClearBtn");
 
-  var overlay = document.getElementById("selectionModalOverlay");
+  var dialog = UI.dialog("selectionModal");
   var modalTitle = document.getElementById("selectionModalTitle");
   var modalSummary = document.getElementById("selectionModalSummary");
   var modalList = document.getElementById("selectionModalList");
-  var modalClose = document.getElementById("selectionModalClose");
 
   var MIN_DRAG_PX = 4; // Below this the gesture is a stray right-click, not a drag.
   // Line layers whose segments are real editable actors: belts/pipes
@@ -183,6 +182,17 @@ var SelectionTool = {};
     return records;
   }
 
+  // Altitude of one selected record, meters: same stride-1 slot the altitude
+  // filter reads (first vertex for line buckets).
+  function recordZ(r) {
+    var stride = r.bucket.pointStride;
+    if (r.bucket.lines) {
+      var line = r.bucket.lines[r.index];
+      return line ? line[stride - 1] : undefined;
+    }
+    return r.bucket.points ? r.bucket.points[r.index * stride + stride - 1] : undefined;
+  }
+
   // Aggregate `selected` into what the panel/modal/editor consume.
   function aggregate() {
     var byLabel = {};
@@ -201,16 +211,6 @@ var SelectionTool = {};
       bbox: { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity,
               minZ: Infinity, maxZ: -Infinity },
     };
-    // Altitude of one selected record, meters: same stride-1 slot the
-    // altitude filter reads (first vertex for line buckets).
-    function recordZ(r) {
-      var stride = r.bucket.pointStride;
-      if (r.bucket.lines) {
-        var line = r.bucket.lines[r.index];
-        return line ? line[stride - 1] : undefined;
-      }
-      return r.bucket.points ? r.bucket.points[r.index * stride + stride - 1] : undefined;
-    }
     selected.forEach(function(r) {
       total++;
       if (!byLabel.hasOwnProperty(r.bucket.label)) {
@@ -373,6 +373,13 @@ var SelectionTool = {};
       if (!g) {
         g = {
           isLine: r.bucket.renderType === "line",
+          // Pins (vehicles, collectables, players, crash sites -- see map.js's
+          // _drawIconBucket) are drawn as a circle floating ABOVE the
+          // coordinate with a tail pointing down at it, so marking the bare
+          // coordinate marks the tail's tip and leaves the pin itself looking
+          // untouched. Icon groups get a ring around the pin as well (see
+          // drawHighlight).
+          isIcon: r.bucket.renderType === "icon",
           half: r.bucket.footprintPixels || null,
           // Lines bake their polyline here once. Footprints do NOT: their
           // rotated geometry is built per-frame in drawHighlight, culled to
@@ -504,9 +511,38 @@ var SelectionTool = {};
     var dotPath = null;
     var dotHalf = DOT_HALF_SCREEN_PX / scale;
     var dotCount = 0;
+    // Pin geometry, in map units at this zoom. Same numbers map.js paints the
+    // pin and its hover outline with (_paintPin / the icon branch of
+    // _drawHighlightOverlay): the circle sits one radius plus a 0.7-radius
+    // tail above the coordinate. Map Y grows upward on screen (CRS.Simple
+    // negates lat), hence + rather than -.
+    var pinRadius = MapApp.iconRadiusForZoom(zoom);
+    var pinOffset = (pinRadius + pinRadius * 0.7) / scale;
+    var pinRingRadius = (pinRadius + 2) / scale;
     groupCache.forEach(function(g) {
       if (g.isLine) {
         return; // Lines stroke last, over the fills.
+      }
+      if (g.isIcon) {
+        // Ring the pin itself, then fall through so the coordinate it points
+        // at still gets its dot.
+        var ringPath = new Path2D();
+        var ringCount = 0;
+        for (var pi = 0; pi < g.xs.length; pi++) {
+          var ringX = g.xs[pi];
+          var ringY = g.ys[pi] + pinOffset;
+          if (ringX < minX - pinRingRadius || ringX > maxX + pinRingRadius
+              || ringY < minY - pinRingRadius || ringY > maxY + pinRingRadius) {
+            continue;
+          }
+          ringPath.moveTo(ringX + pinRingRadius, ringY); // Own subpath per ring.
+          ringPath.arc(ringX, ringY, pinRingRadius, 0, Math.PI * 2);
+          ringCount++;
+        }
+        if (ringCount > 0) {
+          ctx.lineWidth = 2.5 / scale;
+          ctx.stroke(ringPath);
+        }
       }
       if (g.half && Math.max(g.half[0], g.half[1]) * scale >= MIN_HALF_SCREEN_PX) {
         // Build the rotated footprints now, for viewport-visible objects
@@ -598,6 +634,7 @@ var SelectionTool = {};
     requestHighlightDraw();
     if (selection.total === 0) {
       panel.style.display = "none";
+      notifyNetworkTool();
       return;
     }
     countEl.textContent = selection.total.toLocaleString() + " object" + (selection.total === 1 ? "" : "s") + " selected";
@@ -614,6 +651,16 @@ var SelectionTool = {};
         + (selection.editTargets.skipped ? " (" + selection.editTargets.skipped + " not editable, left behind)" : "");
     offsetBtn.title = moveBtn.title;
     panel.style.display = "flex";
+    notifyNetworkTool();
+  }
+
+  // Told AFTER this panel's own visibility is settled: the network tool reads
+  // both the count (for its "Add selection (N)" button) and this panel's
+  // height (its hint bar shares the bottom-centre slot -- see network.js).
+  function notifyNetworkTool() {
+    if (window.NetworkTool) {
+      NetworkTool.onSelectionChanged();
+    }
   }
 
   function finishSelection(start, end, additive) {
@@ -678,6 +725,7 @@ var SelectionTool = {};
     selected.clear();
     invalidateHighlightCache();
     requestHighlightDraw();
+    notifyNetworkTool();
   }
 
   // ---- Pointer handling (right button) ------------------------------------
@@ -775,25 +823,12 @@ var SelectionTool = {};
   function openModal(title, summary) {
     modalTitle.textContent = title;
     modalSummary.textContent = summary;
-    overlay.style.display = "flex";
+    dialog.open();
   }
 
   function closeModal() {
-    overlay.style.display = "none";
+    dialog.close();
   }
-
-  modalClose.addEventListener("click", closeModal);
-  overlay.addEventListener("click", function(e) {
-    if (e.target === overlay) {
-      closeModal();
-    }
-  });
-  document.addEventListener("keydown", function(e) {
-    if (e.key === "Escape" && !e.defaultPrevented && overlay.style.display !== "none") {
-      closeModal();
-      e.preventDefault(); // One layer per press -- see finditem.js.
-    }
-  });
 
   objectsBtn.addEventListener("click", function() {
     if (!lastSelection) {
@@ -876,6 +911,25 @@ var SelectionTool = {};
   // The current selection's edit targets, for Ctrl+C (see editor.js).
   SelectionTool.currentEditTargets = function() {
     return lastSelection ? lastSelection.editTargets : null;
+  };
+
+  // The selection as plain positions, for tools that only need "where are
+  // these things" rather than anything editable (see network.js's "Add
+  // selection"). x/y are map pixels like everywhere else; z is altitude in
+  // metres, or undefined for a bucket that carries none. `key` identifies the
+  // object itself -- its save id where it has one, the same bucket#index key
+  // this selection is stored under otherwise -- so a caller can tell "this
+  // object again" from "another object in the same place".
+  SelectionTool.currentPoints = function() {
+    var out = [];
+    selected.forEach(function(r) {
+      out.push({ x: r.x, y: r.y, z: recordZ(r), label: r.bucket.label, key: r.id || recordKey(r) });
+    });
+    return out;
+  };
+
+  SelectionTool.selectedCount = function() {
+    return selected.size;
   };
 
   // Called on every save (re)load (see data.js) -- the previous selection's
