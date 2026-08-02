@@ -53,7 +53,7 @@ var EditorTool = (function() {
   // container-positioned div: the pane transform carries it through pans AND
   // the wheel-zoom CSS animation, so it never desyncs mid-animation.
   var ghostRect = null;
-  var offsetOverlay, offsetDx, offsetDy, offsetDz, offsetRot, offsetApply, offsetCancel;
+  var offsetDialog, offsetDx, offsetDy, offsetDz, offsetRot, offsetApply, offsetCancel;
   var pastePanel, pastePanelTitle, pastePosOriginal, pastePosCustom;
   var pasteX, pasteY, pasteZ, pasteDx, pasteDy, pasteDz, pasteRot, pasteResult;
   var pastePanelApplyBtn, pastePanelCancelBtn;
@@ -924,11 +924,11 @@ var EditorTool = (function() {
     pasteRot.value = "0";
     setPasteXYFields(p.anchorWorld);
     refreshPasteResult();
-    pastePanel.style.display = "block";
+    Panels.openTool(pastePanel); // Into the right tool dock -- see panels.js.
   }
 
   function closePastePanel() {
-    pastePanel.style.display = "none";
+    Panels.closeTool(pastePanel);
   }
 
   // Typing X/Y switches to a custom position; the radio switch back to
@@ -1003,13 +1003,12 @@ var EditorTool = (function() {
     offsetDy.value = "0";
     offsetDz.value = "0";
     offsetRot.value = "0";
-    offsetOverlay.style.display = "flex";
+    offsetDialog.open();
     offsetDx.focus();
   }
 
   function closeOffsetDialog() {
-    offsetOverlay.style.display = "none";
-    offsetTargets = null;
+    offsetDialog.close(); // onClose (bound in init) drops offsetTargets.
   }
 
   function applyOffsetDialog() {
@@ -1087,7 +1086,7 @@ var EditorTool = (function() {
     undoBtn = document.getElementById("editorUndoBtn");
     redoBtn = document.getElementById("editorRedoBtn");
     hintBar = document.getElementById("editorHint");
-    offsetOverlay = document.getElementById("offsetDialogOverlay");
+    offsetDialog = UI.dialog("offsetDialog");
     offsetDx = document.getElementById("offsetDx");
     offsetDy = document.getElementById("offsetDy");
     offsetDz = document.getElementById("offsetDz");
@@ -1131,33 +1130,27 @@ var EditorTool = (function() {
         e.preventDefault();
       }
     });
-    offsetOverlay.addEventListener("click", function(e) {
-      if (e.target === offsetOverlay) {
-        closeOffsetDialog();
-      }
-    });
-    offsetOverlay.addEventListener("keydown", function(e) {
+    // The <dialog> handles Escape, the backdrop click and the X itself;
+    // this only adds Enter-to-apply and the state teardown.
+    offsetDialog.el.addEventListener("keydown", function(e) {
       if (e.key === "Enter") {
         applyOffsetDialog();
       }
     });
+    offsetDialog.onClose(function() { offsetTargets = null; });
+
+    // Escape while a placement ghost is up cancels the placement. The offset
+    // dialog is a real <dialog>, so its own Escape is the browser's job.
+    UI.onEscape(UI.LAYER.placement, function() {
+      if (placement === null) {
+        return false;
+      }
+      cancelPlacement();
+      return true;
+    });
 
     document.addEventListener("keydown", function(e) {
       var inInput = e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA");
-      if (e.key === "Escape") {
-        // Peel one layer per press (see finditem.js): only claim the event
-        // if a placement or the offset dialog was actually open.
-        if (e.defaultPrevented) {
-          return;
-        }
-        var acted = placement !== null || offsetOverlay.style.display !== "none";
-        cancelPlacement();
-        closeOffsetDialog();
-        if (acted) {
-          e.preventDefault();
-        }
-        return;
-      }
       if (placement && !inInput && (e.key === "r" || e.key === "R")) {
         placement.rotSteps = (placement.rotSteps + 1) % 4;
         if (placement.mode !== "move") {

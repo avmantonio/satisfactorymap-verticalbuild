@@ -149,11 +149,12 @@ var ContextMenu = {};
       hide();
     }
   });
-  document.addEventListener("keydown", function(e) {
-    if (e.key === "Escape" && !e.defaultPrevented && menu.style.display !== "none") {
-      hide();
-      e.preventDefault(); // One layer per press -- see finditem.js.
+  UI.onEscape(UI.LAYER.menu, function() {
+    if (menu.style.display === "none") {
+      return false;
     }
+    hide();
+    return true;
   });
   window.addEventListener("blur", hide);
   var mapContainer = document.getElementById("map");

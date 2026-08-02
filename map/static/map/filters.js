@@ -413,27 +413,8 @@ var Filters = {};
     });
   }
 
-  function el(tag, className, text) {
-    var e = document.createElement(tag);
-    if (className) e.className = className;
-    if (text !== undefined) e.textContent = text;
-    return e;
-  }
-
-  // A checkbox wrapped in a <label> with a slider span, styled in map.css as
-  // an animated on/off switch instead of a native checkbox. The <label>
-  // wrapping means clicking anywhere on the switch (handle or track) toggles
-  // the underlying real <input type=checkbox> exactly like a native
-  // checkbox would -- so all existing .checked/"change"-event logic below
-  // needs no changes, only what gets appended to the DOM.
-  function makeToggle() {
-    var wrapper = el("label", "toggleSwitch");
-    var checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    wrapper.appendChild(checkbox);
-    wrapper.appendChild(el("span", "toggleSlider"));
-    return { wrapper: wrapper, checkbox: checkbox };
-  }
+  var el = UI.el;
+  var makeToggle = UI.toggle;
 
   function makeIcon(renderType, color, url) {
     var icon = el("span", "icon icon-" + renderType);
@@ -756,31 +737,18 @@ var Filters = {};
       });
   };
 
-  // Leaflet doesn't notice its container resized just because a CSS
-  // width/left value changed -- invalidateSize() is the real API for that,
-  // and it's what actually fires the "resize" event BucketedCanvasLayer
-  // already listens for (see map.js's onAdd), so the canvas/tiles catch up
-  // to the map filling (or giving back) the space the detail column just
-  // vacated.
-  function notifyMapResized() {
-    if (window.MapApp && MapApp.map) {
-      MapApp.map.invalidateSize();
-    }
-  }
-
-  // Sizes the nav panel to fit the widest category card instead of a fixed
-  // guess, so it wastes no horizontal space (and the map gets the rest).
-  // Measured by momentarily letting the list size to its content -- each
-  // card's label has flex:1, so at max-content it collapses to the label's
-  // natural (un-stretched) width, making the column exactly as wide as its
-  // longest row. Clamped so the save dropdown / Check-Uncheck header stay
-  // usable at the low end and the map never loses an absurd amount at the
-  // high end. Writes the result to --nav-col-width (which #map/#sidebar/
-  // #categoryNavPanel all derive from) and pokes Leaflet to catch the resize.
+  // Sizes the dock to fit the widest category card instead of a fixed guess,
+  // so it wastes no horizontal space (and the map gets the rest). Measured by
+  // momentarily letting the list size to its content -- each card's label has
+  // flex:1, so at max-content it collapses to the label's natural
+  // (un-stretched) width, making the dock exactly as wide as its longest row.
+  // Clamped so the save panel and the Check/Uncheck header stay usable at the
+  // low end and the map never loses an absurd amount at the high end.
+  // Leaflet is not poked here: panels.js watches the map element itself.
   function autoSizeNavPanel() {
-    // A hand-dragged width (see panels.js's resize handles, persisted across
+    // A hand-dragged width (see panels.js's resize handle, persisted across
     // sessions) always wins over the automatic fit -- otherwise every save
-    // load would snap the panel back and silently undo the user's resize.
+    // load would snap the dock back and silently undo the user's resize.
     if (window.Panels && Panels.storedNavWidth() !== null) {
       return;
     }
@@ -792,28 +760,33 @@ var Filters = {};
     navColumn.style.width = "max-content";
     var natural = navColumn.offsetWidth;
     navColumn.style.width = previous;
-    var width = Math.max(232, Math.min(natural + 8, 380));
-    document.documentElement.style.setProperty("--nav-col-width", width + "px");
-    notifyMapResized();
+    var width = Math.max(248, Math.min(natural + 24, 380));
+    document.documentElement.style.setProperty("--dock-left-width", width + "px");
   }
 
+  // Selection now drives the dock's two-pane push navigation (panels.js)
+  // rather than opening a second column: the dock keeps its width, so
+  // browsing categories never resizes the map.
   function deselectAllCategories() {
     categoryEntries.forEach(function(entry) {
       entry.navRow.classList.remove("active");
       entry.detailGroup.classList.remove("active");
     });
-    document.body.classList.add("no-category-selected");
-    notifyMapResized();
+    Panels.showCategoryList();
   }
 
   function selectCategory(navRow, detailGroup) {
+    var selected = null;
     categoryEntries.forEach(function(entry) {
       var isThis = entry.navRow === navRow;
       entry.navRow.classList.toggle("active", isThis);
       entry.detailGroup.classList.toggle("active", isThis);
+      if (isThis) {
+        selected = entry;
+      }
     });
-    document.body.classList.remove("no-category-selected");
-    notifyMapResized();
+    Panels.showCategoryDetail(selected ? selected.title : "",
+                              selected ? selected.color : null);
   }
 
   function renderTopLevelCategory(navList, detailPane, title, renderType, swatchColor, content, options) {
@@ -831,12 +804,10 @@ var Filters = {};
 
     titleRow.classList.add("categoryNavRow");
     // Disclosure chevron at the far right edge (after the toggle switch):
-    // these rows open the detail column with the category's subcategory
-    // rows, but nothing about a color chip + label + switch said "openable"
-    // -- rows read as pure visibility toggles. Flips to point left when the
-    // category is the selected one ("click again to close"), via
-    // .categoryNavRow.active .navChevron in map.css.
-    titleRow.appendChild(el("span", "navChevron", "›"));
+    // these rows push the dock to the category's contents, but nothing about
+    // a colour chip + label + switch said "openable" -- rows read as pure
+    // visibility toggles without it.
+    titleRow.appendChild(UI.chevron(14, "chev-right navChevron"));
     navList.appendChild(titleRow);
 
     var detailGroup = el("div", "categoryDetailGroup");
@@ -854,13 +825,20 @@ var Filters = {};
       }
     });
 
-    categoryEntries.push({ navRow: titleRow, detailGroup: detailGroup });
-
     // See bucketCategoryCheckbox's doc comment above -- `title` carries a
     // trailing " (1,234)" total count (most call sites) that reads oddly
     // repeated in a right-click menu, so it's stripped for display only;
     // the checkbox itself doesn't care either way.
     var cleanTitle = title.replace(/\s*\([\d,]+\)\s*$/, "");
+
+    // title/color travel with the entry so the detail pane's header can name
+    // the category you pushed into, in its own colour.
+    categoryEntries.push({
+      navRow: titleRow,
+      detailGroup: detailGroup,
+      title: cleanTitle,
+      color: renderType === "icon" ? null : swatchColor,
+    });
     result.buckets.forEach(function(bucket) {
       bucketCategoryCheckbox[bucket.key] = result.checkbox;
       bucketCategoryLabel[bucket.key] = cleanTitle;
@@ -1846,6 +1824,22 @@ var Filters = {};
     return total;
   }
 
+  // The dock's empty state (see #dockEmptyState in index.html): shown while
+  // there is no save, because an empty category list otherwise reads as a
+  // broken panel rather than "nothing loaded yet".
+  function setEmptyState(empty) {
+    var el = document.getElementById("dockEmptyState");
+    if (el) {
+      el.style.display = empty ? "" : "none";
+    }
+    // Nothing to check or uncheck until there is a save -- the header is two
+    // dead buttons above an empty list otherwise.
+    var header = document.getElementById("categoryNavHeader");
+    if (header) {
+      header.style.display = empty ? "none" : "";
+    }
+  }
+
   Filters.build = function(payload) {
     // Bottleneck markers belong to the save being replaced -- and clearing
     // them here (rather than letting clearBuckets silently drop them) is what
@@ -1858,6 +1852,7 @@ var Filters = {};
     var detailPane = document.getElementById("categoryDetailPane");
     navList.innerHTML = "";
     detailPane.innerHTML = "";
+    setEmptyState(false);
     categoryEntries = [];
     buildingSearchEntries = [];
     vehicleSearchEntries = [];
@@ -1921,6 +1916,7 @@ var Filters = {};
     }
     document.getElementById("categoryNavColumn").innerHTML = "";
     document.getElementById("categoryDetailPane").innerHTML = "";
+    setEmptyState(true);
     categoryEntries = [];
     buildingSearchEntries = [];
     vehicleSearchEntries = [];
@@ -2020,6 +2016,11 @@ var Filters = {};
   // than just disabled) when there's nothing to reset, matching how e.g.
   // #gameSettingsPanel/#altitudePanel only appear once relevant.
   var resetHiddenButton = document.getElementById("resetHiddenButton");
+  // The dock's Back button and Escape both pop the detail pane, and popping
+  // it has to clear the row selection too -- so they route through here
+  // rather than just sliding the pager back (see panels.js).
+  Filters.deselectAllCategories = deselectAllCategories;
+
   Filters.refreshHiddenObjectsIndicator = function() {
     if (!resetHiddenButton) {
       return;

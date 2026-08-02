@@ -23,11 +23,10 @@ var SelectionTool = {};
   var deleteBtn = document.getElementById("selectionDeleteBtn");
   var clearBtn = document.getElementById("selectionClearBtn");
 
-  var overlay = document.getElementById("selectionModalOverlay");
+  var dialog = UI.dialog("selectionModal");
   var modalTitle = document.getElementById("selectionModalTitle");
   var modalSummary = document.getElementById("selectionModalSummary");
   var modalList = document.getElementById("selectionModalList");
-  var modalClose = document.getElementById("selectionModalClose");
 
   var MIN_DRAG_PX = 4; // Below this the gesture is a stray right-click, not a drag.
   // Line layers whose segments are real editable actors: belts/pipes
@@ -824,25 +823,12 @@ var SelectionTool = {};
   function openModal(title, summary) {
     modalTitle.textContent = title;
     modalSummary.textContent = summary;
-    overlay.style.display = "flex";
+    dialog.open();
   }
 
   function closeModal() {
-    overlay.style.display = "none";
+    dialog.close();
   }
-
-  modalClose.addEventListener("click", closeModal);
-  overlay.addEventListener("click", function(e) {
-    if (e.target === overlay) {
-      closeModal();
-    }
-  });
-  document.addEventListener("keydown", function(e) {
-    if (e.key === "Escape" && !e.defaultPrevented && overlay.style.display !== "none") {
-      closeModal();
-      e.preventDefault(); // One layer per press -- see finditem.js.
-    }
-  });
 
   objectsBtn.addEventListener("click", function() {
     if (!lastSelection) {
