@@ -395,25 +395,18 @@ var EditorTool = (function() {
 
   // ---- Toolbar (edit count / undo / redo) ---------------------------------------
 
-  // The top bar centers the search box between its two flex side sections
-  // (equal-width while there's room, but content-floored on narrow
-  // windows), so "centered" for top notifications means the SEARCH BOX's
-  // center, not the viewport's -- align to it directly.
-  function alignToolbar() {
-    var searchBox = document.getElementById("searchBox");
-    if (!searchBox || !toolbar) {
-      return;
-    }
-    var box = searchBox.getBoundingClientRect();
-    if (box.width > 0) {
-      toolbar.style.left = (box.left + box.width / 2) + "px";
-    }
-  }
+  // No JS centring here any more. This used to measure the search box and set
+  // an inline `left`, because the top bar was a row of floating islands over
+  // the map and "centred" could not be expressed in CSS. The app bar and the
+  // map's overlay layer are now both window-width, so plain CSS centring lines
+  // the toolbar up with the search field for free -- and the inline `left` it
+  // used to write was in VIEWPORT coordinates while the element's containing
+  // block is the overlay layer, which is exactly what threw the toolbar off
+  // centre once that layer stopped being the whole viewport.
 
   function updateToolbar() {
     var any = actions.length > 0 || redoStack.length > 0;
     toolbar.style.display = any ? "flex" : "none";
-    alignToolbar();
     editCountEl.textContent = actions.length + " edit" + (actions.length === 1 ? "" : "s");
     undoBtn.disabled = applyInFlight || actions.length === 0;
     redoBtn.disabled = applyInFlight || redoStack.length === 0;
@@ -1193,7 +1186,6 @@ var EditorTool = (function() {
         e.returnValue = "";
       }
     });
-    window.addEventListener("resize", alignToolbar);
   });
 
   return {
