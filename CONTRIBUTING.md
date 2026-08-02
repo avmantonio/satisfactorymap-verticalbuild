@@ -80,6 +80,8 @@ same `dist/` still serves in the browser via `serve_site.py`.
 | Path | Contents |
 | --- | --- |
 | `map/static/map/` | the web frontend (vanilla JS + Leaflet + WebGL layer, `worker.js`/`save_client.js` host the WASM parser) |
+| `map/static/map/map.css` | design tokens (colour/type/spacing/radius scales), the app-shell grid, and per-feature styling |
+| `map/static/map/ui.css` + `ui.js` | the shared UI primitives every feature builds from: buttons, fields, dialogs, list rows, bars, toggles, and the Escape-layer stack. New chrome should reuse these rather than restyle its own |
 | `map/static/map/icons/` | *(generated)* item/building icon PNGs |
 | `rust_parser/core/` | `sav_core`: the save parser + map-payload builder (pure Rust, embeds the game-data tables) |
 | `rust_parser/wasm/` | `sav_wasm`: the wasm-bindgen boundary the worker loads |
@@ -90,7 +92,7 @@ same `dist/` still serves in the browser via `serve_site.py`.
 | `game_data/generated/docs/` | *(generated)* item/building/recipe/schematic/category/phase JSONs |
 | `game_data/generated/world/` | *(generated)* level-export tables: resource nodes, slugs, somersloops, mercer spheres, crash sites, dropped items, creature spawners, caves, world bounds |
 | `game_data/generated/` | *(generated)* `map_highres.png` + its tile pyramid |
-| `tools/` | `build_site.py` / `serve_site.py` / `benchmark.py` / `fetch_test_saves.py` / `e2e_editor.py` / `release.py` |
+| `tools/` | `build_site.py` / `serve_site.py` / `benchmark.py` / `fetch_test_saves.py` / `e2e_editor.py` / `ui_shots.py` / `ui_behaviour.py` / `release.py` |
 | `dist/` | *(generated)* the assembled static site |
 
 Everything marked *(generated)* is git-ignored and produced by the steps
@@ -111,6 +113,21 @@ The same corpus feeds `tools/e2e_editor.py` (browser-driven editor
 regression, needs `pip install playwright`) and the CI workflow in
 `.github/workflows/ci.yml`, which runs the Rust suite and the wasm build on
 every push to `main` and on pull requests.
+
+The frontend has two browser-driven guards of its own — the chrome has no unit
+tests, so these are what make a CSS or layout change verifiable:
+
+```bash
+py tools/ui_shots.py --serve --out ui_shots/before   # record, then make changes
+py tools/ui_shots.py --serve --out ui_shots/after --baseline ui_shots/before
+py tools/ui_behaviour.py --serve                     # dialogs, Escape layers, docks
+```
+
+`ui_shots.py` captures 17 UI states at three viewport widths and diffs them
+pixel-wise against a previous run; `ui_behaviour.py` asserts the things a
+screenshot cannot see (that dialogs are real modals, that the tooltip still
+paints above one, that opening a category does not resize the map). Both run
+against `dist/`, so build or copy the changed files there first.
 
 Note: `sav_core` embeds `game_data/generated/{docs,world}/*.json` and the icon
 manifest at compile time, and **nothing generated is committed**, so the Rust

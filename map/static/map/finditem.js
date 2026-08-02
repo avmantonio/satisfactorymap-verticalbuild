@@ -63,19 +63,20 @@ var FindItem = {};
     return pos === -1 ? path : path.slice(pos + 1);
   }
 
-  var overlay = document.getElementById("itemModalOverlay");
+  // Both dialogs are native <dialog>s driven through UI.dialog: it owns the
+  // X button, the backdrop click and Escape, and calls back into the module's
+  // one teardown function (see the onClose wiring below openModal).
+  var itemDialog = UI.dialog("itemModal");
   var modalIcon = document.getElementById("itemModalIcon");
   var modalTitle = document.getElementById("itemModalTitle");
   var modalSummary = document.getElementById("itemModalSummary");
   var modalList = document.getElementById("itemModalList");
-  var modalClose = document.getElementById("itemModalClose");
   var modalHighlightToggle = document.getElementById("itemModalHighlightToggle");
 
-  var buildingOverlay = document.getElementById("buildingModalOverlay");
+  var buildingDialog = UI.dialog("buildingModal");
   var buildingModalIcon = document.getElementById("buildingModalIcon");
   var buildingModalTitle = document.getElementById("buildingModalTitle");
   var buildingModalCategory = document.getElementById("buildingModalCategory");
-  var buildingModalClose = document.getElementById("buildingModalClose");
   var buildingModalSummary = document.getElementById("buildingModalSummary");
   var buildingModalStats = document.getElementById("buildingModalStats");
   var buildingModalRecipes = document.getElementById("buildingModalRecipes");
@@ -223,12 +224,7 @@ var FindItem = {};
   var lastResult = null; // The currently-open item modal's search result, if it's a searchable one (null for the Depot view).
   var lastBuilding = null; // {entry, info} for the currently-open building modal.
 
-  function el(tag, className, text) {
-    var e = document.createElement(tag);
-    if (className) e.className = className;
-    if (text !== undefined) e.textContent = text;
-    return e;
-  }
+  var el = UI.el;
 
   // rows: [label, countText, iconKind?, classNameOrPath?] -- iconKind
   // ("item"/"building") prepends the matching icon (see attachIconWithFallback),
@@ -237,10 +233,10 @@ var FindItem = {};
   function renderLocationList(container, rows) {
     container.innerHTML = "";
     rows.forEach(function(pair) {
-      var row = el("div", "itemLocationRow");
+      var row = el("div", "row row-hover itemLocationRow");
       if (pair[2]) {
         var img = document.createElement("img");
-        img.className = "itemLocationIcon";
+        img.className = "row-icon";
         img.alt = "";
         // Depot/location lists can run to hundreds of rows -- don't fetch/
         // decode offscreen icons up front (same reasoning as progression.js).
@@ -253,8 +249,8 @@ var FindItem = {};
         }
         row.appendChild(img);
       }
-      row.appendChild(el("span", "itemLocationLabel", pair[0]));
-      row.appendChild(el("span", "itemLocationCount", pair[1]));
+      row.appendChild(el("span", "row-label", pair[0]));
+      row.appendChild(el("span", "row-count", pair[1]));
       container.appendChild(row);
     });
   }
@@ -271,11 +267,6 @@ var FindItem = {};
   // GROUP_CHUNK_SIZE children at a time, so expanding a 5000-machine group
   // never builds 5000 rows in one go.
   var GROUP_CHUNK_SIZE = 150;
-
-  var CHEVRON_SVG =
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14">' +
-    '<polyline points="9 6 15 12 9 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '</svg>';
 
   function buildDisplayGroups(locations, itemPath) {
     var groupsByLabel = {};
@@ -351,7 +342,7 @@ var FindItem = {};
 
   function groupIcon(group) {
     var img = document.createElement("img");
-    img.className = "itemLocationIcon";
+    img.className = "row-icon";
     img.alt = "";
     img.loading = "lazy";
     img.decoding = "async";
@@ -452,7 +443,7 @@ var FindItem = {};
     MapApp.map.setView(L.latLng(loc.position[1], loc.position[0]),
                        Math.max(MapApp.map.getZoom(), LOCATE_ZOOM));
     Tooltip.hide(); // The row hover that launched this is about to lose its row.
-    overlay.style.display = "none";
+    itemDialog.close();
     // locationChildLabel is the coordinates when there are any, and falls back
     // to the label -- which would read "Storage Container at Storage
     // Container", so the "at ..." half is dropped in that case.
@@ -471,7 +462,7 @@ var FindItem = {};
     }
     var btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "itemLocationLocate";
+    btn.className = "btn btn-ghost btn-sm btn-icon itemLocationLocate";
     btn.innerHTML = LOCATE_BUTTON_SVG;
     btn.title = "Show this " + loc.label + " on the map";
     btn.addEventListener("click", function(e) {
@@ -482,9 +473,9 @@ var FindItem = {};
   }
 
   function childLocationRow(loc, unit, itemLabel) {
-    var row = el("div", "itemLocationRow itemLocationChildRow");
-    row.appendChild(el("span", "itemLocationLabel", locationChildLabel(loc)));
-    row.appendChild(el("span", "itemLocationCount", loc.count.toLocaleString() + unit));
+    var row = el("div", "row row-hover itemLocationRow itemLocationChildRow");
+    row.appendChild(el("span", "row-label itemLocationChildLabel", locationChildLabel(loc)));
+    row.appendChild(el("span", "row-count", loc.count.toLocaleString() + unit));
     row.appendChild(makeLocateButton(loc));
     attachLocationHover(row, loc, unit, itemLabel);
     return row;
@@ -494,24 +485,22 @@ var FindItem = {};
     container.innerHTML = "";
     groups.forEach(function(group) {
       if (group.locations.length === 1) {
-        var row = el("div", "itemLocationRow");
+        var row = el("div", "row row-hover itemLocationRow");
         row.appendChild(groupIcon(group));
-        row.appendChild(el("span", "itemLocationLabel", group.label));
-        row.appendChild(el("span", "itemLocationCount", group.totalCount.toLocaleString() + unit));
+        row.appendChild(el("span", "row-label", group.label));
+        row.appendChild(el("span", "row-count", group.totalCount.toLocaleString() + unit));
         row.appendChild(makeLocateButton(group.locations[0]));
         attachLocationHover(row, group.locations[0], unit, itemLabel);
         container.appendChild(row);
         return;
       }
 
-      var header = el("div", "itemLocationRow itemLocationGroupHeader");
-      var chevron = el("span", "itemLocationChevron");
-      chevron.innerHTML = CHEVRON_SVG;
-      header.appendChild(chevron);
+      var header = el("div", "row row-hover row-clickable itemLocationRow itemLocationGroupHeader");
+      header.appendChild(UI.chevron(13, "chev-right"));
       header.appendChild(groupIcon(group));
-      header.appendChild(el("span", "itemLocationLabel", group.label));
-      header.appendChild(el("span", "itemLocationGroupBadge", "× " + group.locations.length.toLocaleString()));
-      header.appendChild(el("span", "itemLocationCount", group.totalCount.toLocaleString() + unit));
+      header.appendChild(el("span", "row-label", group.label));
+      header.appendChild(el("span", "chip itemLocationGroupBadge", "× " + group.locations.length.toLocaleString()));
+      header.appendChild(el("span", "row-count", group.totalCount.toLocaleString() + unit));
       // "Show on map" belongs to individual machines, not to a summed row
       // standing for hundreds of them -- but the column still has to hold its
       // width here, or the header's count would sit 34px right of its own
@@ -539,7 +528,7 @@ var FindItem = {};
         }
         var remaining = group.locations.length - rendered;
         if (remaining > 0) {
-          showMore = el("button", "itemLocationShowMore",
+          showMore = el("button", "btn btn-ghost itemLocationShowMore",
             "Show " + Math.min(GROUP_CHUNK_SIZE, remaining).toLocaleString() + " more (" + remaining.toLocaleString() + " remaining)");
           showMore.type = "button";
           showMore.addEventListener("click", renderChunk);
@@ -553,7 +542,7 @@ var FindItem = {};
           renderChunk();
         }
         childrenWrap.style.display = expand ? "block" : "none";
-        header.classList.toggle("expanded", expand);
+        header.classList.toggle("is-open", expand);
       });
     });
   }
@@ -827,16 +816,18 @@ var FindItem = {};
 
   function openModal(title) {
     modalTitle.textContent = title;
-    banner.style.display = "none"; // The modal and its map-view banner are never shown together.
-    overlay.style.display = "flex";
+    banner.style.display = "none"; // The dialog and its map-view banner are never shown together.
+    itemDialog.open();
   }
 
-  // Closing the modal (X / backdrop / Escape) must NOT revert an active
+  // Closing the dialog (X / backdrop / Escape) must NOT revert an active
   // find-item filter -- that's the banner's job. If a filter is live, closing
-  // the modal just returns to the map view (banner reappears); otherwise
-  // there's nothing to keep, so lastResult is dropped.
-  function closeItemModal() {
-    overlay.style.display = "none";
+  // just returns to the map view (banner reappears); otherwise there's nothing
+  // to keep, so lastResult is dropped.
+  //
+  // One teardown for all three dismissal routes: UI.dialog fires this on the
+  // <dialog>'s own "close" event, whichever of them caused it.
+  itemDialog.onClose(function() {
     Tooltip.hide(); // A row-hover tooltip (see attachLocationHover) shouldn't outlive the list it belongs to.
     if (highlighting || located) {
       banner.style.display = "flex"; // A live filter OR a locate marker keeps the list one "Details" click away.
@@ -844,14 +835,12 @@ var FindItem = {};
       lastResult = null;
       lastKind = null;
     }
+  });
+
+  function closeItemModal() {
+    itemDialog.close();
   }
 
-  modalClose.addEventListener("click", closeItemModal);
-  overlay.addEventListener("click", function(e) {
-    if (e.target === overlay) {
-      closeItemModal(); // Click on the backdrop, not the dialog itself.
-    }
-  });
   // Wheel-scrolling the list slides a different row under the (unmoved)
   // cursor without any mouseleave/mouseenter firing -- drop the tooltip
   // rather than leave it showing a row that's no longer under the pointer;
@@ -962,52 +951,36 @@ var FindItem = {};
     buildingModalCategory.style.background = chip.color + "26"; // ~15% alpha tint, hex-appended (2-digit alpha).
     buildingModalCategory.style.color = chip.color;
     banner.style.display = "none";
-    buildingOverlay.style.display = "flex";
+    buildingDialog.open();
   }
 
-  function closeBuildingModal() {
-    buildingOverlay.style.display = "none";
+  buildingDialog.onClose(function() {
     if (highlighting) {
       banner.style.display = "flex";
     } else {
       lastBuilding = null;
       lastKind = null;
     }
-  }
-
-  buildingModalClose.addEventListener("click", closeBuildingModal);
-  buildingOverlay.addEventListener("click", function(e) {
-    if (e.target === buildingOverlay) {
-      closeBuildingModal();
-    }
   });
 
-  document.addEventListener("keydown", function(e) {
-    // One layer per Escape press: every module's Escape handler lives on
-    // document, so without this the same keypress would close a modal AND
-    // cancel a placement AND clear a highlight at once. The first handler to
-    // act calls preventDefault(); the rest bail on e.defaultPrevented.
-    if (e.key !== "Escape" || e.defaultPrevented) {
-      return;
+  function closeBuildingModal() {
+    buildingDialog.close();
+  }
+
+  // Escape inside either dialog is the browser's job now. What is left is the
+  // case with no dialog open at all: something is still live on the map (an
+  // isolate filter, a locate marker) and Escape should revert it. Registered
+  // as the lowest-priority layer so a dropdown or an in-progress placement
+  // gets the press first (see ui.js's UI.LAYER).
+  UI.onEscape(UI.LAYER.view, function() {
+    if (!highlighting && !located) {
+      return false;
     }
-    if (overlay.style.display !== "none") {
-      closeItemModal();
-      e.preventDefault();
-    } else if (buildingOverlay.style.display !== "none") {
-      closeBuildingModal();
-      e.preventDefault();
-    } else if (highlighting || located) {
-      clearMapMarks(); // No modal open, but something is live on the map -- Esc reverts it.
-      e.preventDefault();
-    }
+    clearMapMarks();
+    return true;
   });
 
-  function statTile(value, label) {
-    var tile = el("div", "buildingStatTile");
-    tile.appendChild(el("span", "buildingStatValue", value));
-    tile.appendChild(el("span", "buildingStatLabel", label));
-    return tile;
-  }
+  var statTile = UI.statTile;
 
   function formatMW(mw) {
     return mw.toLocaleString(undefined, { maximumFractionDigits: 1 }) + " MW";
@@ -1020,17 +993,15 @@ var FindItem = {};
   // the section color, so a resource's purity bars can wear the same
   // green/orange/red the map paints those nodes in.
   function appendBarSection(title, rows, barColor) {
-    buildingModalRecipes.appendChild(el("div", "buildingModalSectionLabel", title));
+    buildingModalRecipes.appendChild(UI.kicker(title));
     var maxCount = rows.reduce(function(m, r) { return Math.max(m, r.count); }, 1);
     rows.forEach(function(barRow) {
       var row = el("div", "recipeBarRow");
       row.appendChild(el("span", "recipeBarLabel", barRow.label));
-      var track = el("div", "recipeBarTrack");
-      var fill = el("div", "recipeBarFill");
-      fill.style.width = Math.max(3, (barRow.count / maxCount) * 100) + "%";
-      fill.style.background = barRow.color || barColor;
-      track.appendChild(fill);
-      row.appendChild(track);
+      var bar = UI.bar("tall");
+      bar.fill.style.width = Math.max(3, (barRow.count / maxCount) * 100) + "%";
+      bar.fill.style.background = barRow.color || barColor;
+      row.appendChild(bar.wrap);
       row.appendChild(el("span", "recipeBarCount", barRow.count.toLocaleString()));
       buildingModalRecipes.appendChild(row);
     });
@@ -1114,7 +1085,7 @@ var FindItem = {};
 
     if (info.fuelInventory && info.fuelInventory.length > 0) {
       buildingModalRecipes.appendChild(el("div", "buildingModalSectionLabel", "Fuel loaded"));
-      var fuelList = el("div", "itemLocationList");
+      var fuelList = el("div", "list");
       renderLocationList(fuelList, info.fuelInventory.map(function(entryRow) {
         return [entryRow.label, entryRow.count.toLocaleString() + (entryRow.isFluid ? " m³" : ""), "item", entryRow.item];
       }));
@@ -1319,6 +1290,7 @@ var FindItem = {};
   // ---- Spotlight-style suggestions dropdown -------------------------------
 
   function hideSuggestions() {
+    searchInput.setAttribute("aria-expanded", "false");
     suggestionsEl.style.display = "none";
     currentSuggestions = [];
     currentRowElements = [];
@@ -1329,16 +1301,32 @@ var FindItem = {};
     activeIndex = index;
     for (var i = 0; i < currentRowElements.length; i++) {
       var isActive = i === index;
-      currentRowElements[i].classList.toggle("active", isActive);
+      currentRowElements[i].classList.toggle("row-active", isActive);
+      currentRowElements[i].setAttribute("aria-selected", String(isActive));
       if (isActive && currentRowElements[i].scrollIntoView) {
         currentRowElements[i].scrollIntoView({ block: "nearest" });
       }
     }
+    // The combobox keeps focus while the arrow keys walk the list, so this is
+    // what tells a screen reader which option is current.
+    var active = currentRowElements[index];
+    if (active) {
+      searchInput.setAttribute("aria-activedescendant", active.id);
+    } else {
+      searchInput.removeAttribute("aria-activedescendant");
+    }
+  }
+
+  // Committing a suggestion ends the search: leaving the query in the field
+  // made the bar read as though a search were still running, and the next one
+  // had to start by clearing it.
+  function clearSearchField() {
+    searchInput.value = "";
+    hideSuggestions();
   }
 
   function selectSuggestion(entry) {
-    searchInput.value = entry.label;
-    hideSuggestions();
+    clearSearchField();
     if (entry.kind === "tool") {
       entry.open();
     } else if (entry.kind === "building") {
@@ -1440,9 +1428,11 @@ var FindItem = {};
   }
 
   function suggestionRow(entry, index) {
-    var row = el("div", "searchSuggestionRow");
+    var row = el("div", "row row-clickable searchSuggestionRow");
+    row.id = "searchSuggestion-" + index;
+    row.setAttribute("role", "option");
     var img = document.createElement("img");
-    img.className = "searchSuggestionIcon";
+    img.className = "row-icon searchSuggestionIcon";
     img.alt = "";
     if (entry.kind === "vehicle" || entry.kind === "wildlife" || entry.kind === "resource"
         || entry.kind === "tool") {
@@ -1464,7 +1454,7 @@ var FindItem = {};
     // "(Category)" spelled out on the row itself, not just implied by the
     // group heading above it -- one glance has to say "this toggles a whole
     // family", not "this is a building called Conveyor Belts".
-    row.appendChild(el("span", "searchSuggestionLabel",
+    row.appendChild(el("span", "row-label searchSuggestionLabel",
       entry.kind === "category" ? entry.label + " (Category)" : entry.label));
     if (entryHasVisibilityToggle(entry)) {
       row.appendChild(makeVisibilityToggle(entry));
@@ -1562,6 +1552,7 @@ var FindItem = {};
     if (currentSuggestions.length === 0) {
       suggestionsEl.appendChild(el("div", "searchSuggestionEmpty", "No matching item, resource, building, vehicle, creature or category."));
       suggestionsEl.style.display = "block";
+      searchInput.setAttribute("aria-expanded", "true");
       activeIndex = -1;
       return;
     }
@@ -1575,7 +1566,7 @@ var FindItem = {};
         return;
       }
       if (showGroupLabels) {
-        suggestionsEl.appendChild(el("div", "searchSuggestionGroupLabel", group[0]));
+        suggestionsEl.appendChild(el("div", "kicker searchSuggestionGroupLabel", group[0]));
       }
       groupEntries.forEach(function(entry) {
         var row = suggestionRow(entry, index);
@@ -1588,6 +1579,7 @@ var FindItem = {};
     activeIndex = 0;
     setActive(0);
     suggestionsEl.style.display = "block";
+    searchInput.setAttribute("aria-expanded", "true");
   }
 
   searchInput.addEventListener("input", function() {
@@ -1688,7 +1680,7 @@ var FindItem = {};
     } else if (lastResult) {
       showHighlight(lastResult);
       modalHighlightToggle.textContent = "Show all layers again";
-      overlay.style.display = "none";
+      itemDialog.close();
       bannerLabel.textContent = "Showing only: " + lastResult.label;
       banner.style.display = "flex";
     }
@@ -1703,7 +1695,7 @@ var FindItem = {};
     } else if (lastBuilding) {
       showEntryHighlight(lastBuilding.entry);
       buildingModalHighlightToggle.textContent = "Show all layers again";
-      buildingOverlay.style.display = "none";
+      buildingDialog.close();
       bannerLabel.textContent = "Showing only: " + lastBuilding.entry.label;
       banner.style.display = "flex";
     }
@@ -1720,7 +1712,7 @@ var FindItem = {};
       // over both -- only the filter is what this button reverts.
       modalHighlightToggle.textContent = highlighting ? "Show all layers again" : "Show only these on map";
       banner.style.display = "none";
-      overlay.style.display = "flex";
+      itemDialog.open();
     } else if (lastKind === "building" && lastBuilding) {
       openBuildingModal(lastBuilding.entry);
       fillerForEntry(lastBuilding.entry)(lastBuilding.entry, lastBuilding.info);
@@ -1764,8 +1756,8 @@ var FindItem = {};
     // all find-item state rather than trying to "revert" against buckets that
     // no longer exist.
     searchGeneration++; // Orphan any in-flight search from the old save.
-    overlay.style.display = "none";
-    buildingOverlay.style.display = "none";
+    itemDialog.close();
+    buildingDialog.close();
     banner.style.display = "none";
     highlighting = false;
     highlightedEntry = null;

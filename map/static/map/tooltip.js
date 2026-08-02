@@ -54,7 +54,7 @@ var Tooltip = {};
     mapEventsBound = true;
     MapApp.map.on("zoomstart", function() { Tooltip.hide(); });
     MapApp.map.on("move", function() {
-      if (!anchorLatLng || !tooltipEl || tooltipEl.style.display === "none") {
+      if (!anchorLatLng || !isShowing()) {
         return;
       }
       var point = MapApp.map.latLngToContainerPoint(anchorLatLng);
@@ -63,13 +63,25 @@ var Tooltip = {};
     });
   }
 
+  // popover="manual" puts the tooltip in the TOP LAYER, which is the only
+  // way for it to paint above a modal <dialog> -- no z-index, however large,
+  // can beat showModal(). Top-layer order is promotion order, so a tooltip
+  // shown while a dialog is open (hovering a row in the item dialog's
+  // location list) lands above it, and one shown over the bare map is simply
+  // the only thing up there. "manual" keeps light dismiss off: the tooltip is
+  // driven entirely by hover/pin, not by outside clicks.
   function ensureElement() {
     if (!tooltipEl) {
       tooltipEl = document.createElement("div");
       tooltipEl.id = "tt-tooltip";
+      tooltipEl.setAttribute("popover", "manual");
       document.body.appendChild(tooltipEl);
     }
     return tooltipEl;
+  }
+
+  function isShowing() {
+    return !!tooltipEl && tooltipEl.matches(":popover-open");
   }
 
   function position(clientX, clientY) {
@@ -97,15 +109,13 @@ var Tooltip = {};
     var element = ensureElement();
     element.innerHTML = "";
     element.appendChild(node);
-    element.style.display = "block";
+    // Re-promote on every show: a tooltip first shown over the map and then
+    // over a dialog has to be promoted AFTER the dialog to sit above it.
+    UI.hideAbove(element);
+    UI.showAbove(element);
   }
 
-  function el(tag, className, text) {
-    var e = document.createElement(tag);
-    if (className) e.className = className;
-    if (text !== undefined) e.textContent = text;
-    return e;
-  }
+  var el = UI.el;
 
   function row(label, value) {
     var r = el("div", "tt-row");
@@ -564,9 +574,8 @@ var Tooltip = {};
       pendingTimer = null;
     }
     if (tooltipEl) {
-      tooltipEl.style.display = "none";
+      UI.hideAbove(tooltipEl);
       tooltipEl.style.pointerEvents = "none";
-      tooltipEl.classList.remove("tt-above-modals");
     }
   };
 
@@ -584,9 +593,6 @@ var Tooltip = {};
   // Hover preview -- ignored entirely while a tooltip is pinned (see map.js's
   // mousemove handler, which checks isPinned() before calling this).
   Tooltip.show = function(clientX, clientY, hit) {
-    if (tooltipEl) {
-      tooltipEl.classList.remove("tt-above-modals"); // Back on the map -- drop any leftover over-modal lift (see showFloating).
-    }
     renderHit(clientX, clientY, hit);
   };
 
@@ -594,12 +600,11 @@ var Tooltip = {};
   // map hit -- used by finditem.js's item-location list so hovering a machine
   // row shows the exact same rich detail popup as hovering its map pin.
   // Takes a renderSpec spec directly (see renderSpec for the fields).
-  // "tt-above-modals" lifts the tooltip over the modal overlay (z 1500,
-  // higher than the tooltip's usual 1000, which only ever had to beat the
-  // map); Tooltip.hide() removes it again so map hovers go back under.
+  // Nothing extra is needed to clear the dialog it is shown over: the
+  // tooltip is a top-layer popover re-promoted on every show (see
+  // setContent), so it is always above whatever opened before it.
   Tooltip.showFloating = function(clientX, clientY, spec) {
     var element = ensureElement();
-    element.classList.add("tt-above-modals");
     element.style.pointerEvents = "none"; // Hover-only -- never interactive like a pinned tooltip.
     pinned = false;
     pinnedBucketKey = null;
@@ -616,7 +621,6 @@ var Tooltip = {};
     pinnedId = hit.id;
     var element = ensureElement();
     element.style.pointerEvents = "auto";
-    element.classList.remove("tt-above-modals");
     renderHit(clientX, clientY, hit);
   };
 

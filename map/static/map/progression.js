@@ -12,10 +12,9 @@
   var Progression = {};
   window.Progression = Progression;
 
-  var overlay = document.getElementById("progressionModalOverlay");
+  var dialog = UI.dialog("progressionModal");
   var modalIcon = document.getElementById("progressionModalIcon");
   var modalTitle = document.getElementById("progressionModalTitle");
-  var modalClose = document.getElementById("progressionModalClose");
   var modalSummary = document.getElementById("progressionModalSummary");
   var modalBody = document.getElementById("progressionModalBody");
 
@@ -24,12 +23,7 @@
 
   var data = null; // payload.progression for the currently loaded save (null before any load).
 
-  function el(tag, className, text) {
-    var e = document.createElement(tag);
-    if (className) e.className = className;
-    if (text !== undefined) e.textContent = text;
-    return e;
-  }
+  var el = UI.el;
 
   // Item icon with a building fallback: progression rows reference items
   // (research costs, unlocked recipes' products), but a "product" is often a
@@ -62,25 +56,12 @@
     modalIcon.src = iconUrl;
     modalSummary.textContent = "";
     modalBody.innerHTML = "";
-    overlay.style.display = "flex";
+    dialog.open();
   }
 
   function closeModal() {
-    overlay.style.display = "none";
+    dialog.close();
   }
-
-  modalClose.addEventListener("click", closeModal);
-  overlay.addEventListener("click", function(e) {
-    if (e.target === overlay) {
-      closeModal(); // Click on the backdrop, not the dialog itself.
-    }
-  });
-  document.addEventListener("keydown", function(e) {
-    if (e.key === "Escape" && !e.defaultPrevented && overlay.style.display !== "none") {
-      closeModal();
-      e.preventDefault(); // One layer per press -- see finditem.js.
-    }
-  });
 
   // One grouped block: header ("Tier 5" / "Quartz" / "Walls"), an n/total
   // tally, a thin completion bar, and the row list. `tag` is an optional
@@ -98,15 +79,15 @@
     }
     header.appendChild(count);
     root.appendChild(header);
-    var track = el("div", "progressionBarTrack");
-    var fill = el("div", "progressionBarFill");
+    var track = el("div", "bar bar-thin progressionBarTrack");
+    var fill = el("div", "bar-fill");
     fill.style.width = (total > 0 ? (100 * doneCount / total) : 0) + "%";
     if (doneCount >= total && total > 0) {
-      fill.classList.add("complete");
+      fill.classList.add("is-complete");
     }
     track.appendChild(fill);
     root.appendChild(track);
-    var list = el("div", "progressionList");
+    var list = el("div", "list progressionList");
     root.appendChild(list);
     modalBody.appendChild(root);
     return list;
@@ -132,7 +113,7 @@
   // "25× Rotor, 200× Iron Rod, ..." strings overflowed the modal). The list
   // is only built on first expand, so collapsed rows cost nothing.
   function row(list, entry, iconItem, pending) {
-    var r = el("div", "progressionRow" + (entry.done ? "" : " locked"));
+    var r = el("div", "row row-hover progressionRow" + (entry.done ? "" : " locked"));
     var main = el("div", "progressionRowMain");
     if (iconItem !== undefined) {
       main.appendChild(rowIcon(iconItem));
@@ -145,9 +126,9 @@
     } else if (Array.isArray(pending) && pending.length === 1) {
       main.appendChild(el("span", "progressionRowStatus", costText(pending)));
     } else if (Array.isArray(pending) && pending.length > 1) {
-      var toggle = el("button", "progressionCostToggle");
-      toggle.appendChild(el("span", "chev", "▸"));
-      toggle.appendChild(document.createTextNode(" cost"));
+      var toggle = el("button", "btn btn-sm progressionCostToggle");
+      toggle.appendChild(UI.chevron(12, "chev-right"));
+      toggle.appendChild(el("span", null, "cost"));
       var costList = null;
       toggle.addEventListener("click", function() {
         if (costList === null) {
@@ -163,7 +144,7 @@
         } else {
           costList.style.display = costList.style.display === "none" ? "" : "none";
         }
-        toggle.classList.toggle("open", costList.style.display !== "none");
+        toggle.classList.toggle("is-open", costList.style.display !== "none");
       });
       main.appendChild(toggle);
     }
@@ -330,10 +311,10 @@
     }).length;
     modalSummary.textContent = fullyDelivered + " / " + parts.length + " parts fully delivered.";
 
-    var list = el("div", "progressionList");
+    var list = el("div", "list progressionList");
     parts.forEach(function(part) {
       var partDone = part.required !== null && part.imported >= part.required;
-      var r = el("div", "progressionRow sePartRow" + (partDone ? "" : " locked"));
+      var r = el("div", "row row-hover progressionRow sePartRow" + (partDone ? "" : " locked"));
       var main = el("div", "progressionRowMain");
       main.appendChild(rowIcon(part.item));
       main.appendChild(el("span", "progressionRowLabel", part.label));
@@ -344,8 +325,8 @@
       main.appendChild(status);
       r.appendChild(main);
       if (part.required) {
-        var track = el("div", "sePartBarTrack");
-        var fill = el("div", "sePartBarFill" + (partDone ? " complete" : ""));
+        var track = el("div", "bar sePartBarTrack");
+        var fill = el("div", "bar-fill" + (partDone ? " is-complete" : ""));
         fill.style.width = Math.min(100, 100 * part.imported / part.required) + "%";
         track.appendChild(fill);
         r.appendChild(track);

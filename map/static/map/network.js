@@ -741,20 +741,20 @@ var NetworkTool = {};
     dom.pointList.innerHTML = "";
     points.slice(0, LIST_ROW_LIMIT).forEach(function(point, index) {
       var isDestination = index === destination;
-      var row = el("div", "networkRow" + (isDestination ? " isDestination" : ""));
+      var row = el("div", "row row-hover networkRow" + (isDestination ? " isDestination" : ""));
       row.appendChild(el("span", "networkRowIndex", String(index + 1)));
       var text = el("div", "networkRowText");
-      text.appendChild(el("span", "networkRowLabel", pointLabel(point, index)));
+      text.appendChild(el("span", "row-label networkRowLabel", pointLabel(point, index)));
       var coordinates = pointCoordinates(point)
         + (point.z === null ? "" : " · " + Math.round(point.z).toLocaleString() + " m up");
-      text.appendChild(el("span", "networkRowMeta", coordinates));
+      text.appendChild(el("span", "row-meta", coordinates));
       row.appendChild(text);
-      var pick = el("button", "networkRowDestination");
+      var pick = el("button", "btn btn-ghost btn-sm btn-icon networkRowDestination");
       pick.innerHTML = TARGET_SVG;
       pick.title = isDestination ? "Stop routing to this point" : "Make this the destination";
       pick.addEventListener("click", function() { setDestination(index); });
       row.appendChild(pick);
-      var remove = el("button", "networkRowRemove", "×");
+      var remove = el("button", "btn btn-ghost btn-sm btn-icon networkRowRemove", "×");
       remove.title = "Remove this point";
       remove.addEventListener("click", function() { removePoint(index); });
       row.appendChild(remove);
@@ -950,12 +950,11 @@ var NetworkTool = {};
 
   NetworkTool.open = function() {
     ensureDom();
+    Panels.openTool(dom.panel); // Into the right tool dock -- see panels.js.
     if (open) {
-      dom.panel.style.display = "flex";
       return;
     }
     open = true;
-    dom.panel.style.display = "flex";
     ensureLayers();
     MapApp.map.on("click", onMapClick);
     // Picking starts OFF: opening a panel should not quietly take over what a
@@ -974,7 +973,7 @@ var NetworkTool = {};
     }
     setPicking(false); // Before open flips: setPicking only touches the UI while open.
     open = false;
-    dom.panel.style.display = "none";
+    Panels.closeTool(dom.panel);
     MapApp.map.off("click", onMapClick);
     hoveringLink = false;
     // The points and the computed tree are kept in memory: reopening from the
@@ -996,17 +995,21 @@ var NetworkTool = {};
     }
   };
 
-  document.addEventListener("keydown", function(e) {
-    if (e.key !== "Escape" || e.defaultPrevented || !open) {
-      return;
+  // Two layers, popped one press at a time (see ui.js's UI.onEscape): stop
+  // placing points first, close the tool only on a second Escape.
+  UI.onEscape(UI.LAYER.placement, function() {
+    if (!open || !picking) {
+      return false;
     }
-    // One layer per press, same convention as the modals: stop placing
-    // points first, close the tool only on a second Escape.
-    if (picking) {
-      setPicking(false);
-    } else {
-      NetworkTool.close();
+    setPicking(false);
+    return true;
+  });
+
+  UI.onEscape(UI.LAYER.tool, function() {
+    if (!open) {
+      return false;
     }
-    e.preventDefault();
+    NetworkTool.close();
+    return true;
   });
 })();

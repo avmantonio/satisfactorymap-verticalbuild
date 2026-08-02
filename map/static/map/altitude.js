@@ -259,6 +259,10 @@ var Altitude = {};
     MapApp.setAltitudeRange(isFullRange ? -Infinity : initMin, isFullRange ? Infinity : initMax);
 
     panel.style.display = "flex";
+    // The docks overlay the map, so the layout cannot derive their width from
+    // content any more -- this class is how the overlay layer and the Leaflet
+    // controls know the rail is taking room on the right (see map.css).
+    document.body.classList.add("has-rail");
     layoutSliders();
   };
 
@@ -267,6 +271,7 @@ var Altitude = {};
   // start, unlike the save-to-save reloads build() preserves it across.
   Altitude.clear = function() {
     panel.style.display = "none";
+    document.body.classList.remove("has-rail");
     savedRange = null;
     MapApp.setAltitudeRange(-Infinity, Infinity);
   };
