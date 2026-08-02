@@ -46,3 +46,5 @@ rust_parser/target/
 dist/
 LAUNCH.md
 .wrangler
+# Screenshot-harness output (tools/ui_shots.py)
+ui_shots/
