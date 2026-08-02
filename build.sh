@@ -9,7 +9,7 @@ set -euo pipefail
 # let an upstream change (or compromise) flow straight into the deployed site.
 WASM_PACK_VERSION="v0.15.0"
 GAME_DATA_URL="https://github.com/valentinps/satisfactorymap/releases/download/game-data-v3/game_data.zip"
-GAME_DATA_SHA256="9db05102cf5ce375ddbb55d4c47cad07cc536603f490faa716e10ef693d07af6"
+GAME_DATA_SHA256="686bac80b43c57044048b9fb95be2d0347d2eb2556cb2564e0c9fed3442fe1d0"
 
 echo "Installing Rust..."
 # rustup itself is fetched over pinned-TLS; the toolchain is stable (pin it
