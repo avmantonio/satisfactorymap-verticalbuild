@@ -8,7 +8,7 @@ set -euo pipefail
 # fetching "latest" of an installer -- or an unverified game-data blob -- would
 # let an upstream change (or compromise) flow straight into the deployed site.
 WASM_PACK_VERSION="v0.15.0"
-GAME_DATA_URL="https://github.com/valentinps/satisfactorymap/releases/download/game-data-v2/game_data.zip"
+GAME_DATA_URL="https://github.com/valentinps/satisfactorymap/releases/download/game-data-v3/game_data.zip"
 GAME_DATA_SHA256="9db05102cf5ce375ddbb55d4c47cad07cc536603f490faa716e10ef693d07af6"
 
 echo "Installing Rust..."
