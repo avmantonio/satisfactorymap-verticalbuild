@@ -249,6 +249,68 @@ def run(page, save):
         check("map never moves: dragging the dock's width", not bad,
               "%d/%d frames" % (len(bad), len(rows)))
 
+    # ---- Everything centred agrees on one centre ------------------------------
+    #
+    # The app bar centres its search field on the window; the floating hints,
+    # the selection bar and the dialogs must line up with it. They have drifted
+    # apart twice: once when the map's overlay layer insetted by each dock
+    # separately (109px out), and once from a leftover JS hack that measured the
+    # search box and wrote an inline `left` in VIEWPORT coordinates onto an
+    # element whose containing block was the overlay layer (a quarter of the
+    # window out). Both were invisible to every other check.
+    page.evaluate("""() => {
+      const show = (i, how) => { const e = document.getElementById(i); if (e) e.style.display = how; };
+      show('activeFilterBanner', 'flex'); show('selectionPanel', 'flex');
+      show('editorToolbar', 'flex'); show('editorHint', 'block'); show('networkHint', 'block');
+    }""")
+    page.wait_for_timeout(400)
+    CENTRES = """() => {
+      const c = el => { if (!el) return null; const r = el.getBoundingClientRect();
+                        return r.width ? Math.round(r.left + r.width / 2) : null; };
+      const id = s => document.getElementById(s);
+      return { window: Math.round(window.innerWidth / 2),
+               searchPill: c(id('searchBox')),
+               filterBanner: c(id('activeFilterBanner')),
+               selectionBar: c(id('selectionPanel')),
+               editorToolbar: c(id('editorToolbar')),
+               editorHint: c(id('editorHint')),
+               networkHint: c(id('networkHint')) };
+    }"""
+
+    def centred(label):
+        c = page.evaluate(CENTRES)
+        mid = c.pop("window")
+        off = ["%s %+d" % (k, v - mid) for k, v in c.items()
+               if v is not None and abs(v - mid) > 1]
+        check("centred on the window: " + label, not off, ", ".join(off))
+
+    centred("dock open")
+    page.evaluate("NetworkTool.open()")
+    page.wait_for_timeout(700)
+    centred("tool dock open")
+    page.evaluate("NetworkTool.close()")
+    page.evaluate("document.getElementById('menuButton').click()")
+    page.wait_for_timeout(700)
+    centred("dock hidden")
+    page.evaluate("document.getElementById('menuButton').click()")
+    page.wait_for_timeout(500)
+    # The altitude rail's 4px track has its own centring inside the 64px rail.
+    track = page.evaluate("""() => {
+      const rail = document.getElementById('altitudePanel').getBoundingClientRect();
+      const bg = document.querySelector('.altitudeTrackBg').getBoundingClientRect();
+      return [Math.round(bg.width), Math.round((bg.left + bg.width/2) - (rail.left + rail.width/2))];
+    }""")
+    check("altitude track is 4px and centred in the rail",
+          track[0] == 4 and abs(track[1]) <= 1, track)
+
+    # These were forced visible; leave them hidden or they sit over the map and
+    # swallow the clicks the checks below need.
+    page.evaluate("""() => {
+      ['activeFilterBanner','selectionPanel','editorToolbar','editorHint','networkHint']
+        .forEach(i => { const e = document.getElementById(i); if (e) e.style.display = 'none'; });
+    }""")
+    page.wait_for_timeout(300)
+
     # ---- Search --------------------------------------------------------------
     page.click("#mainSearchInput")
     page.fill("#mainSearchInput", "constructor")

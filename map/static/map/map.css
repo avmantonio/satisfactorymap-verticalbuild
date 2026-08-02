@@ -31,6 +31,7 @@
   --dock-left-inset: var(--dock-left-width);
   --dock-right-inset: 0px;
 
+
   /* One shared feel for anything that moves, and the lifted shadow the
      genuinely floating things (hints, popovers, tooltip) share. Docked
      surfaces get a border instead -- they are attached, not hovering. */
@@ -386,22 +387,40 @@ body.dockResizing {
    the part of it you can actually SEE, so this layer -- unlike #map -- insets
    by whatever the docks are covering. It is the only thing that needs to know
    the dock widths, and it costs the map nothing to tell it. */
+/* The layer the still-floating things live in: the hint bars, the selection
+   action bar, the active-filter banner.
+   
+   It spans the FULL window, exactly like #map, and never changes size for any
+   reason but a window resize. That is what makes its centre the window's
+   centre -- the same thing the app bar centres its search field on -- so a
+   hint always lines up with the search field above it, whatever the docks are
+   doing. Two earlier versions insetted it by the docks so hints would centre
+   on the *visible* map: that put them 109px out of line with the search field,
+   and, once a dock made the layer narrower than a wide bar, the auto margins
+   collapsed and the bar drifted further still.
+   
+   Trade-off: a bar wider than the gap between the docks runs underneath one.
+   The docks paint above this layer (z-index 20 vs 15), so it is clipped rather
+   than overlapping, and at any normal window width there is room to spare.
+   
+   Children are centred by `justify-self`, NOT by `left`/`right`/margins. That
+   is not a style preference: an absolutely positioned child that is
+   display:none while this layer's width changes can come back with a stale
+   USED value for a percentage or resolved `left` -- measured as declared
+   `left: 0px` but used `left: 800px`, which put the editor toolbar a quarter
+   of the window off-centre until something forced it to reflow. Grid alignment
+   never computes a `left` at all, so there is nothing to go stale. Children
+   still place themselves vertically with top/bottom. */
 #mapOverlays {
   position: fixed;
-  top: var(--appbar-height);
-  left: var(--dock-left-inset);
-  right: var(--dock-right-inset);
-  bottom: 0;
+  inset: var(--appbar-height) 0 0 0;
+  display: grid;
   pointer-events: none;
   z-index: 15;
-  transition: left 0.12s var(--panel-ease), right 0.12s var(--panel-ease);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #mapOverlays { transition: none; }
 }
 
 #mapOverlays > * {
+  justify-self: center;
   pointer-events: auto;
 }
 
@@ -1344,8 +1363,6 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 #selectionPanel {
   position: absolute;
   bottom: 22px;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 600;
   display: flex;
   align-items: center;
@@ -1375,8 +1392,6 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 #editorToolbar {
   position: absolute;
   top: 58px;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 600;
   display: flex;
   align-items: center;
@@ -1401,8 +1416,6 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 #editorHint {
   position: absolute;
   bottom: 64px;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 1401;
   padding: 7px 14px;
   background: var(--surface-2);
@@ -1503,8 +1516,6 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 #activeFilterBanner {
   position: absolute;
   top: 68px; /* Just below the floating search pill. */
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 500;
   display: flex;
   align-items: center;
@@ -2605,8 +2616,6 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 #networkHint {
   position: absolute;
   bottom: 22px;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 600;
   padding: 8px 16px;
   background: var(--surface-2);
@@ -2958,8 +2967,13 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 }
 
 /* Below this the pills lose their labels -- the icons are unambiguous next to
-   each other, and the search field is worth more than the words. */
-@media (max-width: 980px) {
+   each other, and the search field is worth more than the words.
+   The threshold is set by geometry, not taste: the app bar centres its search
+   field by giving both side sections an equal share of the leftover space, and
+   that only holds while each side's content FITS its share. With labels the
+   right-hand cluster needs ~260px, and it stops fitting at about this width --
+   below which the search field would start drifting off-centre. */
+@media (max-width: 1150px) {
   #mainSearchWrap {
     flex: 1 1 auto;
   }
@@ -2991,14 +3005,6 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
     width: min(var(--dock-right-width), 78vw);
   }
 
-  /* At this size a dock covers most of the map, so insetting the hints inside
-     what is left would squeeze them to nothing -- let them use the whole
-     window and sit under the dock instead. */
-  #mapOverlays {
-    left: 0;
-    right: 0;
-  }
-
   /* Dragging a width is a pointer-and-space affordance; neither applies here. */
   .dockResizeHandle {
     display: none;
@@ -3017,18 +3023,14 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
   }
 }
 
-/* Leaflet's controls live inside #map, which now runs under the tool dock --
-   push the right-hand ones (zoom, attribution) clear of it. */
+/* Leaflet's controls live inside #map, which runs under the docks -- push them
+   clear. Each side insets by its own dock (unlike #mapOverlays above): these
+   hug an edge rather than centring on anything, so there is nothing to keep
+   symmetric. Untransitioned for the same reason as #mapOverlays. */
 .leaflet-right {
   right: var(--dock-right-inset);
-  transition: right 0.12s var(--panel-ease);
 }
 
 .leaflet-left {
   left: var(--dock-left-inset);
-  transition: left 0.12s var(--panel-ease);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .leaflet-right, .leaflet-left { transition: none; }
 }
