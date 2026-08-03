@@ -2937,6 +2937,20 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
   font-weight: 600;
 }
 
+/* While the layers dock is collapsed the hamburger stays quietly accented, so
+   it reads as "the way to get the panel back" rather than just a menu icon.
+   (panels.js toggles .is-active; this is the rule that got lost when the
+   button became a .btn and the class was renamed from .panelHidden.) */
+#menuButton.is-active {
+  color: var(--accent-soft);
+  background: var(--accent-bg);
+}
+
+#menuButton.is-active:hover {
+  color: var(--text-bright);
+  background: var(--accent-bg-hover);
+}
+
 /* Brand mark (not a control -- see index.html). */
 #logoMark {
   display: flex;

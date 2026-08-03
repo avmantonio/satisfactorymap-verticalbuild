@@ -97,9 +97,9 @@ var SelectionTool = {};
   function renderList(rows) {
     modalList.innerHTML = "";
     rows.forEach(function(pair) {
-      var row = el("div", "itemLocationRow");
-      row.appendChild(el("span", "itemLocationLabel", pair[0]));
-      row.appendChild(el("span", "itemLocationCount", pair[1]));
+      var row = el("div", "row row-hover");
+      row.appendChild(el("span", "row-label", pair[0]));
+      row.appendChild(el("span", "row-count", pair[1]));
       modalList.appendChild(row);
     });
   }
