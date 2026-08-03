@@ -121,6 +121,7 @@ tests, so these are what make a CSS or layout change verifiable:
 py tools/ui_shots.py --serve --out ui_shots/before   # record, then make changes
 py tools/ui_shots.py --serve --out ui_shots/after --baseline ui_shots/before
 py tools/ui_behaviour.py --serve                     # dialogs, Escape layers, docks
+py tools/ui_classes.py                               # static: nothing renders unstyled
 ```
 
 `ui_shots.py` captures 17 UI states at three viewport widths and diffs them
@@ -128,6 +129,10 @@ pixel-wise against a previous run; `ui_behaviour.py` asserts the things a
 screenshot cannot see (that dialogs are real modals, that the tooltip still
 paints above one, that opening a category does not resize the map). Both run
 against `dist/`, so build or copy the changed files there first.
+
+`ui_classes.py` needs no browser at all: it flags any element the JS builds
+whose classes are ALL unstyled, which is what a renamed CSS class with a missed
+call site looks like. Worth running after any rename in `ui.css`/`map.css`.
 
 Note: `sav_core` embeds `game_data/generated/{docs,world}/*.json` and the icon
 manifest at compile time, and **nothing generated is committed**, so the Rust

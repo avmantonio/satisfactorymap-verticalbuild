@@ -1084,7 +1084,7 @@ var FindItem = {};
     }
 
     if (info.fuelInventory && info.fuelInventory.length > 0) {
-      buildingModalRecipes.appendChild(el("div", "buildingModalSectionLabel", "Fuel loaded"));
+      buildingModalRecipes.appendChild(UI.kicker("Fuel loaded"));
       var fuelList = el("div", "list");
       renderLocationList(fuelList, info.fuelInventory.map(function(entryRow) {
         return [entryRow.label, entryRow.count.toLocaleString() + (entryRow.isFluid ? " m³" : ""), "item", entryRow.item];
