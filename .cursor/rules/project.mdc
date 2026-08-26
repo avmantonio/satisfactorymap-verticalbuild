@@ -1,0 +1,17 @@
+---
+description: Core invariants for Satisfactory Save Map (privacy, data, dual shells)
+alwaysApply: true
+---
+
+# Project invariants
+
+Client-side Satisfactory save map. Engine is `sav_core`; `sav_wasm` and `sav_tauri` are parallel thin shells — change both.
+
+- Saves stay on-device. Do not add a server that receives `.sav` bytes.
+- Do not commit `game_data/generated/`, `map/static/map/icons/`, `dist/`, or `*.sav`. Unpack **game-data-v3** (or extract) before Rust will compile.
+- AGPL-3.0 for code. Do not rebrand forks with this project's name/logo/domain. Do not vendor Coffee Stain art into git.
+- Mapdata Python-port quirks (IndexMap order, hypot/rounding, null vs 0) are intentional.
+- Editor: byte-splice the decompressed body, then re-parse. Undo replays from pristine. Read `docs/chained-belt-delete.md` before conveyor edits.
+- Frontend is vanilla JS (no bundler, no framework). Reuse `ui.js`/`ui.css` + `map.css` tokens. Keep `ui.css` before `map.css`.
+
+Read `AGENTS.md` for layout, verify commands, and doc pointers.
