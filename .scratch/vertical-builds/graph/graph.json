@@ -1,0 +1,673 @@
+{
+  "version": 1,
+  "feature": "vertical-builds",
+  "mapPath": ".scratch/vertical-builds/map.md",
+  "destination": "A shipped save editor that isolates a volume and edits/transfers it with real Z — Height view on the current map first, schematic 3D later; browser and desktop; without corrupting the `.sav`.",
+  "updatedAt": "2026-08-26T19:29:51.518Z",
+  "hasFog": true,
+  "fog": [
+    {
+      "id": "fog-01",
+      "text": "How occupancy, extrusion vs flat, and ghosts are drawn on the top-down map (Visual presentation)."
+    },
+    {
+      "id": "fog-02",
+      "text": "What stays in the browser tab versus what requires the desktop app (files, caps, memory). Height view itself is in the page; both shells inherit it. Caps/filesystem/headroom can still split later."
+    },
+    {
+      "id": "fog-03",
+      "text": "Headroom under Runtime limits for Height view Cut buffers and later 3D (instanced typed arrays, payload diet) — measure on a 600k save after the skeleton is in the client."
+    },
+    {
+      "id": "fog-04",
+      "text": "Adding occupants from outside the committed cube (Ctrl+click / Cut): whether the rectangle grows (as if select-all then subtract) or extras are a second category — Horizon, not the first skeleton."
+    },
+    {
+      "id": "fog-05",
+      "text": "Occupancy summary before copy (counts, types) — straddler warning is out (silent, same as today)."
+    },
+    {
+      "id": "fog-06",
+      "text": "Named-file Build package beyond same-bytes-as-clipboard (extension, import, caps)."
+    },
+    {
+      "id": "fog-07",
+      "text": "Schematic 3D camera, Leaflet vs replace, gizmos, terrain, interior opacity — ranked in [Schematic 3D bar](issues/08-schematic-3d-bar.md); wiring in [3D scene adapter](issues/18-3d-scene-adapter.md)."
+    },
+    {
+      "id": "fog-08",
+      "text": "Shared `NormalizedWorld` typed-array diet vs current bucket strides for Cut + later 3D (wasm: no dual JS trees)."
+    },
+    {
+      "id": "fog-09",
+      "text": "GPU picking, spatial chunks, and LOD once a 3D adapter exists (600k ≠ 600k draw calls)."
+    },
+    {
+      "id": "fog-10",
+      "text": "Lookalike kit (ModelingTools) vs colored boxes once 08 picks schematic shapes."
+    },
+    {
+      "id": "fog-11",
+      "text": "`UnknownProxy` for unmapped `typePath`s in schematic 3D."
+    },
+    {
+      "id": "fog-12",
+      "text": "Whether the tool proposes a Build by clustering, or only accepts a manual volume."
+    },
+    {
+      "id": "fog-13",
+      "text": "Two-save workspace versus sequential load in one tab."
+    },
+    {
+      "id": "fog-14",
+      "text": "Local FModel → glTF extract after schematic 3D ships (user-run, never in git) — optional fidelity, not the schematic bar."
+    },
+    {
+      "id": "fog-15",
+      "text": "Development sections not yet named that only show up once Height view is on the real client."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "root",
+      "level": "root",
+      "title": "Vertical Build Transfer",
+      "parentId": null,
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "volume-selection",
+      "level": "strand",
+      "title": "Volume selection",
+      "parentId": "root",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "height-view",
+      "level": "strand",
+      "title": "Height view",
+      "parentId": "root",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "build-package",
+      "level": "strand",
+      "title": "Build package",
+      "parentId": "root",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "runtime-limits",
+      "level": "strand",
+      "title": "Runtime limits",
+      "parentId": "root",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "edit-controls",
+      "level": "strand",
+      "title": "Edit controls",
+      "parentId": "root",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "save-integrity",
+      "level": "strand",
+      "title": "Save integrity",
+      "parentId": "root",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "visual-presentation",
+      "level": "strand",
+      "title": "Visual presentation",
+      "parentId": "root",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "01",
+      "level": "theme",
+      "title": "What is a Build",
+      "parentId": "volume-selection",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/01-what-is-a-build.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "A Build is a spatial volume: an XY region plus its Z extent. Occupants of that volume are the transfer set, including objects the 2D silhouette would hide.",
+      "assets": []
+    },
+    {
+      "id": "02",
+      "level": "theme",
+      "title": "First observation layer",
+      "parentId": "height-view",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/02-first-observation-layer.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The first MVP this spec commits to ship is 2.5D with better verticality handling on the current map. Schematic 3D remains the final observation objective of the same spec, not a later map and not out of scope.",
+      "assets": []
+    },
+    {
+      "id": "03",
+      "level": "theme",
+      "title": "Transfer artifact",
+      "parentId": "build-package",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/03-transfer-artifact.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Both: the existing clipboard package for in-session Ctrl+C/V, and a named file for keep/share. Same payload; the file is that package with a name. Not a new object model, not the game’s blueprint.",
+      "assets": []
+    },
+    {
+      "id": "04",
+      "level": "theme",
+      "title": "Survey the current map",
+      "parentId": "runtime-limits",
+      "status": "resolved",
+      "workType": "research",
+      "path": ".scratch/vertical-builds/issues/04-survey-the-current-map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The map uses a 2D orthographic WebGL2 bucket renderer with 1D altitude filtering/depth sorting, selection rectangle/toggles, zstd-compressed cross-save clipboard with browser caps (50k/150k/200MB) vs native slots, and pristine body replay; hard walls are wasm32 4GB memory (~2GB standing) and Vanilla JS no-bundler constraints.",
+      "assets": []
+    },
+    {
+      "id": "05",
+      "level": "theme",
+      "title": "Survey peer tools",
+      "parentId": "build-package",
+      "status": "resolved",
+      "workType": "research",
+      "path": ".scratch/vertical-builds/issues/05-survey-peer-tools.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "No surveyed tool both shows stacked floors well enough to isolate an existing factory volume and exports that volume as a portable artifact — SCIM is 2D plus an altitude filter, the in-game Designer is a rebuild-inside-a-cube workflow, and Factorio/DSP copy 2D layouts.",
+      "assets": []
+    },
+    {
+      "id": "06",
+      "level": "theme",
+      "title": "Meaning of 2.5D",
+      "parentId": "height-view",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/06-meaning-of-2-5d.md",
+      "blockedBy": [
+        "02"
+      ],
+      "specPath": null,
+      "gist": "2.5D is the current top-down map plus a linked A–A′ Cut. The Cut is required to see verticality — not an optional later viewer.",
+      "assets": []
+    },
+    {
+      "id": "07",
+      "level": "theme",
+      "title": "Relocate semantics",
+      "parentId": "edit-controls",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/07-relocate-semantics.md",
+      "blockedBy": [
+        "01",
+        "03"
+      ],
+      "specPath": null,
+      "gist": "Cut at the set boundary using the **existing** copy/paste: whole selected actors travel; connections that left the set are tombstoned; power wires copy only when both endpoints are in the set. Internal connections stay. Do not weld on paste. Do not geometrically split belts/pipes at the volume wall, and do not retouch chain-actor internals — that is how a save corrupts (`docs/chained-belt-delete.md`).",
+      "assets": []
+    },
+    {
+      "id": "08",
+      "level": "theme",
+      "title": "Schematic 3D bar",
+      "parentId": "height-view",
+      "status": "open",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/08-schematic-3d-bar.md",
+      "blockedBy": [
+        "02"
+      ],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "09",
+      "level": "theme",
+      "title": "Isolation UX",
+      "parentId": "volume-selection",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/09-isolation-ux.md",
+      "blockedBy": [
+        "01"
+      ],
+      "specPath": null,
+      "gist": "Draw an XY rectangle on the map; then pick the Z extent on the A–A′ Cut of that rectangle. The Build is that XY plus that Z window.",
+      "assets": []
+    },
+    {
+      "id": "10",
+      "level": "theme",
+      "title": "Section plane",
+      "parentId": "height-view",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/10-section-plane.md",
+      "blockedBy": [
+        "06"
+      ],
+      "specPath": null,
+      "gist": "Both: A–A′ and a perpendicular B–B′. The Cut is a pair of profiles through the rectangle, not one plane you hope is the right read.",
+      "assets": []
+    },
+    {
+      "id": "11",
+      "level": "theme",
+      "title": "2.5D loop prototype",
+      "parentId": "height-view",
+      "status": "resolved",
+      "workType": "prototype",
+      "path": ".scratch/vertical-builds/issues/11-2-5d-loop-prototype.md",
+      "blockedBy": [
+        "10"
+      ],
+      "specPath": null,
+      "gist": "The MVP loop is: draw the XY rectangle → linked A–A′ and B–B′ Cuts → one shared Z window on either strip → occupants of that volume are the Build. Not flood, not a 3D prism, not a camera.",
+      "assets": [
+        ".scratch/vertical-builds/prototype/2-5d-loop.html"
+      ]
+    },
+    {
+      "id": "12",
+      "level": "theme",
+      "title": "Volume occupancy",
+      "parentId": "volume-selection",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/12-volume-occupancy.md",
+      "blockedBy": [
+        "09"
+      ],
+      "specPath": null,
+      "gist": "Occupants are today’s `collectInBox` rules, with the isolation Z window as the altitude gate. [Height view chrome](13-height-view-chrome.md) reads that gate as: `MapApp.altitudeRange` still caps the set; the Cut band peels **inside** that cap (AND), and cannot take what the global slider hides. Layer-off buckets stay out. `hiddenClasses` (sign poles, path nodes, …) stay out of the payload and out of the Build. Individually hidden objects (`hiddenIndices`) remain selectable, as they are today. Belts/pipes: whole actor if any vertex is in XY and that vertex’s Z is in the window. Power lines still copy only when both endpoint owners are in the set. Straddlers copy silently — no warning, no block, no Cut-exclusion mark as an occupancy contract. No geometric split.",
+      "assets": []
+    },
+    {
+      "id": "13",
+      "level": "theme",
+      "title": "Height view chrome",
+      "parentId": "height-view",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/13-height-view-chrome.md",
+      "blockedBy": [
+        "11"
+      ],
+      "specPath": null,
+      "gist": "Altitude rail caps map and occupancy; the Cut start–end band peels Build Z inside that cap. No rectangle → no Cut. L-frame overlay on the map viewport with a session switch to flaps; independent A↔A′ / B↔B′ via end labels; empty strips stay.",
+      "assets": []
+    },
+    {
+      "id": "14",
+      "level": "theme",
+      "title": "Height-driven edits",
+      "parentId": "edit-controls",
+      "status": "open",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/14-height-driven-edits.md",
+      "blockedBy": [
+        "07",
+        "12"
+      ],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "15",
+      "level": "theme",
+      "title": "Save integrity gates",
+      "parentId": "save-integrity",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/15-save-integrity-gates.md",
+      "blockedBy": [
+        "07"
+      ],
+      "specPath": null,
+      "gist": "Spec gate is `sav_core` CI: isolate with today’s occupancy plus a Z window, then copy, paste, delete, undo; parser accepts; occupant counts and bounds match a fixture snapshot; undo restores payload to pristine. wasm OOM on a 600k save is Runtime limits, not this gate. First-ship smoke is one in-game load of that edited `.sav` (human, not CI). `All_080726` is the fixture unless it lacks two floors in the same XY — then add a gitignored stacked save via `fetch_test_saves.py`. etothepii is an optional oracle, not a second writer and not CI. No new belt model; no chain-actor surgery.",
+      "assets": []
+    },
+    {
+      "id": "16",
+      "level": "theme",
+      "title": "Real-client skeleton",
+      "parentId": "runtime-limits",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/16-real-client-skeleton.md",
+      "blockedBy": [
+        "11",
+        "15"
+      ],
+      "specPath": null,
+      "gist": "First non-throwaway Height view is **additive in the current tab**: same `index.html`, same WASM session, live buckets. Desktop inherits `dist/`. Not a sidecar HTML, not Tauri-only, not Three.js, not a second renderer “to see.”",
+      "assets": []
+    },
+    {
+      "id": "17",
+      "level": "theme",
+      "title": "Survey 3D fork options",
+      "parentId": "height-view",
+      "status": "resolved",
+      "workType": "research",
+      "path": ".scratch/vertical-builds/issues/17-survey-3d-fork-options.md",
+      "blockedBy": [
+        "05"
+      ],
+      "specPath": null,
+      "gist": "Keep `sav_core`. Schematic 3D (instanced proxies, camera, synced filters) **is this app’s later observation** — same editor, same Build loop; Height view ships first. Three.js as a vanilla scene adapter is the live stack option. R3F/bundler, `.sbp` as the Build package, and Coffee Stain glTF in git stay out. Real meshes stay local/out of git, after schematic.",
+      "assets": []
+    },
+    {
+      "id": "18",
+      "level": "theme",
+      "title": "3D scene adapter",
+      "parentId": "visual-presentation",
+      "status": "open",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/18-3d-scene-adapter.md",
+      "blockedBy": [
+        "08"
+      ],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "19",
+      "level": "theme",
+      "title": "Cut elevation marks",
+      "parentId": "visual-presentation",
+      "status": "resolved",
+      "workType": "grilling",
+      "path": ".scratch/vertical-builds/issues/19-cut-elevation-marks.md",
+      "blockedBy": [
+        "11"
+      ],
+      "specPath": null,
+      "gist": "The first-ship Cut is an **orthographic lateral projection** onto A–A′ and onto B–B′ (along × Z), not a 3D camera and not a slice that shows objects outside the XY rectangle. Existing map/UI icons are unchanged. Who enters the Build stays [Volume occupancy](12-volume-occupancy.md) / today’s XY rules; this ticket is drawing only.",
+      "assets": []
+    }
+  ],
+  "edges": [
+    {
+      "type": "childOf",
+      "from": "volume-selection",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "height-view",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "build-package",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "runtime-limits",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "edit-controls",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "save-integrity",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "visual-presentation",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "01",
+      "to": "volume-selection"
+    },
+    {
+      "type": "childOf",
+      "from": "02",
+      "to": "height-view"
+    },
+    {
+      "type": "childOf",
+      "from": "03",
+      "to": "build-package"
+    },
+    {
+      "type": "childOf",
+      "from": "04",
+      "to": "runtime-limits"
+    },
+    {
+      "type": "childOf",
+      "from": "05",
+      "to": "build-package"
+    },
+    {
+      "type": "childOf",
+      "from": "06",
+      "to": "height-view"
+    },
+    {
+      "type": "blocks",
+      "from": "02",
+      "to": "06"
+    },
+    {
+      "type": "childOf",
+      "from": "07",
+      "to": "edit-controls"
+    },
+    {
+      "type": "blocks",
+      "from": "01",
+      "to": "07"
+    },
+    {
+      "type": "blocks",
+      "from": "03",
+      "to": "07"
+    },
+    {
+      "type": "childOf",
+      "from": "08",
+      "to": "height-view"
+    },
+    {
+      "type": "blocks",
+      "from": "02",
+      "to": "08"
+    },
+    {
+      "type": "childOf",
+      "from": "09",
+      "to": "volume-selection"
+    },
+    {
+      "type": "blocks",
+      "from": "01",
+      "to": "09"
+    },
+    {
+      "type": "childOf",
+      "from": "10",
+      "to": "height-view"
+    },
+    {
+      "type": "blocks",
+      "from": "06",
+      "to": "10"
+    },
+    {
+      "type": "childOf",
+      "from": "11",
+      "to": "height-view"
+    },
+    {
+      "type": "blocks",
+      "from": "10",
+      "to": "11"
+    },
+    {
+      "type": "childOf",
+      "from": "12",
+      "to": "volume-selection"
+    },
+    {
+      "type": "blocks",
+      "from": "09",
+      "to": "12"
+    },
+    {
+      "type": "childOf",
+      "from": "13",
+      "to": "height-view"
+    },
+    {
+      "type": "blocks",
+      "from": "11",
+      "to": "13"
+    },
+    {
+      "type": "childOf",
+      "from": "14",
+      "to": "edit-controls"
+    },
+    {
+      "type": "blocks",
+      "from": "07",
+      "to": "14"
+    },
+    {
+      "type": "blocks",
+      "from": "12",
+      "to": "14"
+    },
+    {
+      "type": "childOf",
+      "from": "15",
+      "to": "save-integrity"
+    },
+    {
+      "type": "blocks",
+      "from": "07",
+      "to": "15"
+    },
+    {
+      "type": "childOf",
+      "from": "16",
+      "to": "runtime-limits"
+    },
+    {
+      "type": "blocks",
+      "from": "11",
+      "to": "16"
+    },
+    {
+      "type": "blocks",
+      "from": "15",
+      "to": "16"
+    },
+    {
+      "type": "childOf",
+      "from": "17",
+      "to": "height-view"
+    },
+    {
+      "type": "blocks",
+      "from": "05",
+      "to": "17"
+    },
+    {
+      "type": "childOf",
+      "from": "18",
+      "to": "visual-presentation"
+    },
+    {
+      "type": "blocks",
+      "from": "08",
+      "to": "18"
+    },
+    {
+      "type": "childOf",
+      "from": "19",
+      "to": "visual-presentation"
+    },
+    {
+      "type": "blocks",
+      "from": "11",
+      "to": "19"
+    }
+  ]
+}
