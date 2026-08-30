@@ -1,9 +1,10 @@
 # Height view chrome
 
 Type: grilling
-Status: resolved
+Status: specced
 Strand: height-view — Height view
 Blocked by: 11
+Spec: .scratch/vertical-builds/specs/2-5d-first-cut.md
 
 ## Question
 
@@ -27,7 +28,7 @@ Altitude rail caps map and occupancy; the Cut start–end band peels Build Z ins
 
 Two Z instruments stay on screen. `#altitudePanel` / `MapApp.altitudeRange` is the **authority cap**: map drawing and `collectInBox` still respect it (today’s gate). The Height-view control is **not** a second slider — it is the **shared start–end band** on the Cut graph (A–A′ and B–B′), two handles plus dragging the band body, same muscle memory as the altitude fill. That band peels Build Z **inside** the global cap. [Volume occupancy](12-volume-occupancy.md)’s “Z window is the altitude gate” means this peel, not permission to ignore the global slider.
 
-No committed XY rectangle → no Cut chrome. Right-drag complete opens the strips; clearing the rectangle removes them. No Height-view mode button. Ctrl+click / Ctrl+A without a rectangle do not open the Cut.
+No committed XY rectangle → no Cut chrome. Right-drag complete opens the strips; clearing the rectangle removes them. No Height-view mode button. Ctrl+click / Ctrl+A without a rectangle do not open the Cut. With a rectangle committed, those gestures (and a new right-drag, including today’s Ctrl+right-drag additive box) are [Real-client skeleton](16-real-client-skeleton.md): cherry-pick only inside the cube; Ctrl+A stays global and dismisses the Cut; a new right-drag **replaces** the rectangle.
 
 **Layout.** Default is **L-frame overlay** in `#mapOverlays` (map size unchanged; no steal-layout, no re-anchor). A along the visible map’s bottom edge, B along the right, inset so they do not sit under the filter dock or `#toolDock` / altitude rail. Strip depth ~160 px, not scaled to the rectangle. Leaflet zoom/attribution get an extra inset while the frame is up. A control on the Height-view chrome (not the tool dock, not filters) switches **L-frame ↔ flaps** for the session; a new rectangle does not reset that preference. No `localStorage` in the first ship. Stacked strips stay out.
 

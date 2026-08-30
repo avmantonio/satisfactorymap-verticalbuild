@@ -5,8 +5,12 @@ Client-side Satisfactory save viewer/editor. This glossary is the product langua
 ## Language
 
 **Build**:
-A spatial volume — an XY region plus its Z extent — whose occupants are the objects to isolate, copy, and move between saves.
+A spatial volume — an XY region plus its Z extent. Occupants of that volume are who isolation can take. A committed Height-view cube can stay put while Selection is a subset of those occupants (remove / re-add inside the cube).
 _Avoid_: Cut, selection, factory, blueprint
+
+**Selection**:
+The editor’s current object set: right-drag box, Ctrl+click toggle, Ctrl+A (visible buckets, altitude rail). Spatial edits (move, copy, delete) act on this. It is not a Build.
+_Avoid_: Build, Cut
 
 **Cut**:
 A pair of linked orthographic lateral projections (A–A′ and B–B′) of a Build’s XY rectangle onto along × Z. The 2.5D way to see verticality and pick one shared Z extent. Not a camera; not a slice that draws objects outside that XY.

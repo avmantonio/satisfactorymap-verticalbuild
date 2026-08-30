@@ -1,9 +1,10 @@
 # Volume occupancy
 
 Type: grilling
-Status: resolved
+Status: specced
 Strand: volume-selection — Volume selection
 Blocked by: 09
+Spec: .scratch/vertical-builds/specs/2-5d-first-cut.md
 
 ## Question
 

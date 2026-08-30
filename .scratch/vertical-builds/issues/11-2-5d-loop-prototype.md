@@ -1,9 +1,10 @@
 # 2.5D loop prototype
 
 Type: prototype
-Status: resolved
+Status: specced
 Strand: height-view — Height view
 Blocked by: 10
+Spec: .scratch/vertical-builds/specs/2-5d-first-cut.md
 
 ## Question
 

@@ -1,9 +1,10 @@
 # Cut elevation marks
 
 Type: grilling
-Status: resolved
+Status: specced
 Strand: visual-presentation — Visual presentation
 Blocked by: 11
+Spec: .scratch/vertical-builds/specs/2-5d-first-cut.md
 
 ## Question
 
@@ -46,4 +47,4 @@ The first-ship Cut is an **orthographic lateral projection** onto A–A′ and o
 
 **Yellow (drawing only).** If today’s XY rule **excludes** an actor (building origin outside, belt with no vertex in the box, …) but the footprint or segment still **crosses** the rectangle, draw the **clipped overlap** in yellow + dashed on both strips: “this is not in the Build.” Included straddlers are not yellow; they clip to the grid. Layer-off buckets stay undrawn (not yellow). Occupancy logic is not modified.
 
-**Out of this ticket.** Top-down stays flat footprints; extrusion-on-map and paste ghosts stay Visual presentation fog. No belt split. Schematic 3D proxies (08/18) do not block Height view.
+**Out of this ticket.** Top-down stays flat footprints; extrusion-on-map and paste ghosts stay Visual presentation fog. No belt split. Schematic 3D proxies (08/18) do not block Height view. Where laterals *come from* (tables vs extract vs authored art, format, git vs generated) is [Survey cut laterals](20-survey-cut-laterals.md) — this ticket named SVG as a destination format, not a pipeline.

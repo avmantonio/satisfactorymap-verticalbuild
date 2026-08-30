@@ -10,6 +10,8 @@ A shipped save editor that isolates a volume and edits/transfers it with real Z 
 
 HITL uses grilling and domain-modeling. Tickets stay in English; talk to Anto in Spanish. Product goal: [OBJECTIVE.md](OBJECTIVE.md). Sessions: [CONTINUE.md](CONTINUE.md). Glossary: `CONTEXT.md`.
 
+**First 2.5D cut specced** (2026-08-30): [specs/2-5d-first-cut.md](specs/2-5d-first-cut.md) — Height view on the current tab (chrome 13, occupancy 12, AABB marks 19, loop from 11, Move proof). The campaign is not closed: schematic 3D, named-file polish, and remaining fog stay on this map. Do not treat this slice as first ship done.
+
 **Scheme is features, not process buckets and not graph nodes.** Bearing orients; it is not a checkpoint. Missing sections will graduate into fog or tickets when they can be named — do not treat the eight arms as exhaustive, and do not treat resolved-ticket count as “app ready.” Closed tickets are product contracts, not a ship.
 
 Do not reopen whether this app is an editor. Schematic 3D is **this campaign’s later observation of the same editor** (select, move, Z, export) — not a rival fork. Constructor, photorealistic 3D, belt weld, geometric chain surgery, Coffee Stain art in git, in-game `.sbp` as the Build package, React/R3F/bundler, and uploading `.sav` bytes stay out.
@@ -31,8 +33,8 @@ Reference frames: [01](assets/01-current-2d-map.png) is a capture of the current
 
 ## Bearing
 
-- **Next cluster** — Height view chrome + volume occupancy + walking skeleton on the real client with save integrity. Unblocks the first ship.
-- **Horizon** — **This same editor in schematic 3D** (instanced proxies, camera, the Build loop). Then: Build package polish, clustering, two-save workspace, collision preview, terrain / interior opacity. The 3D investigation is input to that phase, not another app.
+- **Next cluster** — Specified as the 2.5D first cut ([specs/2-5d-first-cut.md](specs/2-5d-first-cut.md)): Height view chrome + volume occupancy + AABB Cut marks + walking skeleton on the real client. Next work is implementing that spec, not another grill. Unblocks the first ship; does not *be* the first ship (integrity CI, relocate Observation, and in-game smoke remain).
+- **Horizon** — **This same editor in schematic 3D** (lookalike proxies, orbit, the Build loop). Then: Build package polish, clustering, two-save workspace, collision preview, terrain. Interior opacity is in the schematic bar. The 3D investigation is input to that phase, not another app.
 
 ## Decisions so far
 
@@ -50,6 +52,10 @@ Reference frames: [01](assets/01-current-2d-map.png) is a capture of the current
 - [Height view chrome](issues/13-height-view-chrome.md) — Two Z instruments: altitude rail = map + occupancy cap; Cut start–end band = Build peel. No rectangle → no Cut. L-frame overlay on the map viewport + session switch to flaps. Independent A↔A′ / B↔B′ via end labels. Empty strips stay.
 - [Save integrity gates](issues/15-save-integrity-gates.md) — Spec gate is `sav_core` CI: Z-window isolate + copy/paste/delete/undo; parser accepts; occupant counts/bounds match the fixture snapshot; undo restores payload. In-game load is first-ship smoke, not CI. wasm OOM is not this gate.
 - [Real-client skeleton](issues/16-real-client-skeleton.md) — Additive in the current tab (`height_view.js`); desktop inherits `dist/`. Chrome is 13; Cut marks are projected AABB. Occupants are today’s selection; proof walk is Move. Cherry-pick only inside the cube (map + Cut); Ctrl+A stays global and dismisses the Cut.
+- [Cut elevation marks](issues/19-cut-elevation-marks.md) — First-ship Cut is an orthographic lateral onto A–A′ and B–B′ (along × Z): meters, yaw, XY clip, fade outside the band, yellow dashed for excluded overlap. Marks are projected AABB; authored SVG is a destination format, not this ticket’s pipeline.
+- [Height-driven edits](issues/14-height-driven-edits.md) — Move/paste share one L-frame observation retargeted to the ghost: dest background + 20%/8–50 m pad, payload more attenuated; Z anchor is the floor of what travels (not bbox center); existing panel; click-to-commit move; no Cut-band drag in this contract.
+- [Survey cut laterals](issues/20-survey-cut-laterals.md) — Table XY/Z already feed a true-meter AABB Cut; glyphs and mesh extract have no producer. SCIM’s detailed marks are traced top-down polygons, not laterals, and are not reusable. AABB first-ship in 16 stays.
+- [Schematic 3D bar](issues/08-schematic-3d-bar.md) — Tool-dock mode, same viewport: lookalikes, orbit + nav cube, synced layer filters, interior-opacity toggle (foundations included), gizmos XYZ+rotate, one Z window, optional Cut strips (not auto). Scene is the filtered save; rest-of-save cheaper but visible; one product, browser 3D cap lower than desktop. Terrain, fly, in-world labels, and official meshes stay out. Wiring is [3D scene adapter](issues/18-3d-scene-adapter.md).
 
 ## Not yet specified
 
@@ -59,14 +65,15 @@ Reference frames: [01](assets/01-current-2d-map.png) is a capture of the current
 - Adding occupants from outside the committed cube (Ctrl+click / Cut): whether the rectangle grows (as if select-all then subtract) or extras are a second category — Horizon, not the first skeleton.
 - Occupancy summary before copy (counts, types) — straddler warning is out (silent, same as today).
 - Named-file Build package beyond same-bytes-as-clipboard (extension, import, caps).
-- Schematic 3D camera, Leaflet vs replace, gizmos, terrain, interior opacity — ranked in [Schematic 3D bar](issues/08-schematic-3d-bar.md); wiring in [3D scene adapter](issues/18-3d-scene-adapter.md).
+- Schematic 3D viewport attach (WebGL2 buckets vs vanilla Three.js, no R3F) — [3D scene adapter](issues/18-3d-scene-adapter.md).
 - Shared `NormalizedWorld` typed-array diet vs current bucket strides for Cut + later 3D (wasm: no dual JS trees).
-- GPU picking, spatial chunks, and LOD once a 3D adapter exists (600k ≠ 600k draw calls).
-- Lookalike kit (ModelingTools) vs colored boxes once 08 picks schematic shapes.
+- GPU picking, spatial chunks, and how “cheaper rest-of-save” is drawn (600k ≠ 600k draw calls); exact browser vs desktop 3D render caps — measure after 18.
+- World terrain (optional later low-poly; not on the schematic bar). WASD fly and in-world labels.
 - `UnknownProxy` for unmapped `typePath`s in schematic 3D.
 - Whether the tool proposes a Build by clustering, or only accepts a manual volume.
 - Two-save workspace versus sequential load in one tab.
 - Local FModel → glTF extract after schematic 3D ships (user-run, never in git) — optional fidelity, not the schematic bar.
+- Dragging the placement Cut band to edit destination Z (landing gizmo) — after [Height-driven edits](issues/14-height-driven-edits.md)’s read-only band + panel.
 - Development sections not yet named that only show up once Height view is on the real client.
 
 ## Out of scope

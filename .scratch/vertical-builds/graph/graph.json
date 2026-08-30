@@ -3,7 +3,7 @@
   "feature": "vertical-builds",
   "mapPath": ".scratch/vertical-builds/map.md",
   "destination": "A shipped save editor that isolates a volume and edits/transfers it with real Z — Height view on the current map first, schematic 3D later; browser and desktop; without corrupting the `.sav`.",
-  "updatedAt": "2026-08-26T19:29:51.518Z",
+  "updatedAt": "2026-08-30T05:15:00.000Z",
   "hasFog": true,
   "fog": [
     {
@@ -32,7 +32,7 @@
     },
     {
       "id": "fog-07",
-      "text": "Schematic 3D camera, Leaflet vs replace, gizmos, terrain, interior opacity — ranked in [Schematic 3D bar](issues/08-schematic-3d-bar.md); wiring in [3D scene adapter](issues/18-3d-scene-adapter.md)."
+      "text": "Schematic 3D viewport attach (WebGL2 buckets vs vanilla Three.js, no R3F) — [3D scene adapter](issues/18-3d-scene-adapter.md)."
     },
     {
       "id": "fog-08",
@@ -40,11 +40,11 @@
     },
     {
       "id": "fog-09",
-      "text": "GPU picking, spatial chunks, and LOD once a 3D adapter exists (600k ≠ 600k draw calls)."
+      "text": "GPU picking, spatial chunks, and how “cheaper rest-of-save” is drawn (600k ≠ 600k draw calls); exact browser vs desktop 3D render caps — measure after 18."
     },
     {
       "id": "fog-10",
-      "text": "Lookalike kit (ModelingTools) vs colored boxes once 08 picks schematic shapes."
+      "text": "World terrain (optional later low-poly; not on the schematic bar). WASD fly and in-world labels."
     },
     {
       "id": "fog-11",
@@ -64,6 +64,10 @@
     },
     {
       "id": "fog-15",
+      "text": "Dragging the placement Cut band to edit destination Z (landing gizmo) — after [Height-driven edits](issues/14-height-driven-edits.md)’s read-only band + panel."
+    },
+    {
+      "id": "fog-16",
       "text": "Development sections not yet named that only show up once Height view is on the real client."
     }
   ],
@@ -273,14 +277,14 @@
       "level": "theme",
       "title": "Schematic 3D bar",
       "parentId": "height-view",
-      "status": "open",
+      "status": "resolved",
       "workType": "grilling",
       "path": ".scratch/vertical-builds/issues/08-schematic-3d-bar.md",
       "blockedBy": [
         "02"
       ],
       "specPath": null,
-      "gist": null,
+      "gist": "Schematic 3D is a **tool-dock mode** in the **same viewport** (Leaflet hidden while on): **lookalike** proxies, **orbit**, **filtered save**, gizmos **XYZ+rotate**, **one Z window**, cheaper **rest-of-save** still visible; **one product, two render ceilings**.",
       "assets": []
     },
     {
@@ -318,13 +322,13 @@
       "level": "theme",
       "title": "2.5D loop prototype",
       "parentId": "height-view",
-      "status": "resolved",
+      "status": "specced",
       "workType": "prototype",
       "path": ".scratch/vertical-builds/issues/11-2-5d-loop-prototype.md",
       "blockedBy": [
         "10"
       ],
-      "specPath": null,
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
       "gist": "The MVP loop is: draw the XY rectangle → linked A–A′ and B–B′ Cuts → one shared Z window on either strip → occupants of that volume are the Build. Not flood, not a 3D prism, not a camera.",
       "assets": [
         ".scratch/vertical-builds/prototype/2-5d-loop.html"
@@ -335,13 +339,13 @@
       "level": "theme",
       "title": "Volume occupancy",
       "parentId": "volume-selection",
-      "status": "resolved",
+      "status": "specced",
       "workType": "grilling",
       "path": ".scratch/vertical-builds/issues/12-volume-occupancy.md",
       "blockedBy": [
         "09"
       ],
-      "specPath": null,
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
       "gist": "Occupants are today’s `collectInBox` rules, with the isolation Z window as the altitude gate. [Height view chrome](13-height-view-chrome.md) reads that gate as: `MapApp.altitudeRange` still caps the set; the Cut band peels **inside** that cap (AND), and cannot take what the global slider hides. Layer-off buckets stay out. `hiddenClasses` (sign poles, path nodes, …) stay out of the payload and out of the Build. Individually hidden objects (`hiddenIndices`) remain selectable, as they are today. Belts/pipes: whole actor if any vertex is in XY and that vertex’s Z is in the window. Power lines still copy only when both endpoint owners are in the set. Straddlers copy silently — no warning, no block, no Cut-exclusion mark as an occupancy contract. No geometric split.",
       "assets": []
     },
@@ -350,13 +354,13 @@
       "level": "theme",
       "title": "Height view chrome",
       "parentId": "height-view",
-      "status": "resolved",
+      "status": "specced",
       "workType": "grilling",
       "path": ".scratch/vertical-builds/issues/13-height-view-chrome.md",
       "blockedBy": [
         "11"
       ],
-      "specPath": null,
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
       "gist": "Altitude rail caps map and occupancy; the Cut start–end band peels Build Z inside that cap. No rectangle → no Cut. L-frame overlay on the map viewport with a session switch to flaps; independent A↔A′ / B↔B′ via end labels; empty strips stay.",
       "assets": []
     },
@@ -365,7 +369,7 @@
       "level": "theme",
       "title": "Height-driven edits",
       "parentId": "edit-controls",
-      "status": "open",
+      "status": "resolved",
       "workType": "grilling",
       "path": ".scratch/vertical-builds/issues/14-height-driven-edits.md",
       "blockedBy": [
@@ -373,7 +377,7 @@
         "12"
       ],
       "specPath": null,
-      "gist": null,
+      "gist": "Move and paste share one 2.5D Height-view observation: the same L-frame Cut, retargeted to the destination ghost, showing dest background plus a neighborhood pad, with the traveling set more attenuated; payload Z is the floor of what actually travels, bound to the existing paste numbers (not today’s bbox center, not a Cut drag gizmo).",
       "assets": []
     },
     {
@@ -396,14 +400,14 @@
       "level": "theme",
       "title": "Real-client skeleton",
       "parentId": "runtime-limits",
-      "status": "resolved",
+      "status": "specced",
       "workType": "grilling",
       "path": ".scratch/vertical-builds/issues/16-real-client-skeleton.md",
       "blockedBy": [
         "11",
         "15"
       ],
-      "specPath": null,
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
       "gist": "First non-throwaway Height view is **additive in the current tab**: same `index.html`, same WASM session, live buckets. Desktop inherits `dist/`. Not a sidecar HTML, not Tauri-only, not Three.js, not a second renderer “to see.”",
       "assets": []
     },
@@ -442,14 +446,29 @@
       "level": "theme",
       "title": "Cut elevation marks",
       "parentId": "visual-presentation",
-      "status": "resolved",
+      "status": "specced",
       "workType": "grilling",
       "path": ".scratch/vertical-builds/issues/19-cut-elevation-marks.md",
       "blockedBy": [
         "11"
       ],
-      "specPath": null,
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
       "gist": "The first-ship Cut is an **orthographic lateral projection** onto A–A′ and onto B–B′ (along × Z), not a 3D camera and not a slice that shows objects outside the XY rectangle. Existing map/UI icons are unchanged. Who enters the Build stays [Volume occupancy](12-volume-occupancy.md) / today’s XY rules; this ticket is drawing only.",
+      "assets": []
+    },
+    {
+      "id": "20",
+      "level": "theme",
+      "title": "Survey cut laterals",
+      "parentId": "visual-presentation",
+      "status": "resolved",
+      "workType": "research",
+      "path": ".scratch/vertical-builds/issues/20-survey-cut-laterals.md",
+      "blockedBy": [
+        "19"
+      ],
+      "specPath": null,
+      "gist": "Table height and XY already give a true-meter AABB Cut; richer laterals have no producer here. SCIM’s closer-to-model figures are hand-traced top-down polygons (~67 classes, JSON, not reusable) and do not rotate into elevations. SVG/mesh extract would have to be modeled later; AABB first-ship in 16 stays unblocked.",
       "assets": []
     }
   ],
@@ -668,6 +687,16 @@
       "type": "blocks",
       "from": "11",
       "to": "19"
+    },
+    {
+      "type": "childOf",
+      "from": "20",
+      "to": "visual-presentation"
+    },
+    {
+      "type": "blocks",
+      "from": "19",
+      "to": "20"
     }
   ]
 }

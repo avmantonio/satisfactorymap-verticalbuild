@@ -27,3 +27,7 @@ Recommend: **spatial volume** as the canonical Build, with the current rectangle
 A Build is a spatial volume: an XY region plus its Z extent. Occupants of that volume are the transfer set, including objects the 2D silhouette would hide.
 
 The current rectangle + altitude slider is a way to *draw* that volume, not a different unit. A ten-story tower from which you want floors 3–5 is one Build (that XY, that Z window), not the whole tower and not a Cut. Named groups and clustering stay fog. Glossary: `CONTEXT.md`.
+
+## Notes
+
+[Real-client skeleton](16-real-client-skeleton.md): while the cube is committed, Selection may be a **subset** of occupants (Ctrl+click / Cut hit inside the cube). The volume is still the Build; spatial edits use Selection, not “every occupant.” Adding from outside the cube stays Horizon.
