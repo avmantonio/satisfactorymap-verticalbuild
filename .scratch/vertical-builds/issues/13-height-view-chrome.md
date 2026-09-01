@@ -24,15 +24,19 @@ How each occupant is *drawn* on the Cut is [Cut elevation marks](19-cut-elevatio
 
 ## Answer
 
-Altitude rail caps map and occupancy; the Cut start–end band peels Build Z inside that cap. No rectangle → no Cut. L-frame overlay on the map viewport with a session switch to flaps; independent A↔A′ / B↔B′ via end labels; empty strips stay.
+Altitude rail caps map and occupancy; the Cut start–end band peels Build Z inside that cap. No rectangle → no Cut. Docked side panel (A–A′ top half, B–B′ bottom half) with a session switch to flaps; independent A↔A′ / B↔B′ via end labels; empty strips stay. L-frame overlay dropped after the walking skeleton.
 
 Two Z instruments stay on screen. `#altitudePanel` / `MapApp.altitudeRange` is the **authority cap**: map drawing and `collectInBox` still respect it (today’s gate). The Height-view control is **not** a second slider — it is the **shared start–end band** on the Cut graph (A–A′ and B–B′), two handles plus dragging the band body, same muscle memory as the altitude fill. That band peels Build Z **inside** the global cap. [Volume occupancy](12-volume-occupancy.md)’s “Z window is the altitude gate” means this peel, not permission to ignore the global slider.
 
 No committed XY rectangle → no Cut chrome. Right-drag complete opens the strips; clearing the rectangle removes them. No Height-view mode button. Ctrl+click / Ctrl+A without a rectangle do not open the Cut. With a rectangle committed, those gestures (and a new right-drag, including today’s Ctrl+right-drag additive box) are [Real-client skeleton](16-real-client-skeleton.md): cherry-pick only inside the cube; Ctrl+A stays global and dismisses the Cut; a new right-drag **replaces** the rectangle.
 
-**Layout.** Default is **L-frame overlay** in `#mapOverlays` (map size unchanged; no steal-layout, no re-anchor). A along the visible map’s bottom edge, B along the right, inset so they do not sit under the filter dock or `#toolDock` / altitude rail. Strip depth ~160 px, not scaled to the rectangle. Leaflet zoom/attribution get an extra inset while the frame is up. A control on the Height-view chrome (not the tool dock, not filters) switches **L-frame ↔ flaps** for the session; a new rectangle does not reset that preference. No `localStorage` in the first ship. Stacked strips stay out.
+**Layout.** Default is a docked **side panel** overlay in `#mapOverlays` (map size unchanged; no steal-layout, no re-anchor). It sits on the right of the visible map, inset so it does not sit under the filter dock or `#toolDock` / altitude rail. A–A′ uses the top half of that panel’s available height; B–B′ the bottom half. Leaflet zoom/attribution get an extra right inset while the panel is up. A control on the Height-view chrome (not the tool dock, not filters) switches **side panel ↔ flaps** for the session; a new rectangle does not reset that preference. No `localStorage` in the first ship. Under-map stacked strips (prototype variant A) stay out.
 
-**Flaps.** Overlay on the box: length follows that rectangle side in screen space; depth fixed (~120–160 px); minimum length so a tiny box stays usable.
+**Flaps.** Overlay on the box: length follows that rectangle side in screen space; depth grows into unused space next to the box (min ~160 px, max ~280 px); minimum length so a tiny box stays usable. Flaps stay flaps — they do not become the side panel.
+
+**L-frame.** Tried on the real tab at ~160 px gutters. Thickening the strips still leaves Z as a thin map-edge gutter and eats the zenith view. Dropped from the mode switch after Anto saw the walking skeleton (2026-09-01).
+
+**Amendment 2026-09-01 (after walking skeleton).** Placement of the two Cuts is the change; the rest of this ticket still holds (two Z instruments, no rectangle → no Cut, flip via labels, empty strips stay, session-only switch).
 
 **Flip (this ticket).** Each strip is independent. The end labels `A` / `A′` and `B` / `B′` **are** the control — click swaps that strip’s ends and depth. No extra flip icon. New rectangle resets to A→A′ / B→B′ ([Cut elevation marks](19-cut-elevation-marks.md) default). Labels need accessible names; tokens stay `ui.js` / `map.css`.
 

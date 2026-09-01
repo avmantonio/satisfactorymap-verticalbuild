@@ -673,8 +673,19 @@ var SelectionTool = {};
     }
     var a = clientToMapXY(start.x, start.y);
     var b = clientToMapXY(end.x, end.y);
-    var records = collectInBox(
-      Math.min(a.x, b.x), Math.max(a.x, b.x), Math.min(a.y, b.y), Math.max(a.y, b.y));
+    var bounds = {
+      minX: Math.min(a.x, b.x),
+      maxX: Math.max(a.x, b.x),
+      minY: Math.min(a.y, b.y),
+      maxY: Math.max(a.y, b.y),
+    };
+    if (window.HeightView) {
+      // Isolation cube replaces on every completed right-drag (including
+      // today's Ctrl+right-drag). Additive union of two cubes is Horizon.
+      HeightView.commitRectangle(bounds);
+      return;
+    }
+    var records = collectInBox(bounds.minX, bounds.maxX, bounds.minY, bounds.maxY);
     if (!additive) {
       selected.clear();
     }
@@ -684,8 +695,28 @@ var SelectionTool = {};
     refreshUI();
   }
 
+  function toggleRecord(r) {
+    if (window.HeightView && HeightView.isOpen() && !HeightView.allowToggle(r)) {
+      return;
+    }
+    var key = recordKey(r);
+    if (selected.has(key)) {
+      selected.delete(key);
+      if (window.HeightView && HeightView.isOpen()) {
+        HeightView.onDeselect(r);
+      }
+    } else {
+      selected.set(key, r);
+      if (window.HeightView && HeightView.isOpen()) {
+        HeightView.onReselect(r);
+      }
+    }
+    refreshUI();
+  }
+
   // Ctrl+left-click (see map.js's click handler): toggle the object under
-  // the cursor in/out of the selection.
+  // the cursor in/out of the selection. With Height view up, only occupants
+  // of the committed cube toggle; outside XY / band / rail is a no-op.
   SelectionTool.toggleAtEvent = function(e) {
     if (!MapApp.layer) {
       return;
@@ -708,17 +739,15 @@ var SelectionTool = {};
       x = hit.bucket.points[hit.index * stride];
       y = hit.bucket.points[hit.index * stride + 1];
     }
-    var r = recordOf(hit.bucket, hit.index, hit.id, x, y);
-    var key = recordKey(r);
-    if (selected.has(key)) {
-      selected.delete(key);
-    } else {
-      selected.set(key, r);
-    }
-    refreshUI();
+    toggleRecord(recordOf(hit.bucket, hit.index, hit.id, x, y));
   };
 
+  SelectionTool.toggleRecord = toggleRecord;
+
   function clearSelection() {
+    if (window.HeightView && HeightView.isOpen()) {
+      HeightView.dismiss();
+    }
     panel.style.display = "none";
     rect.style.display = "none";
     lastSelection = null;
@@ -809,6 +838,9 @@ var SelectionTool = {};
     if (count >= SELECT_ALL_CONFIRM_THRESHOLD
         && !window.confirm("Are you sure you want to select all objects?")) {
       return;
+    }
+    if (window.HeightView && HeightView.isOpen()) {
+      HeightView.dismiss();
     }
     var records = collectInBox(-Infinity, Infinity, -Infinity, Infinity);
     selected.clear();
@@ -930,6 +962,17 @@ var SelectionTool = {};
 
   SelectionTool.selectedCount = function() {
     return selected.size;
+  };
+
+  SelectionTool.collectInBox = collectInBox;
+  SelectionTool.recordKey = recordKey;
+  SelectionTool.recordZ = recordZ;
+  SelectionTool.setRecords = function(records) {
+    selected.clear();
+    records.forEach(function(r) {
+      selected.set(recordKey(r), r);
+    });
+    refreshUI();
   };
 
   // Called on every save (re)load (see data.js) -- the previous selection's

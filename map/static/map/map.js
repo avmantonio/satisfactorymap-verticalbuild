@@ -2100,6 +2100,9 @@ var MapApp = {};
     if (MapApp.layer) {
       MapApp.layer.requestRedraw();
     }
+    if (window.HeightView && HeightView.onAltitudeChanged) {
+      HeightView.onAltitudeChanged();
+    }
   };
 
   // Currently hovered/pinned box (see _redrawHighlight), drawn at full

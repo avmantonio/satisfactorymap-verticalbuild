@@ -1,6 +1,6 @@
 # 2.5D Height view — first vertical cut
 
-Status: ready-for-agent
+Status: ready-for-agent (implementation started 2026-08-30; skeleton not shipped)
 
 This spec closes the **Next cluster 2.5D slice** of Vertical Build Transfer. It is not the campaign spec, not schematic 3D, and not “first ship done.” Tickets it absorbs: [2.5D loop prototype](../issues/11-2-5d-loop-prototype.md), [Volume occupancy](../issues/12-volume-occupancy.md), [Height view chrome](../issues/13-height-view-chrome.md), [Real-client skeleton](../issues/16-real-client-skeleton.md), [Cut elevation marks](../issues/19-cut-elevation-marks.md). AABB first-ship is unblocked by [Survey cut laterals](../issues/20-survey-cut-laterals.md) / [research/cut-laterals.md](../research/cut-laterals.md). Glossary: `CONTEXT.md`. Product goal: [OBJECTIVE.md](../OBJECTIVE.md).
 
@@ -14,7 +14,7 @@ A throwaway 2.5D loop proved the gesture. Production still has no Height view on
 
 ## Solution
 
-Add **Height view** to the current map tab: after a committed XY rectangle, show linked A–A′ and B–B′ Cuts, peel one shared Z band, take occupants of that Build (XY + Z), and prove the walk with existing **Move** (re-parse). Chrome is the L-frame overlay (session switch to flaps). Cut marks are projected AABB. Occupants are today’s Selection rules plus the Cut peel. Additive module on the existing page; desktop inherits the same `dist/`. No 3D camera, no glyph catalog, no named-file UX in this cut.
+Add **Height view** to the current map tab: after a committed XY rectangle, show linked A–A′ and B–B′ Cuts, peel one shared Z band, take occupants of that Build (XY + Z), and prove the walk with existing **Move** (re-parse). Chrome is a docked side panel (session switch to flaps). Cut marks are projected AABB. Occupants are today’s Selection rules plus the Cut peel. Additive module on the existing page; desktop inherits the same `dist/`. No 3D camera, no glyph catalog, no named-file UX in this cut.
 
 The loop: rectangle → Cuts → Z band → occupants → Move.
 
@@ -32,11 +32,11 @@ The loop: rectangle → Cuts → Z band → occupants → Move.
 
 6. As a pioneer, I want the Cut band to peel only inside that global cap, so that I cannot take occupants the altitude rail has already hidden.
 
-7. As a pioneer, I want Height view as an L-frame overlay on the map viewport (A along the bottom, B along the right, inset off docks), so that the map size does not jump and the map is not re-anchored.
+7. As a pioneer, I want Height view as a docked side panel on the map viewport (A–A′ top half, B–B′ bottom half, inset off the altitude rail), so that Z is readable and the map size does not jump and the map is not re-anchored.
 
-8. As a pioneer, I want a session control on Height-view chrome (not the tool dock, not filters) that switches L-frame ↔ flaps, so that I can work on a tiny box without losing the overlay default.
+8. As a pioneer, I want a session control on Height-view chrome (not the tool dock, not filters) that switches side panel ↔ flaps, so that I can work on a tiny box without losing the side-panel default.
 
-9. As a pioneer, I want a new rectangle to keep my L-frame/flaps preference for the session, so that I am not reset every isolation.
+9. As a pioneer, I want a new rectangle to keep my side-panel/flaps preference for the session, so that I am not reset every isolation.
 
 10. As a pioneer, I want flap length to follow the rectangle side in screen space with a usable minimum, so that a small factory still has a readable Cut.
 
@@ -46,7 +46,7 @@ The loop: rectangle → Cuts → Z band → occupants → Move.
 
 13. As a pioneer, I want empty strips (zero occupants after peel) to stay up, with the band still movable, so that an empty volume is chrome, not a dismiss.
 
-14. As a pioneer, I want Leaflet zoom/attribution inset while the L-frame is up, so that chrome does not cover map controls.
+14. As a pioneer, I want Leaflet zoom/attribution inset while the side panel is up, so that chrome does not cover map controls.
 
 15. As a pioneer, I want occupants of the committed cube to be today’s Selection (`collectInBox` ∩ global altitude ∩ Cut band), so that Height view does not invent a parallel Build collection.
 
@@ -122,7 +122,7 @@ The loop: rectangle → Cuts → Z band → occupants → Move.
 
 51. As a pioneer, I want no Height-view mode button in the tool dock, so that isolation stays rectangle-then-Z.
 
-52. As a pioneer, I want stacked (under-map) strips out of the first cut, so that production chrome matches the prototype’s L-frame/flaps contract, not variant A.
+52. As a pioneer, I want stacked (under-map) strips out of the first cut, so that production chrome is the side panel (stacked *halves* on the right) or flaps, not prototype variant A.
 
 53. As a pioneer, I want no `localStorage` for the flaps switch in this cut, so that preference is session-only until a later decision.
 
@@ -134,7 +134,7 @@ The loop: rectangle → Cuts → Z band → occupants → Move.
 
 57. As a pioneer, I want no Coffee Stain art in git as Cut marks, so that AABB placeholders are the legal first laterals.
 
-58. As a pioneer, I want relocate Observation — destination neighborhood on the same L-frame, payload floor as paste Z, no band-drag gizmo — in a **later dedicated chat** after this skeleton, so that placing is specified ([Height-driven edits](../issues/14-height-driven-edits.md)) without blocking the isolation walk. *(later — second thread)*
+58. As a pioneer, I want relocate Observation — destination neighborhood on the same Height-view Cuts, payload floor as paste Z, no band-drag gizmo — in a **later dedicated chat** after this skeleton, so that placing is specified ([Height-driven edits](../issues/14-height-driven-edits.md)) without blocking the isolation walk. *(later — second thread)*
 
 59. As a pioneer, I want copy/paste/delete/undo after Z-window isolate to be proven in `sav_core` CI with occupant snapshots, so that first **ship** integrity is stronger than the Move proof walk. *(later — first ship, [Save integrity gates](../issues/15-save-integrity-gates.md))*
 
@@ -162,7 +162,7 @@ The loop: rectangle → Cuts → Z band → occupants → Move.
 
 - **Two Z instruments.** Global altitude rail = authority cap for map drawing and `collectInBox`. Cut start–end band = Build peel inside that cap (AND). The Height-view control is that band (two handles plus body drag), not a second slider. No rectangle → no Cut. No mode button. Ctrl+click / Ctrl+A without a rectangle do not open the Cut.
 
-- **Chrome.** Default L-frame overlay in the map overlay host (map size unchanged; no steal-layout, no re-anchor). A along the visible map’s bottom, B along the right, inset off filter dock / tool dock / altitude rail. Strip depth ~160 px, not scaled to the rectangle. Session switch L-frame ↔ flaps on Height-view chrome; no `localStorage` this cut; new rectangle does not reset the preference. Flaps overlay the box: length follows that side in screen space, depth ~120–160 px, minimum length for tiny boxes. Stacked strips stay out. Flip = click `A`/`A′` or `B`/`B′` labels (accessible names); independent per strip; new rectangle resets to A→A′ / B→B′. Empty volume: strips remain. Tokens stay shared UI / map CSS; do not restyle unrelated dock widgets.
+- **Chrome.** Default **side panel** overlay in `#mapOverlays` (map size unchanged; no steal-layout, no re-anchor). Sits on the right of the visible map, inset off the altitude rail / tool dock. A–A′ uses the top half of that panel’s height; B–B′ the bottom half. Session switch **side panel ↔ flaps** on Height-view chrome; no `localStorage` this cut; new rectangle does not reset the preference. Flaps overlay the box: length follows that side in screen space; depth grows into unused space next to the box (min ~160 px, max ~280 px), still floating on the section lines — not the side panel. **L-frame overlay is out:** 160 px gutters (and thicker ones) still leave Z unreadable without eating the map; dropped after the walking skeleton. Under-map stacked strips (prototype variant A) stay out. Flip = click `A`/`A′` or `B`/`B′` labels (accessible names); independent per strip; new rectangle resets to A→A′ / B→B′. Empty volume: strips remain. Tokens stay shared UI / map CSS; do not restyle unrelated dock widgets.
 
 - **Occupancy.** Today’s `collectInBox` skips: invisible buckets, layer-off, `hiddenClasses` out. Individually hidden objects remain selectable. Isolation Z = global cap AND Cut band. Belts/pipes whole-in on any in-window vertex. Power lines only if both endpoint owners are in the set. Straddlers silent. No geometric split, no weld, no chain-actor surgery.
 
@@ -176,7 +176,7 @@ The loop: rectangle → Cuts → Z band → occupants → Move.
 
 - **Invariants.** Vanilla JS, no bundler, no React/R3F. `sav_core` stays the engine; wasm and Tauri shells stay parallel. Saves on-device. AGPL-3.0. No Coffee Stain art in git. Mapdata quirks and byte-splice editor stay. Read chained-belt-delete before any conveyor edit (this cut does not change that).
 
-- **14 is not this implementation.** Move/paste relocate Observation (same L-frame retargeted to the ghost: dest + 20%/8–50 m pad, payload more attenuated, Z = floor of travelers, existing panel, click still commits move, no Cut-band drag) is a **second client chat** after the skeleton. Isolation clip (19) and placement population (14) are different jobs. Do not merge them in the skeleton.
+- **14 is not this implementation.** Move/paste relocate Observation (same Height-view Cuts retargeted to the ghost: dest + 20%/8–50 m pad, payload more attenuated, Z = floor of travelers, existing panel, click still commits move, no Cut-band drag) is a **second client chat** after the skeleton. Isolation clip (19) and placement population (14) are different jobs. Do not merge them in the skeleton.
 
 - **15 is not this cut’s CI.** Isolate+copy/paste/delete/undo snapshot CI is the first-ship integrity gate. This cut’s proof is Move on the tab.
 
@@ -190,7 +190,7 @@ Prefer existing seams over new ones:
 
 - Occupancy: today’s box collection plus the two Z instruments (rail cap AND band peel). Assert who is in Selection after peel / cherry-pick / Ctrl+A dismiss — not a new occupancy engine.
 - Proof: existing Move / apply-edits / re-parse. Copy is not the proof assertion.
-- Chrome: shared UI behaviour / class guards after CSS class names; L-frame vs flaps, no Cut without rectangle, empty strips stay. Do not restyle unrelated chrome to make a test pass.
+- Chrome: shared UI behaviour / class guards after CSS class names; side panel vs flaps, no Cut without rectangle, empty strips stay. Do not restyle unrelated chrome to make a test pass.
 - Marks: AABB height vs 4 m dashed, fade outside the band, yellow only for excluded overlap, undrawn outside the rail. Do not require SVG glyphs.
 
 Prior art: editor Move already drives progress UI and re-parse; selection already owns rectangle / Ctrl+click / Ctrl+A; altitude already gates buckets. Height view sits on those. Frontend has no unit tests; chrome guards are the Python UI scripts. `sav_core` CI for copy/paste/delete/undo + occupant snapshot is ticket 15 — **first ship**, not a gate to merge this cut.
@@ -216,7 +216,7 @@ Out of **this spec** (later / Horizon / campaign remainder). Still in the map un
 
 - **First vertical cut** (this spec; stories **1–57**): Additive Height view on the current tab — chrome 13, occupancy 12, AABB marks 19, loop from 11, Move as proof. Survey 20 confirms AABB is not blocked. Implementing [Real-client skeleton](../issues/16-real-client-skeleton.md) **is** this cut; a resolved ticket is not a shipped skeleton.
 
-- **Same first-ship, second implementation thread** (story **58**): [Height-driven edits](../issues/14-height-driven-edits.md). Dedicated client chat after the skeleton. Isolation marks (19) stay XY clip; placing retargets the same L-frame to the ghost. Do not fuse into cut 1. Do not wait on Horizon 3D.
+- **Same first-ship, second implementation thread** (story **58**): [Height-driven edits](../issues/14-height-driven-edits.md). Dedicated client chat after the skeleton. Isolation marks (19) stay XY clip; placing retargets the same Height-view Cuts to the ghost. Do not fuse into cut 1. Do not wait on Horizon 3D.
 
 - **First ship, not this cut** (stories **59–61**): Integrity CI and in-game smoke (15). OBJECTIVE’s copy/export. Named-file bytes (03) without file UX. Copy on the tab during cut 1 is allowed; it does not prove re-parse and does not close 15.
 
@@ -234,4 +234,4 @@ Do not write an implementation plan or phases here. Next chat: implement 16 agai
 
 **Open on this map after this spec.** [3D scene adapter](../issues/18-3d-scene-adapter.md) stays open. Fog on `map.md` stays. The destination (Height view first, schematic 3D later) is not fully specced.
 
-**Throwaway.** `prototype/2-5d-loop.html` is not the shipping renderer. Layout variants A/B/C informed chrome; production default is L-frame with session flaps.
+**Throwaway.** `prototype/2-5d-loop.html` is not the shipping renderer. Layout variants A/B/C informed chrome; production default is the side panel with session flaps. Prototype L-frame (variant B) was tried on the real tab and dropped.

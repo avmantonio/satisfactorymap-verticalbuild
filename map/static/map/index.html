@@ -414,6 +414,10 @@
     <button id="activeFilterClear" class="btn btn-sm" type="button" title="Remove this filter and restore every layer that was visible before">Clear filter</button>
   </div>
 
+  <!-- Height view (height_view.js): side-panel / flaps Cuts after a committed
+       isolation rectangle. Hidden until SelectionTool hands over a box. -->
+  <div id="heightView" style="display:none" hidden></div>
+
   <!-- Shown after a rectangle selection: the count plus what can be done with
        it. Bottom-centre of the map, clear of the app bar and of the rectangle
        just drawn. -->
@@ -642,6 +646,7 @@
 <script src="finditem.js"></script>
 <script src="progression.js"></script>
 <script src="selection.js"></script>
+<script src="height_view.js"></script>
 <script src="contextmenu.js"></script>
 <script src="save_client.js"></script>
 <script src="editor.js"></script>
