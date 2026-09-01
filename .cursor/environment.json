@@ -1,0 +1,17 @@
+{
+  "name": "Satisfactory Save Map",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "serve-site",
+      "command": "python3 tools/serve_site.py",
+      "description": "Serves the built static site (dist/) at http://127.0.0.1:8791/ with the production COOP/COEP headers."
+    }
+  ],
+  "ports": [
+    {
+      "name": "site",
+      "port": 8791
+    }
+  ]
+}
