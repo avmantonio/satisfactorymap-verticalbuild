@@ -465,6 +465,9 @@ var EditorTool = (function() {
         fillOpacity: 0.12, interactive: false },
     ).addTo(MapApp.map);
     MapApp.map.on("click", onPlacementClick);
+    if (window.HeightView && HeightView.onPlacementChanged) {
+      HeightView.onPlacementChanged();
+    }
     if (mode === "move") {
       hintBar.textContent = "Click to place · R rotate 90° · Esc cancel";
       hintBar.style.display = "block";
@@ -778,6 +781,9 @@ var EditorTool = (function() {
     document.getElementById("map").style.cursor = "";
     MapApp.map.off("click", onPlacementClick);
     MapApp.map.off("mousemove", onPlacementMouseMove);
+    if (window.HeightView && HeightView.onPlacementChanged) {
+      HeightView.onPlacementChanged();
+    }
   }
 
   function onPlacementMouseMove(e) {

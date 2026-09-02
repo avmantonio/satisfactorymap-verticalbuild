@@ -57,6 +57,9 @@ var SelectionTool = {};
   // objects; every edit/load clears it via SelectionTool.reset (buckets are
   // rebuilt then, so records would dangle).
   var selected = new Map();
+  // Reused by collectInBox so a heavy box query does not allocate a new
+  // index list per bucket. Not shared with the map layer's scratch.
+  var collectScratch = [];
 
   function recordOf(bucket, index, id, x, y) {
     return { bucket: bucket, index: index, id: id, x: x, y: y };
@@ -128,6 +131,8 @@ var SelectionTool = {};
     var altMin = MapApp.altitudeRange ? MapApp.altitudeRange.min : -Infinity;
     var altMax = MapApp.altitudeRange ? MapApp.altitudeRange.max : Infinity;
     var records = [];
+    var finiteBox = isFinite(minX) && isFinite(maxX) && isFinite(minY) && isFinite(maxY);
+    var collectGrid = MapApp.collectGridIndices;
 
     MapApp.layer.buckets.forEach(function(bucket) {
       if (!bucket.visible) {
@@ -149,7 +154,17 @@ var SelectionTool = {};
         }
         var lineStride = bucket.pointStride;
         var lineZ = lineStride - 1;
+        var lineBounds = bucket._lineBounds;
         for (var li = 0; li < bucket.lines.length; li++) {
+          var lb = lineBounds && lineBounds[li];
+          if (lb) {
+            if (lb.maxX < minX || lb.minX > maxX || lb.maxY < minY || lb.minY > maxY) {
+              continue;
+            }
+            if (lb.maxZ < altMin || lb.minZ > altMax) {
+              continue;
+            }
+          }
           var line = bucket.lines[li];
           var hit = false;
           for (var vi = 0; vi < line.length; vi += lineStride) {
@@ -171,6 +186,19 @@ var SelectionTool = {};
       var stride = bucket.pointStride;
       var zIndex = stride - 1;
       var pts = bucket.points;
+      if (finiteBox && bucket._grid && collectGrid) {
+        var indices = collectGrid(bucket._grid, minX, maxX, minY, maxY, collectScratch);
+        for (var k = 0; k < indices.length; k++) {
+          var idx = indices[k];
+          var off = idx * stride;
+          var gx = pts[off], gy = pts[off + 1], gz = pts[off + zIndex];
+          if (gx < minX || gx > maxX || gy < minY || gy > maxY || gz < altMin || gz > altMax) {
+            continue;
+          }
+          records.push(recordOf(bucket, idx, bucket.ids ? bucket.ids[idx] : null, gx, gy));
+        }
+        return;
+      }
       for (var i = 0; i < pts.length; i += stride) {
         var x = pts[i], y = pts[i + 1], z = pts[i + zIndex];
         if (x < minX || x > maxX || y < minY || y > maxY || z < altMin || z > altMax) {
@@ -673,8 +701,19 @@ var SelectionTool = {};
     }
     var a = clientToMapXY(start.x, start.y);
     var b = clientToMapXY(end.x, end.y);
-    var records = collectInBox(
-      Math.min(a.x, b.x), Math.max(a.x, b.x), Math.min(a.y, b.y), Math.max(a.y, b.y));
+    var bounds = {
+      minX: Math.min(a.x, b.x),
+      maxX: Math.max(a.x, b.x),
+      minY: Math.min(a.y, b.y),
+      maxY: Math.max(a.y, b.y),
+    };
+    if (window.HeightView) {
+      // Isolation cube replaces on every completed right-drag (including
+      // today's Ctrl+right-drag). Additive union of two cubes is Horizon.
+      HeightView.commitRectangle(bounds);
+      return;
+    }
+    var records = collectInBox(bounds.minX, bounds.maxX, bounds.minY, bounds.maxY);
     if (!additive) {
       selected.clear();
     }
@@ -684,8 +723,28 @@ var SelectionTool = {};
     refreshUI();
   }
 
+  function toggleRecord(r) {
+    if (window.HeightView && HeightView.isOpen() && !HeightView.allowToggle(r)) {
+      return;
+    }
+    var key = recordKey(r);
+    if (selected.has(key)) {
+      selected.delete(key);
+      if (window.HeightView && HeightView.isOpen()) {
+        HeightView.onDeselect(r);
+      }
+    } else {
+      selected.set(key, r);
+      if (window.HeightView && HeightView.isOpen()) {
+        HeightView.onReselect(r);
+      }
+    }
+    refreshUI();
+  }
+
   // Ctrl+left-click (see map.js's click handler): toggle the object under
-  // the cursor in/out of the selection.
+  // the cursor in/out of the selection. With Height view up, only occupants
+  // of the committed cube toggle; outside XY / band / rail is a no-op.
   SelectionTool.toggleAtEvent = function(e) {
     if (!MapApp.layer) {
       return;
@@ -708,17 +767,15 @@ var SelectionTool = {};
       x = hit.bucket.points[hit.index * stride];
       y = hit.bucket.points[hit.index * stride + 1];
     }
-    var r = recordOf(hit.bucket, hit.index, hit.id, x, y);
-    var key = recordKey(r);
-    if (selected.has(key)) {
-      selected.delete(key);
-    } else {
-      selected.set(key, r);
-    }
-    refreshUI();
+    toggleRecord(recordOf(hit.bucket, hit.index, hit.id, x, y));
   };
 
+  SelectionTool.toggleRecord = toggleRecord;
+
   function clearSelection() {
+    if (window.HeightView && HeightView.isOpen()) {
+      HeightView.dismiss();
+    }
     panel.style.display = "none";
     rect.style.display = "none";
     lastSelection = null;
@@ -809,6 +866,9 @@ var SelectionTool = {};
     if (count >= SELECT_ALL_CONFIRM_THRESHOLD
         && !window.confirm("Are you sure you want to select all objects?")) {
       return;
+    }
+    if (window.HeightView && HeightView.isOpen()) {
+      HeightView.dismiss();
     }
     var records = collectInBox(-Infinity, Infinity, -Infinity, Infinity);
     selected.clear();
@@ -930,6 +990,32 @@ var SelectionTool = {};
 
   SelectionTool.selectedCount = function() {
     return selected.size;
+  };
+
+  SelectionTool.collectInBox = collectInBox;
+  SelectionTool.recordKey = recordKey;
+  SelectionTool.recordZ = recordZ;
+  SelectionTool.setRecords = function(records) {
+    var nextKeys = new Set();
+    for (var i = 0; i < records.length; i++) {
+      nextKeys.add(recordKey(records[i]));
+    }
+    if (nextKeys.size === selected.size) {
+      var same = true;
+      selected.forEach(function(_, key) {
+        if (!nextKeys.has(key)) {
+          same = false;
+        }
+      });
+      if (same) {
+        return;
+      }
+    }
+    selected.clear();
+    records.forEach(function(r) {
+      selected.set(recordKey(r), r);
+    });
+    refreshUI();
   };
 
   // Called on every save (re)load (see data.js) -- the previous selection's

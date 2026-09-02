@@ -150,6 +150,9 @@
   function applyPayload(payload) {
     Tooltip.hide();
     MapApp.setHighlight(null, null);
+    if (window.HeightView && HeightView.isOpen()) {
+      HeightView.dismiss();
+    }
     Filters.build(payload);
     Altitude.build(payload);
     FindItem.build(payload);

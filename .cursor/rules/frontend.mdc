@@ -1,0 +1,17 @@
+---
+description: Vanilla JS map frontend — buckets, UI primitives, script order
+globs: map/static/map/**/*.{js,css,html}
+alwaysApply: false
+---
+
+# Frontend
+
+Vanilla IIFE modules, `"use strict"`, no bundler. Load order in `index.html` is load-bearing.
+
+- Chrome: `UI.*` in `ui.js`, styled by `ui.css` from `map.css` tokens. Features supply content; do not invent a private button/row/dialog.
+- New color/size/radius/spacing: pick the nearest `--token` in `map.css`. Do not add a one-off.
+- Buckets: `z` is last in every stride. Rects are stride 4 `[x,y,yaw,z]`; curved lines stride 7 (Hermite tangents); power lines stride 3. Toggle visibility on the bucket — do not rebuild from payload.
+- Coords are `map_highres.png` pixels, `L.latLng(py, px)`, `L.CRS.Simple`. Projection constants in `editor.js` must match `mapdata/geometry.rs`.
+- `SaveClient` is the only parser boundary. Identical API on WASM worker and `window.__TAURI__`. Payload ids are prefix-stripped on the wire and re-expanded here.
+- WebGL2 (`webgl_layer.js`) extends the canvas layer; hit-test and icon pins stay on 2D. Premultiplied alpha + `(ONE, ONE_MINUS_SRC_ALPHA)`. Context loss falls back to canvas — do not "fix" dock anchoring (`docs/dock-map-anchoring.md`).
+- After CSS/class renames: `py tools/ui_classes.py`. After chrome changes: `ui_behaviour.py` / `ui_shots.py` against `dist/`.

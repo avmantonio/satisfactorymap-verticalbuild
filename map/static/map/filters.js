@@ -38,6 +38,13 @@ var Filters = {};
   // representative color (the rows inside still show their own correct color).
   var NEUTRAL_COLOR = "#999999";
 
+  function redrawBuckets() {
+    MapApp.layer.requestRedraw();
+    if (window.HeightView && HeightView.onFiltersChanged) {
+      HeightView.onFiltersChanged();
+    }
+  }
+
   var PURITY_COLORS = { PURE: "#80b139", NORMAL: "#f26418", IMPURE: "#d23430", UNKNOWN: "#aaaaaa" };
   var PURITY_LABELS = { PURE: "Pure", NORMAL: "Normal", IMPURE: "Impure", UNKNOWN: "Unknown" };
   var COLLECTED_COLOR = "#666666";
@@ -478,7 +485,7 @@ var Filters = {};
       });
       persistVisibility();
       refreshGroupCheckboxes();
-      MapApp.layer.requestRedraw();
+      redrawBuckets();
     });
     rowDiv.appendChild(rowToggle.wrapper);
     rowDiv.appendChild(makeIcon(row.renderType || renderType, row.color || swatchColor, row.iconUrl));
@@ -632,7 +639,7 @@ var Filters = {};
       savedVisibility["group:" + groupPath] = checked;
       persistVisibility();
       refreshGroupCheckboxes();
-      MapApp.layer.requestRedraw();
+      redrawBuckets();
     });
 
     return { buckets: allBuckets, checkbox: parentCheckbox };
@@ -1903,7 +1910,7 @@ var Filters = {};
     // was hidden in the previous save.
     Filters.refreshHiddenObjectsIndicator();
 
-    MapApp.layer.requestRedraw();
+    redrawBuckets();
   };
 
   // Tears the whole per-save UI down without building a new one -- the
@@ -1946,7 +1953,7 @@ var Filters = {};
       detailsBody.style.display = "none";
     }
     Filters.refreshHiddenObjectsIndicator();
-    MapApp.layer.requestRedraw();
+    redrawBuckets();
   };
 
   // "Check all" / "Uncheck all" -- every checkbox at every nesting level
@@ -1983,7 +1990,7 @@ var Filters = {};
     });
     savedVisibility = { "*": checked };
     persistVisibility();
-    MapApp.layer.requestRedraw();
+    redrawBuckets();
   }
 
   // "Save details" disclosure in the footer (see index.html): the

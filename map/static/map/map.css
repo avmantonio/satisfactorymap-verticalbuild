@@ -3019,6 +3019,10 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
     width: min(var(--dock-right-width), 78vw);
   }
 
+  body.height-view-side {
+    --height-side-width: min(var(--dock-right-width), 42vw);
+  }
+
   /* Dragging a width is a pointer-and-space affordance; neither applies here. */
   .dockResizeHandle {
     display: none;
@@ -3047,4 +3051,341 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 
 .leaflet-left {
   left: var(--dock-left-inset);
+}
+
+/* ---- Height view (height_view.js) ---------------------------------------
+   Default: a docked side panel in #mapOverlays, inset by the same dock CSS
+   variables as Leaflet controls so it sits left of the altitude rail (no
+   steal-layout, no re-anchor). A–A′ is the top half of that panel, B–B′ the
+   bottom half. Flaps overlay the isolation box. Pointer-transparent host so
+   the map stays clickable; strips and the layout switch re-enable events. */
+#mapOverlays > #heightView {
+  justify-self: stretch;
+  align-self: stretch;
+  position: relative;
+  margin-left: var(--dock-left-inset);
+  margin-right: var(--dock-right-inset);
+  pointer-events: none;
+  z-index: 500;
+  min-width: 0;
+  min-height: 0;
+}
+
+#heightView .heightViewSwitch,
+#heightView .heightCut,
+#heightView .heightMapEdge {
+  pointer-events: auto;
+}
+
+.heightViewSwitch {
+  position: absolute;
+  z-index: 2;
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+}
+
+.heightCut {
+  position: absolute;
+  box-sizing: border-box;
+  background: rgba(19, 21, 25, 0.92);
+  border: 1px solid var(--accent-border);
+  overflow: hidden;
+  touch-action: none;
+}
+
+body.height-view-side {
+  --height-side-width: var(--dock-right-width);
+}
+
+#heightView.is-side {
+  grid-template-columns: minmax(0, 1fr) var(--height-side-width);
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
+}
+
+#heightView.is-side::before {
+  content: "";
+  grid-column: 2;
+  grid-row: 1 / -1;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#heightView.is-side .heightViewSwitch {
+  grid-column: 2;
+  grid-row: 1;
+  position: static;
+  z-index: 1;
+  margin: var(--sp-2);
+  justify-self: stretch;
+  align-self: start;
+}
+
+#heightView.is-side .heightCut {
+  position: relative;
+  inset: auto;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  z-index: 1;
+  background: var(--surface-1);
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+#heightView.is-side #heightCutA {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+#heightView.is-side #heightCutB {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.heightCutSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.heightCutBg,
+.heightCutGrid {
+  pointer-events: none;
+}
+
+.heightCutBg {
+  fill: var(--inset);
+}
+
+.heightCutGrid {
+  stroke: var(--border-sub);
+  stroke-width: 1;
+}
+
+.heightCutRaster,
+.heightCutMark {
+  cursor: pointer;
+}
+
+.heightCutBand {
+  position: absolute;
+  box-sizing: border-box;
+  background: rgba(91, 163, 224, 0.18);
+  border: 1px solid var(--accent);
+  pointer-events: auto;
+  cursor: ns-resize;
+  z-index: 1;
+}
+
+.heightCutBand:not(.is-vertical-z) {
+  cursor: ew-resize;
+}
+
+.heightCutHandle {
+  position: absolute;
+  z-index: 2;
+  background: transparent;
+  opacity: 1;
+}
+
+.heightCutHandle::after {
+  content: "";
+  position: absolute;
+  background: var(--accent);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.heightCutBand.is-vertical-z .heightCutHandleMax,
+.heightCutBand.is-vertical-z .heightCutHandleMin {
+  left: 0;
+  right: 0;
+  height: 16px;
+  cursor: ns-resize;
+}
+
+.heightCutBand.is-vertical-z .heightCutHandleMax {
+  top: 0;
+}
+
+.heightCutBand.is-vertical-z .heightCutHandleMin {
+  bottom: 0;
+}
+
+.heightCutBand.is-vertical-z .heightCutHandle::after {
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
+.heightCutBand.is-vertical-z .heightCutHandleMax::after {
+  top: 0;
+}
+
+.heightCutBand.is-vertical-z .heightCutHandleMin::after {
+  bottom: 0;
+}
+
+.heightCutBand:not(.is-vertical-z) .heightCutHandleMax,
+.heightCutBand:not(.is-vertical-z) .heightCutHandleMin {
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  cursor: ew-resize;
+}
+
+.heightCutBand:not(.is-vertical-z) .heightCutHandleMax {
+  right: 0;
+}
+
+.heightCutBand:not(.is-vertical-z) .heightCutHandleMin {
+  left: 0;
+}
+
+.heightCutBand:not(.is-vertical-z) .heightCutHandle::after {
+  top: 0;
+  bottom: 0;
+  width: 8px;
+}
+
+.heightCutBand:not(.is-vertical-z) .heightCutHandleMax::after {
+  right: 0;
+}
+
+.heightCutBand:not(.is-vertical-z) .heightCutHandleMin::after {
+  left: 0;
+}
+
+.heightCutLabel {
+  position: absolute;
+  z-index: 2;
+  min-width: 28px;
+  min-height: 22px;
+  padding: 0 var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  color: var(--accent-soft);
+}
+
+#heightCutA .heightCutLabel:first-of-type {
+  left: var(--sp-1);
+  bottom: var(--sp-05);
+}
+
+#heightCutA .heightCutLabel:last-of-type {
+  right: var(--sp-1);
+  bottom: var(--sp-05);
+}
+
+#heightCutB .heightCutLabel:first-of-type {
+  left: var(--sp-05);
+  bottom: var(--sp-1);
+}
+
+#heightCutB .heightCutLabel:last-of-type {
+  left: var(--sp-05);
+  top: var(--sp-1);
+}
+
+/* Side panel: both Cuts are horizontal strips, so B labels sit on the
+   along ends like A rather than on a vertical gutter. */
+#heightView.is-side #heightCutB .heightCutLabel:first-of-type {
+  left: var(--sp-1);
+  bottom: var(--sp-05);
+  top: auto;
+}
+
+#heightView.is-side #heightCutB .heightCutLabel:last-of-type {
+  right: var(--sp-1);
+  left: auto;
+  bottom: var(--sp-05);
+  top: auto;
+}
+
+/* One-axis isolation resize: map-edge bars (XY) and Cut along verticals.
+   Corners are open so a two-axis drag cannot start. Cut Z stays the band. */
+.heightMapEdges {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.heightMapEdge,
+.heightCutAlong {
+  position: absolute;
+  box-sizing: border-box;
+  background: transparent;
+  touch-action: none;
+}
+
+.heightMapEdgeX {
+  cursor: ew-resize;
+}
+
+.heightMapEdgeY {
+  cursor: ns-resize;
+}
+
+.heightMapEdge::after,
+.heightCutAlong::after {
+  content: "";
+  position: absolute;
+  background: var(--accent);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.heightMapEdgeX::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+}
+
+.heightMapEdgeY::after {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+}
+
+.heightCutAlong {
+  z-index: 2;
+  cursor: ew-resize;
+}
+
+.heightCutAlong::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  background: var(--accent-soft);
+  opacity: 0.75;
+}
+
+body.height-view-edge-drag {
+  cursor: grabbing;
+}
+
+body.height-view-edge-drag .heightMapEdge,
+body.height-view-edge-drag .heightCutAlong {
+  cursor: grabbing;
+}
+
+body.height-view-side .leaflet-right {
+  right: calc(var(--dock-right-inset) + var(--height-side-width));
+}
+
+body.height-view-side #selectionPanel {
+  margin-left: var(--dock-left-inset);
+  margin-right: calc(var(--dock-right-inset) + var(--height-side-width));
 }

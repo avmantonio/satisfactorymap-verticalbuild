@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <base href="../../../" />
+  <title>A shipped save editor that isolates a volume and edits/transfers it with real Z — Height view on the current map first, schematic 3D later; browser and desktop; without corrupting the `.sav`. — star map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-void: #03060d;
+      --bg-surface: rgba(8, 13, 23, 0.94);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --color-frontier: #38bdf8;
+      --color-frontier-glow: rgba(56, 189, 248, 0.45);
+      --color-resolved: #34d399;
+      --color-blocked: #f87171;
+      --color-blocked-glow: rgba(248, 113, 113, 0.35);
+      --color-destination: #fbbf24;
+      --color-destination-glow: rgba(251, 191, 36, 0.6);
+      --color-claimed: #fbbf24;
+      --text-main: #e8eef6;
+      --text-muted: #8ea0b5;
+      --text-dim: #4a5a6e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-void);
+      color: var(--text-main);
+      font-family: Inter, sans-serif;
+      user-select: none;
+    }
+    #star-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    .stage {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+    }
+    .map-plane {
+      position: absolute;
+      inset: 0;
+    }
+    #nodes-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+    }
+    .strand-arm {
+      position: static;
+    }
+    svg.map-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .bearing {
+      stroke: var(--color-destination);
+      stroke-width: 1.2;
+      stroke-dasharray: 4 8;
+      fill: none;
+      opacity: 0.35;
+    }
+    .spine {
+      stroke: rgba(56, 189, 248, 0.28);
+      stroke-width: 1.2;
+      stroke-dasharray: 2 3;
+      fill: none;
+    }
+    .blocks-edge {
+      stroke: var(--color-blocked);
+      stroke-width: 2;
+      stroke-dasharray: 4 6;
+      fill: none;
+      opacity: 0;
+    }
+    svg.focus-blocked .blocks-edge.is-live { opacity: 0.85; }
+    .territory.collapsed { display: none; }
+
+    .fog-layer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 42%;
+      height: 100%;
+      background: radial-gradient(ellipse at 80% 30%, rgba(15, 23, 42, 0.12) 0%, rgba(3, 6, 13, 0.82) 70%, rgba(3, 6, 13, 0.96) 100%);
+      pointer-events: none;
+      z-index: 3;
+    }
+    .fog-label {
+      position: absolute;
+      top: 12%;
+      right: 10%;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 0.25em;
+      color: rgba(255, 255, 255, 0.2);
+      text-transform: uppercase;
+    }
+    .fog-ghost {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      z-index: 4;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      opacity: 0.42;
+    }
+    .fog-ghost .fog-mark {
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: 1px dashed rgba(142, 160, 181, 0.35);
+      border-radius: 50%;
+    }
+    .fog-ghost .fog-caption {
+      max-width: 140px;
+      font-size: 0.62rem;
+      color: var(--text-dim);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hud {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      z-index: 10;
+      max-width: min(42rem, calc(100% - 280px));
+    }
+    .hud-title {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .hud-badge {
+      font-size: 0.62rem;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--color-frontier);
+      letter-spacing: 0.04em;
+    }
+    .destination {
+      margin-top: 6px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+    .gesture-hint {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      z-index: 10;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      backdrop-filter: blur(12px);
+      padding: 8px 14px;
+      border-radius: 99px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .hint-kbd {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--color-frontier);
+      font-weight: 600;
+    }
+    .legend-panel {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      z-index: 10;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      backdrop-filter: blur(12px);
+      padding: 12px 18px;
+      border-radius: 8px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .legend-dot.resolved { background: var(--color-resolved); box-shadow: 0 0 6px var(--color-resolved); }
+    .legend-dot.claimed { background: var(--color-claimed); }
+    .legend-dot.specced { background: var(--color-resolved); box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.7); }
+    .legend-dot.frontier { background: var(--color-frontier); box-shadow: 0 0 6px var(--color-frontier); }
+    .legend-dot.blocked { border: 1.5px dashed var(--color-blocked); background: transparent; }
+    .legend-dot.destination {
+      background: var(--color-destination);
+      box-shadow: 0 0 8px var(--color-destination);
+      clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    }
+
+    .landmark {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      z-index: 5;
+      background: transparent;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      outline: none;
+    }
+    .landmark:focus-visible {
+      outline: 2px solid var(--color-frontier);
+      outline-offset: 4px;
+      border-radius: 8px;
+    }
+    .node-shape {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+    .landmark:hover .node-shape::before,
+    .landmark:focus-visible .node-shape::before {
+      content: "";
+      position: absolute;
+      width: 46px;
+      height: 46px;
+      border: 1px dashed rgba(56, 189, 248, 0.5);
+      border-radius: 50%;
+      animation: spin-orbit 10s linear infinite;
+    }
+    @keyframes spin-orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .landmark[data-state="resolved"] .node-shape,
+    .landmark[data-state="specced"] .node-shape {
+      background: rgba(52, 211, 153, 0.15);
+      border: 1.5px solid var(--color-resolved);
+      border-radius: 50%;
+    }
+    .landmark[data-state="resolved"] .node-shape::after,
+    .landmark[data-state="specced"] .node-shape::after {
+      content: "✓";
+      font-size: 11px;
+      color: var(--color-resolved);
+      font-weight: 700;
+    }
+    .landmark[data-state="specced"] .node-shape {
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.28);
+    }
+    .landmark[data-state="frontier"] .node-shape,
+    .landmark[data-state="claimed"] .node-shape {
+      background: rgba(56, 189, 248, 0.2);
+      border: 1.5px solid var(--color-frontier);
+      border-radius: 50%;
+      box-shadow: 0 0 16px var(--color-frontier-glow);
+      animation: pulse-frontier 2.5s infinite alternate ease-in-out;
+    }
+    .landmark[data-state="claimed"] .node-shape {
+      background: rgba(251, 191, 36, 0.16);
+      border: 1.5px solid var(--color-claimed);
+      animation: none;
+      box-shadow: none;
+    }
+    .landmark[data-state="frontier"] .node-shape::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      background: var(--color-frontier);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--color-frontier);
+    }
+    .landmark[data-state="claimed"] .node-shape::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-claimed);
+    }
+    .landmark[data-state="blocked"] .node-shape {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1.5px dashed var(--color-blocked);
+      border-radius: 50%;
+    }
+    .landmark[data-state="blocked"] .node-shape::after {
+      content: "🔒";
+      font-size: 10px;
+      opacity: 0.9;
+    }
+    .landmark[data-state="destination"] .node-shape {
+      width: 40px;
+      height: 40px;
+      background: rgba(251, 191, 36, 0.15);
+      border: 2px solid var(--color-destination);
+      clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+      box-shadow: 0 0 30px var(--color-destination-glow);
+      animation: pulse-destination 3s infinite alternate ease-in-out;
+    }
+    .landmark[data-state="destination"] .node-shape::after {
+      content: "✦";
+      color: var(--color-destination);
+      font-size: 16px;
+    }
+    .landmark[data-level="theme"] .node-shape {
+      width: 18px;
+      height: 18px;
+    }
+    .landmark[data-level="theme"][data-state="frontier"] .node-shape {
+      background: rgba(56, 189, 248, 0.2);
+      border: 1.5px solid rgba(56, 189, 248, 0.8);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+      animation: none;
+    }
+    .landmark[data-level="theme"] { opacity: 0.4; }
+    .landmark[data-level="theme"][data-state="frontier"],
+    .landmark[data-level="theme"][data-state="claimed"],
+    .landmark[data-level="strand"],
+    .landmark[data-state="destination"] { opacity: 1; }
+    .landmark[data-state="resolved"],
+    .landmark[data-state="specced"] { opacity: 0.78; }
+    .stage.focus-blocked .landmark {
+      opacity: 0.18;
+      filter: grayscale(85%);
+    }
+    .stage.focus-blocked .landmark.is-focused,
+    .stage.focus-blocked .landmark.is-blocker {
+      opacity: 1;
+      filter: none;
+    }
+    .landmark.is-blocker .node-shape::before {
+      content: "";
+      position: absolute;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 1.5px dashed var(--color-blocked);
+      animation: rotate-missing-halo 4s linear infinite;
+      box-shadow: 0 0 15px var(--color-blocked-glow);
+    }
+    .node-label {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--text-main);
+      white-space: nowrap;
+      max-width: 11.5rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: rgba(5, 8, 16, 0.85);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+      pointer-events: none;
+    }
+    .landmark[data-state="destination"] .node-label {
+      color: var(--color-destination);
+      font-family: "Space Grotesk", sans-serif;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+    }
+    .landmark[data-state="blocked"] .node-label {
+      color: #fca5a5;
+      border-color: rgba(248, 113, 113, 0.3);
+    }
+
+    .you-are-here {
+      position: absolute;
+      transform: translate(-50%, -120%);
+      background: var(--color-destination);
+      color: #1a1408;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 3px 7px;
+      border-radius: 999px;
+      pointer-events: none;
+      z-index: 6;
+    }
+    .origin-mark {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      z-index: 5;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .origin-mark .origin-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #e8eef6;
+      box-shadow: 0 0 12px rgba(232, 238, 246, 0.45);
+    }
+    .origin-mark .node-label {
+      color: var(--text-dim);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 0.62rem;
+    }
+
+    .inspector {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      width: 360px;
+      max-width: calc(100% - 28px);
+      max-height: calc(100% - 28px);
+      overflow-y: auto;
+      background: var(--bg-surface);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(20px);
+      border-radius: 12px;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.85);
+      padding: 18px 18px 8px;
+      z-index: 30;
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .inspector.open { display: flex; }
+    .insp-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 12px;
+    }
+    .insp-status {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .insp-status::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .insp-status[data-kind="blocked"] { color: var(--color-blocked); }
+    .insp-status[data-kind="blocked"]::before {
+      border-radius: 0;
+      background: transparent;
+      border: 1.5px dashed var(--color-blocked);
+    }
+    .insp-status[data-kind="frontier"] { color: var(--color-frontier); }
+    .insp-status[data-kind="claimed"] { color: var(--color-claimed); }
+    .insp-status[data-kind="resolved"],
+    .insp-status[data-kind="specced"] { color: var(--color-resolved); }
+    .insp-status[data-kind="destination"] { color: var(--color-destination); }
+    .insp-name {
+      display: block;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-top: 4px;
+      color: #f4f7fb;
+    }
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 1.1rem;
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 2px 6px;
+      line-height: 1;
+    }
+    .close-btn:hover,
+    .close-btn:focus-visible {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+    }
+    .insp-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .insp-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 600;
+      text-decoration: none;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+    }
+    .insp-link:hover,
+    .insp-link:focus-visible {
+      border-color: var(--color-frontier);
+      color: var(--color-frontier);
+      background: rgba(56, 189, 248, 0.12);
+      outline: none;
+    }
+    .insp-link.spec {
+      border-color: rgba(52, 211, 153, 0.3);
+      color: var(--color-resolved);
+      background: rgba(16, 185, 129, 0.08);
+    }
+    .insp-link.spec:hover,
+    .insp-link.spec:focus-visible {
+      border-color: var(--color-resolved);
+      background: rgba(16, 185, 129, 0.2);
+    }
+    .spec-missing { font-size: 0.72rem; color: var(--text-dim); padding: 6px 2px; }
+    .tabs {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .tab {
+      border: 0;
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 8px 10px 9px;
+      font: 600 0.72rem/1 "Space Grotesk", sans-serif;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .tab:hover, .tab:focus-visible { color: var(--text-main); outline: none; }
+    .tab.active {
+      color: var(--text-main);
+      box-shadow: inset 0 -1px 0 var(--color-destination);
+    }
+    .pane { display: none; padding: 4px 0 12px; }
+    .pane.active { display: block; }
+    #overview-pane p { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
+    .asset-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+    .asset-list a { color: var(--color-frontier); font-size: 0.75rem; text-decoration: none; }
+    .section-title {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .req-list { display: flex; flex-direction: column; gap: 8px; }
+    .relation-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      font: 500 0.8rem/1.3 Inter, sans-serif;
+      color: inherit;
+      cursor: pointer;
+      text-align: left;
+    }
+    .relation-link:hover,
+    .relation-link:focus-visible {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: var(--color-frontier);
+      outline: none;
+    }
+    .relation-link.is-missing {
+      background: rgba(239, 68, 68, 0.08);
+      border-color: rgba(248, 113, 113, 0.18);
+    }
+    .relation-link strong { display: block; font-size: 0.8rem; font-weight: 600; }
+    .relation-link small { font-size: 0.68rem; }
+    .mark-ready { color: var(--color-resolved); }
+    .mark-wait { color: var(--color-blocked); }
+    .relation-progress {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 0.68rem;
+      color: var(--text-muted);
+    }
+    .relation-progress strong { color: var(--text-main); font-weight: 600; }
+    .relation-summary { color: var(--text-muted); font-size: 0.68rem; margin-bottom: 8px; letter-spacing: 0.12em; text-transform: uppercase; }
+    .node-links { display: none; }
+
+    @keyframes pulse-frontier {
+      0% { box-shadow: 0 0 8px rgba(56, 189, 248, 0.3); transform: scale(1); }
+      100% { box-shadow: 0 0 22px rgba(56, 189, 248, 0.8); transform: scale(1.12); }
+    }
+    @keyframes pulse-destination {
+      0% { transform: scale(1) rotate(0deg); box-shadow: 0 0 15px var(--color-destination-glow); }
+      100% { transform: scale(1.12) rotate(90deg); box-shadow: 0 0 40px var(--color-destination-glow); }
+    }
+    @keyframes rotate-missing-halo {
+      0% { transform: rotate(0deg) scale(0.95); opacity: 0.7; }
+      50% { transform: rotate(180deg) scale(1.1); opacity: 1; }
+      100% { transform: rotate(360deg) scale(0.95); opacity: 0.7; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .landmark .node-shape, .landmark.is-blocker .node-shape::before { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="star-canvas"></canvas>
+  <div class="stage" id="stage">
+    <div class="fog-layer fog-region" data-fog="true">
+        <span class="fog-label">Not yet specified</span>
+      </div>
+    <header class="hud">
+      <div class="hud-title">Wayfinder <span class="hud-badge">star map</span></div>
+      <p class="destination">A shipped save editor that isolates a volume and edits/transfers it with real Z — Height view on the current map first, schematic 3D later; browser and desktop; without corrupting the `.sav`.</p>
+    </header>
+    <div class="gesture-hint">
+      <span><span class="hint-kbd">Clic</span> Inspeccionar</span>
+      <span style="opacity:.35">|</span>
+      <span><span class="hint-kbd">Doble clic</span> Expandir hijos</span>
+    </div>
+    <div class="you-are-here" id="you-are-here" hidden>You are here</div>
+    <div class="map-plane" id="map-viewport">
+      <svg class="map-svg" viewBox="0 0 1200 740" preserveAspectRatio="none" role="img" aria-label="Star map bearing toward destination" data-focus="">
+        <line class="bearing" x1="120" y1="503.20000000000005" x2="1032" y2="148" />
+        
+        <g class="strand-arm" data-strand="volume-selection">
+        <g class="bloom-spines" data-parent="volume-selection"></g>
+      </g>
+<g class="strand-arm" data-strand="height-view">
+        <g class="bloom-spines" data-parent="height-view"></g>
+      </g>
+<g class="strand-arm" data-strand="build-package">
+        <g class="bloom-spines" data-parent="build-package"></g>
+      </g>
+<g class="strand-arm" data-strand="runtime-limits">
+        <g class="bloom-spines" data-parent="runtime-limits"></g>
+      </g>
+<g class="strand-arm" data-strand="edit-controls">
+        <g class="bloom-spines" data-parent="edit-controls"></g>
+      </g>
+<g class="strand-arm" data-strand="save-integrity">
+        <g class="bloom-spines" data-parent="save-integrity"></g>
+      </g>
+<g class="strand-arm" data-strand="visual-presentation">
+        <g class="bloom-spines" data-parent="visual-presentation"></g>
+      </g>
+        <g id="blocks-layer"></g>
+      </svg>
+      <div id="nodes-layer">
+        <span class="origin-mark" style="left:10.000%;top:68.000%">
+          <span class="origin-dot"></span>
+          <span class="node-label">Start</span>
+        </span>
+        <span class="fog-ghost" data-fog-patch="fog-01" aria-label="How occupancy, extrusion vs flat, and ghosts are drawn on the top-down map (Visual presentation)." style="left:62.000%;top:15.491%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">How occupancy, extrusion vs flat, and ghosts are drawn on the top-down map (Visual presentation).</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-02" aria-label="What stays in the browser tab versus what requires the desktop app (files, caps, memory). Height view itself is in the page; both shells inherit it. Caps/filesystem/headroom can still split later." style="left:68.843%;top:28.892%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">What stays in the browser tab versus what requires the desktop app (files, caps, memory). Height view itself is in the page; both shells inherit it. Caps/filesystem/headroom can still split later.</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-03" aria-label="Headroom under Runtime limits for Height view Cut buffers and later 3D (instanced typed arrays, payload diet) — measure on a 600k save after the skeleton is in the client." style="left:73.992%;top:35.148%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Headroom under Runtime limits for Height view Cut buffers and later 3D (instanced typed arrays, payload diet) — measure on a 600k save after the skeleton is in the client.</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-04" aria-label="Adding occupants from outside the committed cube (Ctrl+click / Cut): whether the rectangle grows (as if select-all then subtract) or extras are a second category — Horizon, not the first skeleton." style="left:74.815%;top:10.000%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Adding occupants from outside the committed cube (Ctrl+click / Cut): whether the rectangle grows (as if select-all then subtract) or extras are a second category — Horizon, not the first skeleton.</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-05" aria-label="Occupancy summary before copy (counts, types) — straddler warning is out (silent, same as today)." style="left:78.826%;top:42.358%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Occupancy summary before copy (counts, types) — straddler warning is out (silent, same as today).</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-06" aria-label="Named-file Build package beyond same-bytes-as-clipboard (extension, import, caps)." style="left:85.075%;top:48.611%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Named-file Build package beyond same-bytes-as-clipboard (extension, import, caps).</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-07" aria-label="Schematic 3D viewport attach (WebGL2 buckets vs vanilla Three.js, no R3F) — [3D scene adapter](issues/18-3d-scene-adapter.md)." style="left:86.790%;top:50.694%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Schematic 3D viewport attach (WebGL2 buckets vs vanilla Three.js, no R3F) — [3D scene adapter](issues/18-3d-scene-adapter.md).</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-08" aria-label="Shared `NormalizedWorld` typed-array diet vs current bucket strides for Cut + later 3D (wasm: no dual JS trees)." style="left:65.413%;top:24.725%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Shared `NormalizedWorld` typed-array diet vs current bucket strides for Cut + later 3D (wasm: no dual JS trees).</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-09" aria-label="GPU picking, spatial chunks, and how “cheaper rest-of-save” is drawn (600k ≠ 600k draw calls); exact browser vs desktop 3D render caps — measure after 18." style="left:65.585%;top:67.761%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">GPU picking, spatial chunks, and how “cheaper rest-of-save” is drawn (600k ≠ 600k draw calls); exact browser vs desktop 3D render caps — measure after 18.</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-10" aria-label="World terrain (optional later low-poly; not on the schematic bar). WASD fly and in-world labels." style="left:84.544%;top:47.966%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">World terrain (optional later low-poly; not on the schematic bar). WASD fly and in-world labels.</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-11" aria-label="`UnknownProxy` for unmapped `typePath`s in schematic 3D." style="left:74.118%;top:36.639%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">`UnknownProxy` for unmapped `typePath`s in schematic 3D.</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-12" aria-label="Whether the tool proposes a Build by clustering, or only accepts a manual volume." style="left:81.843%;top:46.023%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Whether the tool proposes a Build by clustering, or only accepts a manual volume.</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-13" aria-label="Two-save workspace versus sequential load in one tab." style="left:72.563%;top:34.750%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Two-save workspace versus sequential load in one tab.</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-14" aria-label="Local FModel → glTF extract after schematic 3D ships (user-run, never in git) — optional fidelity, not the schematic bar." style="left:62.000%;top:12.327%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Local FModel → glTF extract after schematic 3D ships (user-run, never in git) — optional fidelity, not the schematic bar.</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-15" aria-label="Dragging the placement Cut band to edit destination Z (landing gizmo) — after [Height-driven edits](issues/14-height-driven-edits.md)’s read-only band + panel." style="left:62.000%;top:16.668%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Dragging the placement Cut band to edit destination Z (landing gizmo) — after [Height-driven edits](issues/14-height-driven-edits.md)’s read-only band + panel.</span>
+      </span>
+<span class="fog-ghost" data-fog-patch="fog-16" aria-label="Development sections not yet named that only show up once Height view is on the real client." style="left:62.000%;top:17.982%">
+        <span class="fog-mark">?</span>
+        <span class="fog-caption">Development sections not yet named that only show up once Height view is on the real client.</span>
+      </span>
+        <button type="button" class="landmark node-element destination open" data-node-id="root" data-node-title="Vertical Build Transfer" data-level="root" data-state="destination" data-status="open" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/map.md" data-spec-path="" title="Vertical Build Transfer" style="left:88.000%;top:20.000%">
+        <span class="node-shape"></span>
+        <span class="node-label">Vertical Build Transfer</span>
+      </button>
+        <div class="strand-arm" data-strand="volume-selection">
+        <button type="button" class="landmark node-element strand resolved" data-node-id="volume-selection" data-node-title="Volume selection" data-level="strand" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/map.md" data-spec-path="" title="Volume selection" style="left:49.262%;top:80.392%">
+        <span class="node-shape"></span>
+        <span class="node-label">Volume selection</span>
+      </button>
+        <div class="territory collapsed" data-parent="volume-selection">
+          <button type="button" class="landmark node-element theme resolved" data-node-id="01" data-node-title="What is a Build" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/01-what-is-a-build.md" data-spec-path="" title="What is a Build">
+        <span class="node-shape"></span>
+        <span class="node-label">What is a Build</span>
+      </button>
+<button type="button" class="landmark node-element theme resolved" data-node-id="09" data-node-title="Isolation UX" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/09-isolation-ux.md" data-spec-path="" title="Isolation UX">
+        <span class="node-shape"></span>
+        <span class="node-label">Isolation UX</span>
+      </button>
+<button type="button" class="landmark node-element theme specced" data-node-id="12" data-node-title="Volume occupancy" data-level="theme" data-state="specced" data-status="specced" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/12-volume-occupancy.md" data-spec-path=".scratch/vertical-builds/specs/2-5d-first-cut.md" title="Volume occupancy">
+        <span class="node-shape"></span>
+        <span class="node-label">Volume occupancy</span>
+      </button>
+        </div>
+      </div>
+<div class="strand-arm" data-strand="height-view">
+        <button type="button" class="landmark node-element strand resolved" data-node-id="height-view" data-node-title="Height view" data-level="strand" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/map.md" data-spec-path="" title="Height view" style="left:22.706%;top:32.686%">
+        <span class="node-shape"></span>
+        <span class="node-label">Height view</span>
+      </button>
+        <div class="territory collapsed" data-parent="height-view">
+          <button type="button" class="landmark node-element theme resolved" data-node-id="02" data-node-title="First observation layer" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/02-first-observation-layer.md" data-spec-path="" title="First observation layer">
+        <span class="node-shape"></span>
+        <span class="node-label">First observation layer</span>
+      </button>
+<button type="button" class="landmark node-element theme resolved" data-node-id="06" data-node-title="Meaning of 2.5D" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/06-meaning-of-2-5d.md" data-spec-path="" title="Meaning of 2.5D">
+        <span class="node-shape"></span>
+        <span class="node-label">Meaning of 2.5D</span>
+      </button>
+<button type="button" class="landmark node-element theme resolved" data-node-id="08" data-node-title="Schematic 3D bar" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/08-schematic-3d-bar.md" data-spec-path="" title="Schematic 3D bar">
+        <span class="node-shape"></span>
+        <span class="node-label">Schematic 3D bar</span>
+      </button>
+<button type="button" class="landmark node-element theme resolved" data-node-id="10" data-node-title="Section plane" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/10-section-plane.md" data-spec-path="" title="Section plane">
+        <span class="node-shape"></span>
+        <span class="node-label">Section plane</span>
+      </button>
+<button type="button" class="landmark node-element theme specced" data-node-id="11" data-node-title="2.5D loop prototype" data-level="theme" data-state="specced" data-status="specced" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/11-2-5d-loop-prototype.md" data-spec-path=".scratch/vertical-builds/specs/2-5d-first-cut.md" title="2.5D loop prototype">
+        <span class="node-shape"></span>
+        <span class="node-label">2.5D loop prototype</span>
+      </button>
+<button type="button" class="landmark node-element theme specced" data-node-id="13" data-node-title="Height view chrome" data-level="theme" data-state="specced" data-status="specced" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/13-height-view-chrome.md" data-spec-path=".scratch/vertical-builds/specs/2-5d-first-cut.md" title="Height view chrome">
+        <span class="node-shape"></span>
+        <span class="node-label">Height view chrome</span>
+      </button>
+<button type="button" class="landmark node-element theme resolved" data-node-id="17" data-node-title="Survey 3D fork options" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/17-survey-3d-fork-options.md" data-spec-path="" title="Survey 3D fork options">
+        <span class="node-shape"></span>
+        <span class="node-label">Survey 3D fork options</span>
+      </button>
+        </div>
+      </div>
+<div class="strand-arm" data-strand="build-package">
+        <button type="button" class="landmark node-element strand resolved" data-node-id="build-package" data-node-title="Build package" data-level="strand" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/map.md" data-spec-path="" title="Build package" style="left:15.533%;top:45.886%">
+        <span class="node-shape"></span>
+        <span class="node-label">Build package</span>
+      </button>
+        <div class="territory collapsed" data-parent="build-package">
+          <button type="button" class="landmark node-element theme resolved" data-node-id="03" data-node-title="Transfer artifact" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/03-transfer-artifact.md" data-spec-path="" title="Transfer artifact">
+        <span class="node-shape"></span>
+        <span class="node-label">Transfer artifact</span>
+      </button>
+<button type="button" class="landmark node-element theme resolved" data-node-id="05" data-node-title="Survey peer tools" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/05-survey-peer-tools.md" data-spec-path="" title="Survey peer tools">
+        <span class="node-shape"></span>
+        <span class="node-label">Survey peer tools</span>
+      </button>
+        </div>
+      </div>
+<div class="strand-arm" data-strand="runtime-limits">
+        <button type="button" class="landmark node-element strand resolved" data-node-id="runtime-limits" data-node-title="Runtime limits" data-level="strand" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/map.md" data-spec-path="" title="Runtime limits" style="left:38.196%;top:76.955%">
+        <span class="node-shape"></span>
+        <span class="node-label">Runtime limits</span>
+      </button>
+        <div class="territory collapsed" data-parent="runtime-limits">
+          <button type="button" class="landmark node-element theme resolved" data-node-id="04" data-node-title="Survey the current map" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/04-survey-the-current-map.md" data-spec-path="" title="Survey the current map">
+        <span class="node-shape"></span>
+        <span class="node-label">Survey the current map</span>
+      </button>
+<button type="button" class="landmark node-element theme specced" data-node-id="16" data-node-title="Real-client skeleton" data-level="theme" data-state="specced" data-status="specced" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/16-real-client-skeleton.md" data-spec-path=".scratch/vertical-builds/specs/2-5d-first-cut.md" title="Real-client skeleton">
+        <span class="node-shape"></span>
+        <span class="node-label">Real-client skeleton</span>
+      </button>
+        </div>
+      </div>
+<div class="strand-arm" data-strand="edit-controls">
+        <button type="button" class="landmark node-element strand resolved" data-node-id="edit-controls" data-node-title="Edit controls" data-level="strand" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/map.md" data-spec-path="" title="Edit controls" style="left:27.387%;top:74.615%">
+        <span class="node-shape"></span>
+        <span class="node-label">Edit controls</span>
+      </button>
+        <div class="territory collapsed" data-parent="edit-controls">
+          <button type="button" class="landmark node-element theme resolved" data-node-id="07" data-node-title="Relocate semantics" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/07-relocate-semantics.md" data-spec-path="" title="Relocate semantics">
+        <span class="node-shape"></span>
+        <span class="node-label">Relocate semantics</span>
+      </button>
+<button type="button" class="landmark node-element theme resolved" data-node-id="14" data-node-title="Height-driven edits" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/14-height-driven-edits.md" data-spec-path="" title="Height-driven edits">
+        <span class="node-shape"></span>
+        <span class="node-label">Height-driven edits</span>
+      </button>
+        </div>
+      </div>
+<div class="strand-arm" data-strand="save-integrity">
+        <button type="button" class="landmark node-element strand resolved" data-node-id="save-integrity" data-node-title="Save integrity" data-level="strand" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/map.md" data-spec-path="" title="Save integrity" style="left:30.994%;top:24.254%">
+        <span class="node-shape"></span>
+        <span class="node-label">Save integrity</span>
+      </button>
+        <div class="territory collapsed" data-parent="save-integrity">
+          <button type="button" class="landmark node-element theme resolved" data-node-id="15" data-node-title="Save integrity gates" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/15-save-integrity-gates.md" data-spec-path="" title="Save integrity gates">
+        <span class="node-shape"></span>
+        <span class="node-label">Save integrity gates</span>
+      </button>
+        </div>
+      </div>
+<div class="strand-arm" data-strand="visual-presentation">
+        <button type="button" class="landmark node-element strand open" data-node-id="visual-presentation" data-node-title="Visual presentation" data-level="strand" data-state="frontier" data-status="open" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/map.md" data-spec-path="" title="Visual presentation" style="left:39.585%;top:10.000%">
+        <span class="node-shape"></span>
+        <span class="node-label">Visual presentation</span>
+      </button>
+        <div class="territory collapsed" data-parent="visual-presentation">
+          <button type="button" class="landmark node-element theme open" data-node-id="18" data-node-title="3D scene adapter" data-level="theme" data-state="frontier" data-status="open" data-frontier="true" data-blocked="false" data-path=".scratch/vertical-builds/issues/18-3d-scene-adapter.md" data-spec-path="" title="3D scene adapter">
+        <span class="node-shape"></span>
+        <span class="node-label">3D scene adapter</span>
+      </button>
+<button type="button" class="landmark node-element theme specced" data-node-id="19" data-node-title="Cut elevation marks" data-level="theme" data-state="specced" data-status="specced" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/19-cut-elevation-marks.md" data-spec-path=".scratch/vertical-builds/specs/2-5d-first-cut.md" title="Cut elevation marks">
+        <span class="node-shape"></span>
+        <span class="node-label">Cut elevation marks</span>
+      </button>
+<button type="button" class="landmark node-element theme resolved" data-node-id="20" data-node-title="Survey cut laterals" data-level="theme" data-state="resolved" data-status="resolved" data-frontier="false" data-blocked="false" data-path=".scratch/vertical-builds/issues/20-survey-cut-laterals.md" data-spec-path="" title="Survey cut laterals">
+        <span class="node-shape"></span>
+        <span class="node-label">Survey cut laterals</span>
+      </button>
+        </div>
+      </div>
+      </div>
+    </div>
+    <aside class="inspector" id="inspector" aria-label="Issue inspector">
+      <div class="insp-top">
+        <div>
+          <div class="insp-status" id="insp-status" data-kind="frontier">Frontier</div>
+          <strong class="insp-name" id="inspector-name">Issue</strong>
+        </div>
+        <button class="close-btn" id="close-inspector" type="button" aria-label="Close inspector">✕</button>
+      </div>
+      <div class="insp-links" id="insp-links"></div>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="overview" type="button">Overview</button>
+        <button class="tab" data-tab="dependencies" type="button">Dependencies</button>
+        <button class="tab" data-tab="children" type="button">Children</button>
+      </div>
+      <div class="pane active" data-pane="overview" id="overview-pane"></div>
+      <div class="pane" data-pane="dependencies" id="dependencies-pane"></div>
+      <div class="pane" data-pane="children" id="children-pane"></div>
+    </aside>
+    <div class="legend-panel">
+      <span class="legend-item"><i class="legend-dot destination"></i> destination</span>
+      <span class="legend-item"><i class="legend-dot claimed"></i> claimed</span>
+      <span class="legend-item"><i class="legend-dot resolved"></i> resolved</span>
+      <span class="legend-item"><i class="legend-dot specced"></i> specced</span>
+      <span class="legend-item"><i class="legend-dot frontier"></i> frontier</span>
+      <span class="legend-item"><i class="legend-dot blocked"></i> blocked</span>
+    </div>
+  </div>
+  <nav class="node-links" aria-hidden="true">
+    <div class="node-link" data-node-id="root">
+        <a class="ticket-href" href=".scratch/vertical-builds/map.md">.scratch/vertical-builds/map.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="volume-selection">
+        <a class="ticket-href" href=".scratch/vertical-builds/map.md">.scratch/vertical-builds/map.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="height-view">
+        <a class="ticket-href" href=".scratch/vertical-builds/map.md">.scratch/vertical-builds/map.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="build-package">
+        <a class="ticket-href" href=".scratch/vertical-builds/map.md">.scratch/vertical-builds/map.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="runtime-limits">
+        <a class="ticket-href" href=".scratch/vertical-builds/map.md">.scratch/vertical-builds/map.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="edit-controls">
+        <a class="ticket-href" href=".scratch/vertical-builds/map.md">.scratch/vertical-builds/map.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="save-integrity">
+        <a class="ticket-href" href=".scratch/vertical-builds/map.md">.scratch/vertical-builds/map.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="visual-presentation">
+        <a class="ticket-href" href=".scratch/vertical-builds/map.md">.scratch/vertical-builds/map.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="01">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/01-what-is-a-build.md">.scratch/vertical-builds/issues/01-what-is-a-build.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="02">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/02-first-observation-layer.md">.scratch/vertical-builds/issues/02-first-observation-layer.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="03">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/03-transfer-artifact.md">.scratch/vertical-builds/issues/03-transfer-artifact.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="04">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/04-survey-the-current-map.md">.scratch/vertical-builds/issues/04-survey-the-current-map.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="05">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/05-survey-peer-tools.md">.scratch/vertical-builds/issues/05-survey-peer-tools.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="06">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/06-meaning-of-2-5d.md">.scratch/vertical-builds/issues/06-meaning-of-2-5d.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="07">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/07-relocate-semantics.md">.scratch/vertical-builds/issues/07-relocate-semantics.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="08">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/08-schematic-3d-bar.md">.scratch/vertical-builds/issues/08-schematic-3d-bar.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="09">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/09-isolation-ux.md">.scratch/vertical-builds/issues/09-isolation-ux.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="10">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/10-section-plane.md">.scratch/vertical-builds/issues/10-section-plane.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="11">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/11-2-5d-loop-prototype.md">.scratch/vertical-builds/issues/11-2-5d-loop-prototype.md</a>
+        <a class="spec-href" href=".scratch/vertical-builds/specs/2-5d-first-cut.md">.scratch/vertical-builds/specs/2-5d-first-cut.md</a>
+      </div>
+<div class="node-link" data-node-id="12">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/12-volume-occupancy.md">.scratch/vertical-builds/issues/12-volume-occupancy.md</a>
+        <a class="spec-href" href=".scratch/vertical-builds/specs/2-5d-first-cut.md">.scratch/vertical-builds/specs/2-5d-first-cut.md</a>
+      </div>
+<div class="node-link" data-node-id="13">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/13-height-view-chrome.md">.scratch/vertical-builds/issues/13-height-view-chrome.md</a>
+        <a class="spec-href" href=".scratch/vertical-builds/specs/2-5d-first-cut.md">.scratch/vertical-builds/specs/2-5d-first-cut.md</a>
+      </div>
+<div class="node-link" data-node-id="14">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/14-height-driven-edits.md">.scratch/vertical-builds/issues/14-height-driven-edits.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="15">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/15-save-integrity-gates.md">.scratch/vertical-builds/issues/15-save-integrity-gates.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="16">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/16-real-client-skeleton.md">.scratch/vertical-builds/issues/16-real-client-skeleton.md</a>
+        <a class="spec-href" href=".scratch/vertical-builds/specs/2-5d-first-cut.md">.scratch/vertical-builds/specs/2-5d-first-cut.md</a>
+      </div>
+<div class="node-link" data-node-id="17">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/17-survey-3d-fork-options.md">.scratch/vertical-builds/issues/17-survey-3d-fork-options.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="18">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/18-3d-scene-adapter.md">.scratch/vertical-builds/issues/18-3d-scene-adapter.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+<div class="node-link" data-node-id="19">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/19-cut-elevation-marks.md">.scratch/vertical-builds/issues/19-cut-elevation-marks.md</a>
+        <a class="spec-href" href=".scratch/vertical-builds/specs/2-5d-first-cut.md">.scratch/vertical-builds/specs/2-5d-first-cut.md</a>
+      </div>
+<div class="node-link" data-node-id="20">
+        <a class="ticket-href" href=".scratch/vertical-builds/issues/20-survey-cut-laterals.md">.scratch/vertical-builds/issues/20-survey-cut-laterals.md</a>
+        <span class="spec-missing">Spec: aún no asociado</span>
+      </div>
+  </nav>
+  <script type="application/json" id="graph-data">[{"id":"root","title":"Vertical Build Transfer","level":"root","status":"open","gist":null,"path":".scratch/vertical-builds/map.md","specPath":null,"blockedBy":[],"parentId":null,"assets":[],"workType":null},{"id":"volume-selection","title":"Volume selection","level":"strand","status":"open","gist":null,"path":".scratch/vertical-builds/map.md","specPath":null,"blockedBy":[],"parentId":"root","assets":[],"workType":null},{"id":"height-view","title":"Height view","level":"strand","status":"open","gist":null,"path":".scratch/vertical-builds/map.md","specPath":null,"blockedBy":[],"parentId":"root","assets":[],"workType":null},{"id":"build-package","title":"Build package","level":"strand","status":"open","gist":null,"path":".scratch/vertical-builds/map.md","specPath":null,"blockedBy":[],"parentId":"root","assets":[],"workType":null},{"id":"runtime-limits","title":"Runtime limits","level":"strand","status":"open","gist":null,"path":".scratch/vertical-builds/map.md","specPath":null,"blockedBy":[],"parentId":"root","assets":[],"workType":null},{"id":"edit-controls","title":"Edit controls","level":"strand","status":"open","gist":null,"path":".scratch/vertical-builds/map.md","specPath":null,"blockedBy":[],"parentId":"root","assets":[],"workType":null},{"id":"save-integrity","title":"Save integrity","level":"strand","status":"open","gist":null,"path":".scratch/vertical-builds/map.md","specPath":null,"blockedBy":[],"parentId":"root","assets":[],"workType":null},{"id":"visual-presentation","title":"Visual presentation","level":"strand","status":"open","gist":null,"path":".scratch/vertical-builds/map.md","specPath":null,"blockedBy":[],"parentId":"root","assets":[],"workType":null},{"id":"01","title":"What is a Build","level":"theme","status":"resolved","gist":"A Build is a spatial volume: an XY region plus its Z extent. Occupants of that volume are the transfer set, including objects the 2D silhouette would hide.","path":".scratch/vertical-builds/issues/01-what-is-a-build.md","specPath":null,"blockedBy":[],"parentId":"volume-selection","assets":[],"workType":"grilling"},{"id":"02","title":"First observation layer","level":"theme","status":"resolved","gist":"The first MVP this spec commits to ship is 2.5D with better verticality handling on the current map. Schematic 3D remains the final observation objective of the same spec, not a later map and not out of scope.","path":".scratch/vertical-builds/issues/02-first-observation-layer.md","specPath":null,"blockedBy":[],"parentId":"height-view","assets":[],"workType":"grilling"},{"id":"03","title":"Transfer artifact","level":"theme","status":"resolved","gist":"Both: the existing clipboard package for in-session Ctrl+C/V, and a named file for keep/share. Same payload; the file is that package with a name. Not a new object model, not the game’s blueprint.","path":".scratch/vertical-builds/issues/03-transfer-artifact.md","specPath":null,"blockedBy":[],"parentId":"build-package","assets":[],"workType":"grilling"},{"id":"04","title":"Survey the current map","level":"theme","status":"resolved","gist":"The map uses a 2D orthographic WebGL2 bucket renderer with 1D altitude filtering/depth sorting, selection rectangle/toggles, zstd-compressed cross-save clipboard with browser caps (50k/150k/200MB) vs native slots, and pristine body replay; hard walls are wasm32 4GB memory (~2GB standing) and Vanilla JS no-bundler constraints.","path":".scratch/vertical-builds/issues/04-survey-the-current-map.md","specPath":null,"blockedBy":[],"parentId":"runtime-limits","assets":[],"workType":"research"},{"id":"05","title":"Survey peer tools","level":"theme","status":"resolved","gist":"No surveyed tool both shows stacked floors well enough to isolate an existing factory volume and exports that volume as a portable artifact — SCIM is 2D plus an altitude filter, the in-game Designer is a rebuild-inside-a-cube workflow, and Factorio/DSP copy 2D layouts.","path":".scratch/vertical-builds/issues/05-survey-peer-tools.md","specPath":null,"blockedBy":[],"parentId":"build-package","assets":[],"workType":"research"},{"id":"06","title":"Meaning of 2.5D","level":"theme","status":"resolved","gist":"2.5D is the current top-down map plus a linked A–A′ Cut. The Cut is required to see verticality — not an optional later viewer.","path":".scratch/vertical-builds/issues/06-meaning-of-2-5d.md","specPath":null,"blockedBy":["02"],"parentId":"height-view","assets":[],"workType":"grilling"},{"id":"07","title":"Relocate semantics","level":"theme","status":"resolved","gist":"Cut at the set boundary using the **existing** copy/paste: whole selected actors travel; connections that left the set are tombstoned; power wires copy only when both endpoints are in the set. Internal connections stay. Do not weld on paste. Do not geometrically split belts/pipes at the volume wall, and do not retouch chain-actor internals — that is how a save corrupts (`docs/chained-belt-delete.md`).","path":".scratch/vertical-builds/issues/07-relocate-semantics.md","specPath":null,"blockedBy":["01","03"],"parentId":"edit-controls","assets":[],"workType":"grilling"},{"id":"08","title":"Schematic 3D bar","level":"theme","status":"resolved","gist":"Schematic 3D is a **tool-dock mode** in the **same viewport** (Leaflet hidden while on): **lookalike** proxies, **orbit**, **filtered save**, gizmos **XYZ+rotate**, **one Z window**, cheaper **rest-of-save** still visible; **one product, two render ceilings**.","path":".scratch/vertical-builds/issues/08-schematic-3d-bar.md","specPath":null,"blockedBy":["02"],"parentId":"height-view","assets":[],"workType":"grilling"},{"id":"09","title":"Isolation UX","level":"theme","status":"resolved","gist":"Draw an XY rectangle on the map; then pick the Z extent on the A–A′ Cut of that rectangle. The Build is that XY plus that Z window.","path":".scratch/vertical-builds/issues/09-isolation-ux.md","specPath":null,"blockedBy":["01"],"parentId":"volume-selection","assets":[],"workType":"grilling"},{"id":"10","title":"Section plane","level":"theme","status":"resolved","gist":"Both: A–A′ and a perpendicular B–B′. The Cut is a pair of profiles through the rectangle, not one plane you hope is the right read.","path":".scratch/vertical-builds/issues/10-section-plane.md","specPath":null,"blockedBy":["06"],"parentId":"height-view","assets":[],"workType":"grilling"},{"id":"11","title":"2.5D loop prototype","level":"theme","status":"specced","gist":"The MVP loop is: draw the XY rectangle → linked A–A′ and B–B′ Cuts → one shared Z window on either strip → occupants of that volume are the Build. Not flood, not a 3D prism, not a camera.","path":".scratch/vertical-builds/issues/11-2-5d-loop-prototype.md","specPath":".scratch/vertical-builds/specs/2-5d-first-cut.md","blockedBy":["10"],"parentId":"height-view","assets":[".scratch/vertical-builds/prototype/2-5d-loop.html"],"workType":"prototype"},{"id":"12","title":"Volume occupancy","level":"theme","status":"specced","gist":"Occupants are today’s `collectInBox` rules, with the isolation Z window as the altitude gate. [Height view chrome](13-height-view-chrome.md) reads that gate as: `MapApp.altitudeRange` still caps the set; the Cut band peels **inside** that cap (AND), and cannot take what the global slider hides. Layer-off buckets stay out. `hiddenClasses` (sign poles, path nodes, …) stay out of the payload and out of the Build. Individually hidden objects (`hiddenIndices`) remain selectable, as they are today. Belts/pipes: whole actor if any vertex is in XY and that vertex’s Z is in the window. Power lines still copy only when both endpoint owners are in the set. Straddlers copy silently — no warning, no block, no Cut-exclusion mark as an occupancy contract. No geometric split.","path":".scratch/vertical-builds/issues/12-volume-occupancy.md","specPath":".scratch/vertical-builds/specs/2-5d-first-cut.md","blockedBy":["09"],"parentId":"volume-selection","assets":[],"workType":"grilling"},{"id":"13","title":"Height view chrome","level":"theme","status":"specced","gist":"Altitude rail caps map and occupancy; the Cut start–end band peels Build Z inside that cap. No rectangle → no Cut. L-frame overlay on the map viewport with a session switch to flaps; independent A↔A′ / B↔B′ via end labels; empty strips stay.","path":".scratch/vertical-builds/issues/13-height-view-chrome.md","specPath":".scratch/vertical-builds/specs/2-5d-first-cut.md","blockedBy":["11"],"parentId":"height-view","assets":[],"workType":"grilling"},{"id":"14","title":"Height-driven edits","level":"theme","status":"resolved","gist":"Move and paste share one 2.5D Height-view observation: the same L-frame Cut, retargeted to the destination ghost, showing dest background plus a neighborhood pad, with the traveling set more attenuated; payload Z is the floor of what actually travels, bound to the existing paste numbers (not today’s bbox center, not a Cut drag gizmo).","path":".scratch/vertical-builds/issues/14-height-driven-edits.md","specPath":null,"blockedBy":["07","12"],"parentId":"edit-controls","assets":[],"workType":"grilling"},{"id":"15","title":"Save integrity gates","level":"theme","status":"resolved","gist":"Spec gate is `sav_core` CI: isolate with today’s occupancy plus a Z window, then copy, paste, delete, undo; parser accepts; occupant counts and bounds match a fixture snapshot; undo restores payload to pristine. wasm OOM on a 600k save is Runtime limits, not this gate. First-ship smoke is one in-game load of that edited `.sav` (human, not CI). `All_080726` is the fixture unless it lacks two floors in the same XY — then add a gitignored stacked save via `fetch_test_saves.py`. etothepii is an optional oracle, not a second writer and not CI. No new belt model; no chain-actor surgery.","path":".scratch/vertical-builds/issues/15-save-integrity-gates.md","specPath":null,"blockedBy":["07"],"parentId":"save-integrity","assets":[],"workType":"grilling"},{"id":"16","title":"Real-client skeleton","level":"theme","status":"specced","gist":"First non-throwaway Height view is **additive in the current tab**: same `index.html`, same WASM session, live buckets. Desktop inherits `dist/`. Not a sidecar HTML, not Tauri-only, not Three.js, not a second renderer “to see.”","path":".scratch/vertical-builds/issues/16-real-client-skeleton.md","specPath":".scratch/vertical-builds/specs/2-5d-first-cut.md","blockedBy":["11","15"],"parentId":"runtime-limits","assets":[],"workType":"grilling"},{"id":"17","title":"Survey 3D fork options","level":"theme","status":"resolved","gist":"Keep `sav_core`. Schematic 3D (instanced proxies, camera, synced filters) **is this app’s later observation** — same editor, same Build loop; Height view ships first. Three.js as a vanilla scene adapter is the live stack option. R3F/bundler, `.sbp` as the Build package, and Coffee Stain glTF in git stay out. Real meshes stay local/out of git, after schematic.","path":".scratch/vertical-builds/issues/17-survey-3d-fork-options.md","specPath":null,"blockedBy":["05"],"parentId":"height-view","assets":[],"workType":"research"},{"id":"18","title":"3D scene adapter","level":"theme","status":"open","gist":null,"path":".scratch/vertical-builds/issues/18-3d-scene-adapter.md","specPath":null,"blockedBy":["08"],"parentId":"visual-presentation","assets":[],"workType":"grilling"},{"id":"19","title":"Cut elevation marks","level":"theme","status":"specced","gist":"The first-ship Cut is an **orthographic lateral projection** onto A–A′ and onto B–B′ (along × Z), not a 3D camera and not a slice that shows objects outside the XY rectangle. Existing map/UI icons are unchanged. Who enters the Build stays [Volume occupancy](12-volume-occupancy.md) / today’s XY rules; this ticket is drawing only.","path":".scratch/vertical-builds/issues/19-cut-elevation-marks.md","specPath":".scratch/vertical-builds/specs/2-5d-first-cut.md","blockedBy":["11"],"parentId":"visual-presentation","assets":[],"workType":"grilling"},{"id":"20","title":"Survey cut laterals","level":"theme","status":"resolved","gist":"Table height and XY already give a true-meter AABB Cut; richer laterals have no producer here. SCIM’s closer-to-model figures are hand-traced top-down polygons (~67 classes, JSON, not reusable) and do not rotate into elevations. SVG/mesh extract would have to be modeled later; AABB first-ship in 16 stays unblocked.","path":".scratch/vertical-builds/issues/20-survey-cut-laterals.md","specPath":null,"blockedBy":["19"],"parentId":"visual-presentation","assets":[],"workType":"research"}]</script>
+  <script>
+    const VIEW = { width: 1200, height: 740, start: { x: 120, y: 503.20000000000005 }, dest: { x: 1056, y: 148 } };
+    function layoutBloom(parent, k, occupancy, view, hint) {
+  const TWO_PI = Math.PI * 2;
+  const SAMPLES = 48;
+  const MIN_DIST = 64;
+  const MIN_CHORD = 78;
+  const BASE_R = 84;
+  const PAD = 56;
+  const viewW = view && view.width ? view.width : 1200;
+  const viewH = view && view.height ? view.height : 740;
+  const obstacles = occupancy || [];
+  if (k <= 0) return [];
+
+  function clampValue(value, lo, hi) {
+    return Math.max(lo, Math.min(hi, value));
+  }
+  function angDiff(a, b) {
+    let d = Math.abs(a - b) % TWO_PI;
+    if (d > Math.PI) d = TWO_PI - d;
+    return d;
+  }
+  function at(ang, r) {
+    return {
+      x: parent.x + Math.cos(ang) * r,
+      y: parent.y + Math.sin(ang) * r,
+    };
+  }
+  function edgeClear(ang, r) {
+    const p = at(ang, r);
+    return Math.min(p.x - PAD, viewW - PAD - p.x, p.y - PAD, viewH - PAD - p.y);
+  }
+
+  const arc = Math.min(
+    TWO_PI * 0.64,
+    Math.max(0.72 * Math.PI, 0.55 * Math.max(k - 1, 1)),
+  );
+  const half = arc / 2;
+  function radiusFor(count, span) {
+    const base = BASE_R + Math.min(96, count * 14);
+    if (count <= 1) return base;
+    const halfGap = span / (2 * (count - 1));
+    const need = MIN_CHORD / (2 * Math.sin(Math.max(halfGap, 0.05)));
+    return Math.max(base, need);
+  }
+  let r = radiusFor(k, arc);
+
+  const from =
+    (hint && hint.from) || (view && view.start) || null;
+  const fromDist = from
+    ? Math.hypot(parent.x - from.x, parent.y - from.y)
+    : 0;
+  const outwardAng =
+    fromDist > 12
+      ? Math.atan2(parent.y - from.y, parent.x - from.x)
+      : null;
+  const outwardW = fromDist > 0 && fromDist < 200 ? 42 : 10;
+
+  function openness(mid, radius) {
+    const window = half + 0.55;
+    let nearest = 520;
+    let pressure = 0;
+    for (let o = 0; o < obstacles.length; o += 1) {
+      const obs = obstacles[o];
+      const dx = obs.x - parent.x;
+      const dy = obs.y - parent.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 10) continue;
+      const diff = angDiff(Math.atan2(dy, dx), mid);
+      if (diff >= window) continue;
+      const align = 1 - diff / window;
+      const clearance = Math.max(8, dist - (obs.r || 24));
+      nearest = Math.min(nearest, clearance / (0.35 + 0.65 * align));
+      pressure += (align * align) / clearance;
+    }
+    let edge = Infinity;
+    const steps = 5;
+    for (let s = 0; s < steps; s += 1) {
+      const t = steps === 1 ? 0.5 : s / (steps - 1);
+      edge = Math.min(edge, edgeClear(mid - half + t * arc, radius));
+    }
+    return { nearest, pressure, edge };
+  }
+
+  let bestMid = outwardAng == null ? -Math.PI / 3 : outwardAng;
+  let bestScore = -Infinity;
+  let bestR = r;
+  for (let i = 0; i < SAMPLES; i += 1) {
+    const mid = (i / SAMPLES) * TWO_PI;
+    let candR = r;
+    let open = openness(mid, candR);
+    if (open.edge < 20 || open.pressure > 0.08) {
+      candR = r + 32 + k * 4;
+      open = openness(mid, candR);
+    }
+    const out =
+      outwardAng == null ? 0 : 1 - angDiff(mid, outwardAng) / Math.PI;
+    const edgePen = open.edge < 0 ? open.edge * 5 : open.edge * 0.2;
+    const score =
+      open.nearest - open.pressure * 1400 + edgePen + out * outwardW;
+    if (score > bestScore) {
+      bestScore = score;
+      bestMid = mid;
+      bestR = candR;
+    }
+  }
+
+  const startAng = bestMid - half;
+  const placed = [];
+  function placeOnRing(count, radius, span) {
+    for (let i = 0; i < count; i += 1) {
+      const t = count === 1 ? 0.5 : i / (count - 1);
+      placed.push(at(startAng + t * span, radius));
+    }
+  }
+  if (k > 10) {
+    const inner = Math.ceil(k / 2);
+    placeOnRing(inner, bestR, arc * 0.86);
+    placeOnRing(k - inner, bestR + 58, arc);
+  } else {
+    placeOnRing(k, bestR, arc);
+  }
+
+  for (let pass = 0; pass < 4; pass += 1) {
+    for (let i = 0; i < placed.length; i += 1) {
+      for (let j = i + 1; j < placed.length; j += 1) {
+        const dx = placed[j].x - placed[i].x;
+        const dy = placed[j].y - placed[i].y;
+        const d = Math.hypot(dx, dy);
+        if (d > 0 && d < MIN_DIST) {
+          const push = (MIN_DIST - d) / 2;
+          placed[i].x -= (dx / d) * push;
+          placed[i].y -= (dy / d) * push;
+          placed[j].x += (dx / d) * push;
+          placed[j].y += (dy / d) * push;
+        }
+      }
+      for (let o = 0; o < obstacles.length; o += 1) {
+        const obs = obstacles[o];
+        const dx = placed[i].x - obs.x;
+        const dy = placed[i].y - obs.y;
+        const need = (obs.r || 24) + 28;
+        const d = Math.hypot(dx, dy);
+        if (d === 0) {
+          placed[i].x += 10;
+        } else if (d < need) {
+          const push = need - d;
+          placed[i].x += (dx / d) * push;
+          placed[i].y += (dy / d) * push;
+        }
+      }
+      placed[i].x = clampValue(placed[i].x, PAD, viewW - PAD);
+      placed[i].y = clampValue(placed[i].y, PAD, viewH - PAD);
+    }
+  }
+  return placed;
+}
+    const nodes = JSON.parse(document.getElementById("graph-data").textContent);
+    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+    const svg = document.querySelector("svg");
+    const stage = document.getElementById("stage");
+    const inspector = document.getElementById("inspector");
+    const herePin = document.getElementById("you-are-here");
+    const statusEl = document.getElementById("insp-status");
+    const linksEl = document.getElementById("insp-links");
+    let selectedNode = null;
+    let clickTimer = null;
+    const childPositions = {};
+
+    const canvas = document.getElementById("star-canvas");
+    const ctx = canvas.getContext("2d");
+    let stars = [];
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      stars = [];
+      const count = Math.floor((canvas.width * canvas.height) / 3200);
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          radius: Math.random() * 1.2,
+          alpha: Math.random() * 0.8 + 0.2,
+          speed: Math.random() * 0.004 + 0.002
+        });
+      }
+    }
+    function drawStars() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#ffffff";
+      stars.forEach((star) => {
+        star.alpha += Math.sin(Date.now() * star.speed) * 0.01;
+        ctx.globalAlpha = Math.max(0.1, Math.min(0.9, star.alpha));
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      requestAnimationFrame(drawStars);
+    }
+    resizeCanvas();
+    drawStars();
+    window.addEventListener("resize", resizeCanvas);
+
+    function childrenOf(id) {
+      return nodes.filter((n) => n.parentId === id);
+    }
+
+    function isSettled(status) {
+      return status === "resolved" || status === "specced";
+    }
+
+    function pendingBlockers(node) {
+      return (node.blockedBy || []).filter((id) => {
+        const blocker = byId[id];
+        return blocker ? !isSettled(blocker.status) : true;
+      });
+    }
+
+    function safeHref(value) {
+      const href = String(value ?? "");
+      return /^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("//") ? "#" : href;
+    }
+
+    function appendParagraph(parent, value) {
+      const paragraph = document.createElement("p");
+      paragraph.textContent = String(value ?? "");
+      parent.append(paragraph);
+    }
+
+    function badgeFor(node) {
+      if (node.level === "root") return { kind: "destination", label: "Destination" };
+      if (pendingBlockers(node).length) return { kind: "blocked", label: "Blocked" };
+      if (node.level === "strand") {
+        const kids = childrenOf(node.id);
+        if (kids.length && kids.every((kid) => isSettled(kid.status))) {
+          return kids.every((kid) => kid.status === "specced")
+            ? { kind: "specced", label: "Specced" }
+            : { kind: "resolved", label: "Resolved" };
+        }
+      }
+      if (node.status === "claimed") return { kind: "claimed", label: "Claimed" };
+      if (node.status === "specced") return { kind: "specced", label: "Specced" };
+      if (node.status === "resolved") return { kind: "resolved", label: "Resolved" };
+      return { kind: "frontier", label: "Frontier" };
+    }
+
+    function fillChrome(node) {
+      const badge = badgeFor(node);
+      statusEl.dataset.kind = badge.kind;
+      statusEl.textContent = badge.label;
+      linksEl.replaceChildren();
+      const ticket = document.createElement("a");
+      ticket.className = "insp-link ticket-href";
+      ticket.href = safeHref(node.path);
+      ticket.textContent = "Abrir ticket";
+      linksEl.append(ticket);
+      if (node.specPath) {
+        const spec = document.createElement("a");
+        spec.className = "insp-link spec spec-href";
+        spec.href = safeHref(node.specPath);
+        spec.textContent = "Abrir spec";
+        linksEl.append(spec);
+      } else {
+        const missing = document.createElement("span");
+        missing.className = "spec-missing";
+        missing.textContent = "Spec: aún no asociado";
+        linksEl.append(missing);
+      }
+    }
+
+    function fillRelationPane(pane, items, emptyText, label, showGate) {
+      pane.replaceChildren();
+      if (items.length === 0) {
+        appendParagraph(pane, emptyText);
+        return;
+      }
+      const summary = document.createElement("p");
+      summary.className = "relation-summary";
+      summary.textContent = items.length + " " + label;
+      pane.append(summary);
+      const list = document.createElement("div");
+      list.className = "req-list";
+      const ready = items.filter((item) => isSettled(item.status)).length;
+      for (const item of items) {
+        const settled = isSettled(item.status);
+        const button = document.createElement("button");
+        button.className = "relation-link" + (settled ? "" : " is-missing");
+        button.type = "button";
+        button.dataset.jumpNode = item.id;
+        const title = document.createElement("strong");
+        title.className = settled ? "mark-ready" : "mark-wait";
+        title.textContent = (settled ? "✓ " : "· ") + item.title;
+        const state = document.createElement("small");
+        state.className = settled ? "mark-ready" : "mark-wait";
+        state.textContent = item.status;
+        button.append(title, state);
+        list.append(button);
+      }
+      pane.append(list);
+      if (showGate) {
+        const progress = document.createElement("div");
+        progress.className = "relation-progress";
+        const readyText = document.createElement("span");
+        const readyStrong = document.createElement("strong");
+        readyStrong.textContent = ready + " / " + items.length;
+        readyText.append(readyStrong, document.createTextNode(" ready"));
+        const gateText = document.createElement("span");
+        gateText.textContent = "ALL gate";
+        progress.append(readyText, gateText);
+        pane.append(progress);
+      }
+    }
+
+    function activateTab(name) {
+      document.querySelectorAll(".tab").forEach((tab) => {
+        tab.classList.toggle("active", tab.dataset.tab === name);
+      });
+      document.querySelectorAll(".pane").forEach((pane) => {
+        pane.classList.toggle("active", pane.dataset.pane === name);
+      });
+      if (selectedNode && inspector.classList.contains("open")) {
+        const mark = document.querySelector('.landmark[data-node-id="' + selectedNode.id + '"]');
+        if (mark) positionInspector(mark);
+      }
+    }
+
+    function viewPos(el) {
+      if (!el || !el.style.left) return null;
+      return {
+        x: (parseFloat(el.style.left) / 100) * VIEW.width,
+        y: (parseFloat(el.style.top) / 100) * VIEW.height,
+      };
+    }
+
+    function isLandmarkVisible(id) {
+      const el = document.querySelector('.landmark[data-node-id="' + id + '"]');
+      if (!el) return false;
+      const territory = el.closest(".territory");
+      if (territory && territory.classList.contains("collapsed")) return false;
+      return Boolean(el.style.left);
+    }
+
+    function occupancyOfVisible(exceptParentId) {
+      const occ = [];
+      const destEl = document.querySelector(".landmark.destination");
+      const destPos = viewPos(destEl);
+      if (destPos) occ.push({ ...destPos, r: 36, kind: "destination" });
+      document.querySelectorAll(".landmark.strand").forEach((el) => {
+        if (el.dataset.nodeId === exceptParentId) return;
+        const pos = viewPos(el);
+        if (pos) occ.push({ ...pos, r: 28, kind: "strand" });
+      });
+      document.querySelectorAll(".territory:not(.collapsed) .landmark").forEach((el) => {
+        const parent = el.closest(".territory");
+        if (parent && parent.dataset.parent === exceptParentId) return;
+        const pos = viewPos(el);
+        if (pos) occ.push({ ...pos, r: 22, kind: "theme" });
+      });
+      document.querySelectorAll("[data-fog-patch]").forEach((el) => {
+        const pos = viewPos(el);
+        if (pos) occ.push({ ...pos, r: 18, kind: "fog" });
+      });
+      return occ;
+    }
+
+    function svgEl(name, attrs) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+      for (const key of Object.keys(attrs)) el.setAttribute(key, attrs[key]);
+      return el;
+    }
+
+    function clearBloomSpines(parentId) {
+      const group = document.querySelector('.bloom-spines[data-parent="' + parentId + '"]');
+      if (!group) return;
+      while (group.firstChild) group.removeChild(group.firstChild);
+    }
+
+    function drawBloomSpines(parentId, origin, kids) {
+      const group = document.querySelector('.bloom-spines[data-parent="' + parentId + '"]');
+      if (!group) return;
+      while (group.firstChild) group.removeChild(group.firstChild);
+      const pad = 56;
+      for (const kid of kids) {
+        const mx = origin.x + (kid.x - origin.x) * 0.42;
+        const my = origin.y + (kid.y - origin.y) * 0.18;
+        let cx = mx;
+        let cy = my;
+        if (kid.x < pad + 16) cx += 28;
+        if (kid.x > VIEW.width - pad - 16) cx -= 28;
+        if (kid.y < pad + 16) cy += 28;
+        if (kid.y > VIEW.height - pad - 16) cy -= 28;
+        group.appendChild(
+          svgEl("path", {
+            class: "spine",
+            d: "M " + origin.x + " " + origin.y + " Q " + cx + " " + cy + " " + kid.x + " " + kid.y,
+            fill: "none",
+          }),
+        );
+      }
+    }
+
+    function drawBlocks() {
+      const layer = document.getElementById("blocks-layer");
+      if (!layer) return;
+      while (layer.firstChild) layer.removeChild(layer.firstChild);
+      for (const node of nodes) {
+        for (const fromId of node.blockedBy || []) {
+          if (!isLandmarkVisible(fromId) || !isLandmarkVisible(node.id)) continue;
+          const fromEl = document.querySelector('.landmark[data-node-id="' + fromId + '"]');
+          const toEl = document.querySelector('.landmark[data-node-id="' + node.id + '"]');
+          const from = viewPos(fromEl);
+          const to = viewPos(toEl);
+          if (!from || !to) continue;
+          const cx = (from.x + to.x) / 2;
+          const cy = (from.y + to.y) / 2 - 28;
+          layer.appendChild(
+            svgEl("path", {
+              class: "blocks-edge",
+              "data-from": fromId,
+              "data-to": node.id,
+              d: "M " + from.x + " " + from.y + " Q " + cx + " " + cy + " " + to.x + " " + to.y,
+              fill: "none",
+            }),
+          );
+        }
+      }
+    }
+
+    function applyBloom(parentId) {
+      const parentEl = document.querySelector('.landmark[data-node-id="' + parentId + '"]');
+      const origin = viewPos(parentEl);
+      if (!origin) return;
+      const kids = Array.from(
+        document.querySelectorAll('.territory[data-parent="' + parentId + '"] .landmark'),
+      );
+      const nest = parentEl.closest(".territory");
+      let from = VIEW.start || null;
+      if (nest) {
+        const ancestor = document.querySelector(
+          '.landmark[data-node-id="' + nest.dataset.parent + '"]',
+        );
+        const ancestorPos = viewPos(ancestor);
+        if (ancestorPos) from = ancestorPos;
+      }
+      const placed = layoutBloom(
+        origin,
+        kids.length,
+        occupancyOfVisible(parentId),
+        VIEW,
+        { from },
+      );
+      kids.forEach((el, index) => {
+        const pos = placed[index];
+        if (!pos) return;
+        el.style.left = ((pos.x / VIEW.width) * 100).toFixed(3) + "%";
+        el.style.top = ((pos.y / VIEW.height) * 100).toFixed(3) + "%";
+        childPositions[el.dataset.nodeId] = pos;
+      });
+      drawBloomSpines(parentId, origin, placed);
+    }
+
+    function setTerritoryExpanded(parentId, expanded) {
+      const territory = document.querySelector('.territory[data-parent="' + parentId + '"]');
+      if (!territory) return;
+      if (expanded) {
+        applyBloom(parentId);
+        territory.classList.remove("collapsed");
+      } else {
+        territory.classList.add("collapsed");
+        clearBloomSpines(parentId);
+      }
+      drawBlocks();
+    }
+
+    function revealTerritory(node) {
+      if (!node) return;
+      const territory = node.closest(".territory");
+      if (territory && territory.classList.contains("collapsed")) {
+        setTerritoryExpanded(territory.dataset.parent, true);
+      }
+    }
+
+    function toggleTerritory(id) {
+      const territory = document.querySelector('.territory[data-parent="' + id + '"]');
+      if (!territory) return;
+      setTerritoryExpanded(id, territory.classList.contains("collapsed"));
+    }
+
+    function positionInspector(node) {
+      const stageRect = stage.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      const inspectorWidth = Math.min(360, stageRect.width - 28);
+      const inspectorHeight = inspector.offsetHeight || 315;
+      const desiredLeft = nodeRect.left - stageRect.left + 42;
+      const desiredTop = nodeRect.top - stageRect.top - 20;
+      let left = desiredLeft;
+      let top = desiredTop;
+      if (left + inspectorWidth > stageRect.width - 14) {
+        left = nodeRect.left - stageRect.left - inspectorWidth - 28;
+      }
+      left = Math.max(14, Math.min(left, stageRect.width - inspectorWidth - 14));
+      top = Math.max(14, Math.min(top, stageRect.height - inspectorHeight - 14));
+      inspector.style.left = left + "px";
+      inspector.style.top = top + "px";
+    }
+
+    function clearFocusMarks() {
+      document.querySelectorAll(".landmark.is-focused, .landmark.is-blocker").forEach((el) => {
+        el.classList.remove("is-focused", "is-blocker");
+      });
+      document.querySelectorAll(".blocks-edge.is-live").forEach((el) => {
+        el.classList.remove("is-live");
+      });
+    }
+
+    function applyBlockedFocus(node) {
+      clearFocusMarks();
+      const mark = document.querySelector('.landmark[data-node-id="' + node.id + '"]');
+      if (mark) mark.classList.add("is-focused");
+      for (const id of node.blockedBy || []) {
+        const blocker = document.querySelector('.landmark[data-node-id="' + id + '"]');
+        if (blocker) blocker.classList.add("is-blocker");
+        document.querySelectorAll('.blocks-edge[data-to="' + node.id + '"]').forEach((edge) => {
+          edge.classList.add("is-live");
+        });
+      }
+    }
+
+    function fillInspector(node) {
+      document.getElementById("inspector-name").textContent = node.title;
+      fillChrome(node);
+      const deps = (node.blockedBy || []).map((id) => byId[id]).filter(Boolean);
+      const kids = node.level === "root" ? [] : childrenOf(node.id);
+      const overview = document.getElementById("overview-pane");
+      overview.replaceChildren();
+      appendParagraph(overview, node.gist || "No gist yet.");
+      if ((node.assets || []).length) {
+        const list = document.createElement("div");
+        list.className = "asset-list";
+        for (const asset of node.assets) {
+          const link = document.createElement("a");
+          link.href = safeHref(asset);
+          link.textContent = String(asset);
+          list.append(link);
+        }
+        overview.append(list);
+      }
+      fillRelationPane(
+        document.getElementById("dependencies-pane"),
+        deps,
+        "No blockers.",
+        "direct dependencies",
+        true,
+      );
+      fillRelationPane(
+        document.getElementById("children-pane"),
+        kids,
+        node.level === "root"
+          ? "Destination is the bearing, not a parent of the map."
+          : "No children.",
+        "children",
+        false,
+      );
+    }
+
+    function openInspector(id, preferredTab = "overview") {
+      const node = byId[id];
+      if (!node) return;
+      selectedNode = node;
+      const mark = document.querySelector('.landmark[data-node-id="' + id + '"]');
+      revealTerritory(mark);
+      fillInspector(node);
+      inspector.classList.add("open");
+      const blocked = pendingBlockers(node).length > 0;
+      activateTab(preferredTab === "dependencies" && blocked ? "dependencies" : preferredTab);
+      if (blocked) {
+        svg.classList.add("focus-blocked");
+        stage.classList.add("focus-blocked");
+        svg.dataset.focus = id;
+        applyBlockedFocus(node);
+      } else {
+        svg.classList.remove("focus-blocked");
+        stage.classList.remove("focus-blocked");
+        svg.dataset.focus = "";
+        clearFocusMarks();
+      }
+      if (mark) positionInspector(mark);
+    }
+
+    for (const node of document.querySelectorAll(".landmark")) {
+      node.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (clickTimer) clearTimeout(clickTimer);
+        const id = node.dataset.nodeId;
+        clickTimer = setTimeout(() => openInspector(id), 240);
+      });
+      node.addEventListener("dblclick", (event) => {
+        event.stopPropagation();
+        if (clickTimer) clearTimeout(clickTimer);
+        toggleTerritory(node.dataset.nodeId);
+      });
+    }
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        activateTab(tab.dataset.tab);
+        if (tab.dataset.tab === "dependencies" && selectedNode && pendingBlockers(selectedNode).length) {
+          svg.classList.add("focus-blocked");
+          stage.classList.add("focus-blocked");
+          applyBlockedFocus(selectedNode);
+        }
+      });
+    });
+    inspector.addEventListener("click", (event) => {
+      const jump = event.target.closest("[data-jump-node]");
+      if (jump) openInspector(jump.dataset.jumpNode, "overview");
+    });
+    document.getElementById("close-inspector").addEventListener("click", () => {
+      inspector.classList.remove("open");
+      selectedNode = null;
+      svg.classList.remove("focus-blocked");
+      stage.classList.remove("focus-blocked");
+      clearFocusMarks();
+    });
+
+    const initialBlocked = nodes.find((node) => node.blockedBy && node.blockedBy.length);
+    if (initialBlocked) openInspector(initialBlocked.id, "dependencies");
+
+    const params = new URLSearchParams(location.search);
+    const here = params.get("here") || (location.hash.startsWith("#here=") ? location.hash.slice(6) : "");
+    if (here) {
+      const mark = document.querySelector('.landmark[data-node-id="' + here + '"]');
+      if (mark) {
+        revealTerritory(mark);
+        const body = mark.querySelector(".node-shape") || mark;
+        const rect = body.getBoundingClientRect();
+        const stageRect = stage.getBoundingClientRect();
+        herePin.hidden = false;
+        herePin.style.left = rect.left - stageRect.left + rect.width / 2 + "px";
+        herePin.style.top = rect.top - stageRect.top + "px";
+      }
+    }
+    window.addEventListener("resize", () => {
+      if (selectedNode && inspector.classList.contains("open")) {
+        const mark = document.querySelector('.landmark[data-node-id="' + selectedNode.id + '"]');
+        if (mark) positionInspector(mark);
+      }
+    });
+  </script>
+</body>
+</html>
