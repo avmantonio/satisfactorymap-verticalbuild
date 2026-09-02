@@ -399,6 +399,28 @@ fn tables() -> &'static FootprintTables {
     })
 }
 
+/// Cut AABB height relative to the actor origin, in meters: clearance Z
+/// union when present, else `(0, dimensions.Height)`, else None (the
+/// client draws a 4 m dashed placeholder). Ticket 19 / Height view.
+pub fn height_extent_meters(type_path: &str) -> Option<(f64, f64)> {
+    let class_name = short_class_name(type_path);
+    let entry = gamedata::get().buildings.get(class_name)?;
+    if let Some(boxes) = clearance_boxes(entry) {
+        let min_z = fold_min(box_axis(boxes, "min", "z"));
+        let max_z = fold_max(box_axis(boxes, "max", "z"));
+        return Some((
+            min_z / WORLD_UNITS_PER_METER,
+            max_z / WORLD_UNITS_PER_METER,
+        ));
+    }
+    let height = entry
+        .get("dimensions")
+        .and_then(|d| d.get("Height"))
+        .and_then(Value::as_f64)
+        .filter(|&h| h != 0.0)?;
+    Some((0.0, height / WORLD_UNITS_PER_METER))
+}
+
 /// sav_map_data.footprintPixels: bucket-level [halfWidthPx, halfDepthPx], or
 /// None to render as a plain point.
 pub fn footprint_pixels(type_path: &str) -> Option<[f64; 2]> {
@@ -510,5 +532,32 @@ mod tests {
         assert!(fp.is_some());
         // Beams have adaptive specs.
         assert!(tables().adaptive_beam_specs.keys().any(|k| k.contains("Beam")));
+    }
+
+    #[test]
+    fn height_extent_prefers_clearance_then_dimensions() {
+        // Smelter: four clearance boxes, tallest max.z = 450 cm → 0…4.5 m.
+        assert_eq!(
+            height_extent_meters(
+                "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C"
+            ),
+            Some((0.0, 4.5))
+        );
+        // Conveyor pole: no clearance, dimensions.Height = 100 cm.
+        assert_eq!(
+            height_extent_meters(
+                "/Game/FactoryGame/Buildable/Factory/ConveyorPole/Build_ConveyorPole.Build_ConveyorPole_C"
+            ),
+            Some((0.0, 1.0))
+        );
+        // Lifts have neither clearance nor Height → client 4 m dashed.
+        assert_eq!(
+            height_extent_meters(
+                "/Game/FactoryGame/Buildable/Factory/ConveyorLiftMk1/Build_ConveyorLiftMk1.Build_ConveyorLiftMk1_C"
+            ),
+            None
+        );
+        // Unknown class, not a hole in the table lookup.
+        assert_eq!(height_extent_meters("Build_DoesNotExist_C"), None);
     }
 }
