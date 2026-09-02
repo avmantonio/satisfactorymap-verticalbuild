@@ -43,9 +43,16 @@ var HeightView = {};
   var PAD_RATIO = 0.2;
   var PAD_MIN_M = 4;
   var PAD_MAX_M = 50;
+  // Spec 19 / story 32: domain is XY-occupant min/max + pad (min 4 m,
+  // max 50 m pad), never MapApp.altitudeRange / the ±500 m rail. One
+  // clearance union must not set that scale: Space Elevator is 1 km
+  // (research/cut-laterals.md). Occupancy still uses the full AABB.
+  var DOMAIN_OCCUPANT_SPAN_MAX_M = 80;
   // Allow Z px/m up to this × along px/m before letterboxing. 1.0 is
   // strict isotropic; a little stretch keeps a short stack readable.
+  // Never letterbox so far that the Build becomes a sliver (Anto 2026-09-02).
   var SCALE_STRETCH_CAP = 1.25;
+  var LETTERBOX_MIN_FILL = 0.4;
   var STRIP_PAD = { start: 28, end: 18, z0: 10, z1: 10 };
   var FADE_OPACITY = 0.28;
   var MARK_STROKE_PX = 1.2;
@@ -213,16 +220,44 @@ var HeightView = {};
     return { min: zMin - pad, max: zMax + pad };
   }
 
-  // Spec 19 / story 32: domain is XY-occupant AABB min/max + 20% pad
-  // (min 4 m, max 50 m pad), never MapApp.altitudeRange. A tall mark
-  // (Space Elevator 1 km clearance, cut-laterals.md) still sets the
-  // domain — do not clip one occupant. Extra letterbox below is aspect,
-  // not that pad cap.
+  // Domain (scale) only. A 1 km mark still occupies and still draws;
+  // it just cannot stretch the strip so real floors become 1 px slivers.
+  // Lines keep their in-XY vertex span (real altitude). A building whose
+  // clearance union exceeds the cap contributes only a local slice around
+  // the actor origin — not an 80 m dummy window, which still crushes a
+  // 12 m factory under empty pad.
+  function domainExtent(r) {
+    var ext = occupantZ(r);
+    if (!isFinite(ext.min) || !isFinite(ext.max)) {
+      return ext;
+    }
+    if (r.bucket.lines) {
+      return ext;
+    }
+    var span = ext.max - ext.min;
+    if (span <= DOMAIN_OCCUPANT_SPAN_MAX_M) {
+      return ext;
+    }
+    var z = recordZ(r);
+    if (typeof z !== "number" || !isFinite(z) || z < ext.min || z > ext.max) {
+      z = ext.min;
+    }
+    var lo = Math.max(ext.min, z);
+    var hi = Math.min(ext.max, lo + DEFAULT_HEIGHT_M);
+    if (hi <= lo) {
+      hi = Math.min(ext.max, ext.min + DEFAULT_HEIGHT_M);
+      lo = Math.max(ext.min, hi - DEFAULT_HEIGHT_M);
+    }
+    return { min: lo, max: hi };
+  }
+
+  // Spec 19 / story 32: domain is XY-occupant boxes + 20% pad, never the
+  // altitude rail. Pathological clearance is capped in domainExtent.
   function occupantRange(occupants) {
     var zMin = Infinity;
     var zMax = -Infinity;
     for (var i = 0; i < occupants.length; i++) {
-      var ext = occupantZ(occupants[i]);
+      var ext = domainExtent(occupants[i]);
       if (!isFinite(ext.min) || !isFinite(ext.max)) {
         continue;
       }
@@ -275,10 +310,16 @@ var HeightView = {};
       ? paddedDomain(range.min, range.max)
       : paddedDomain(0, DEFAULT_HEIGHT_M);
     var span = base.max - base.min;
+    var occSpan = range ? (range.max - range.min) : DEFAULT_HEIGHT_M;
     var minSpan = isotropicMinSpanM();
     if (minSpan > span) {
       var extra = minSpan - span;
-      return { min: base.min - extra / 2, max: base.max + extra / 2 };
+      var nextSpan = span + extra;
+      // Letterbox is aspect, not a second rail. Skip if it would crush
+      // the Build into a sliver at the bottom of the strip.
+      if (occSpan / nextSpan >= LETTERBOX_MIN_FILL) {
+        return { min: base.min - extra / 2, max: base.max + extra / 2 };
+      }
     }
     return base;
   }
