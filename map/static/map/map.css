@@ -3072,7 +3072,8 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 }
 
 #heightView .heightViewSwitch,
-#heightView .heightCut {
+#heightView .heightCut,
+#heightView .heightMapEdge {
   pointer-events: auto;
 }
 
@@ -3304,6 +3305,80 @@ body.height-view-side {
   left: auto;
   bottom: var(--sp-05);
   top: auto;
+}
+
+/* One-axis isolation resize: map-edge bars (XY) and Cut along verticals.
+   Corners are open so a two-axis drag cannot start. Cut Z stays the band. */
+.heightMapEdges {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.heightMapEdge,
+.heightCutAlong {
+  position: absolute;
+  box-sizing: border-box;
+  background: transparent;
+  touch-action: none;
+}
+
+.heightMapEdgeX {
+  cursor: ew-resize;
+}
+
+.heightMapEdgeY {
+  cursor: ns-resize;
+}
+
+.heightMapEdge::after,
+.heightCutAlong::after {
+  content: "";
+  position: absolute;
+  background: var(--accent);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.heightMapEdgeX::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+}
+
+.heightMapEdgeY::after {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+}
+
+.heightCutAlong {
+  z-index: 2;
+  cursor: ew-resize;
+}
+
+.heightCutAlong::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  background: var(--accent-soft);
+  opacity: 0.75;
+}
+
+body.height-view-edge-drag {
+  cursor: grabbing;
+}
+
+body.height-view-edge-drag .heightMapEdge,
+body.height-view-edge-drag .heightCutAlong {
+  cursor: grabbing;
 }
 
 body.height-view-side .leaflet-right {

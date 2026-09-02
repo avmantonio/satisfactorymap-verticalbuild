@@ -7,6 +7,10 @@
 // context (typed-array stream, XY∩rail only, FBO → SVG <image>). SVG
 // marks remain the fallback when WebGL is unavailable. No second canvas
 // in the strip, no world-scale second buffer.
+// After commit, the cube is one-axis editable: a map-edge handle or the
+// matching Cut vertical (A/A′ = X, B/B′ = Y). Opposite side stays; the
+// Z band is not reset. Table height is not on the payload — AABB Z is
+// still the 4 m dashed placeholder (19).
 // Spec: .scratch/vertical-builds/specs/2-5d-first-cut.md
 
 var HeightView = {};
@@ -32,6 +36,8 @@ var HeightView = {};
   var FLAP_B_MIN_DEPTH_PX = 240;
   var FLAP_B_MAX_DEPTH_PX = 320;
   var FLAP_MIN_LENGTH_PX = 160;
+  var EDGE_HIT_PX = 10;
+  var MIN_EDGE_SPAN_PX = 16;
   var DEFAULT_HEIGHT_M = 4;
   var PAD_RATIO = 0.2;
   var PAD_MIN_M = 4;
@@ -65,6 +71,8 @@ var HeightView = {};
   var cubeKeys = new Set();
   var subtractIds = new Set();
   var isolationRect = null;
+  var mapEdgeEls = null;
+  var edgeDrag = null;
   var mapEventsBound = false;
   var markRecords = new Map();
   var excludedOverlap = [];
@@ -338,6 +346,7 @@ var HeightView = {};
     svgB = cutB.svg;
     bandA = cutA.band;
     bandB = cutB.band;
+    ensureMapEdgeHandles();
 
     resizeObserver = new ResizeObserver(function() {
       if (!isolation) {
@@ -379,15 +388,32 @@ var HeightView = {};
     bandEl.appendChild(handleMax);
     bandEl.appendChild(handleMin);
 
+    var alongStart = UI.el("div", "heightCutAlong");
+    var alongEnd = UI.el("div", "heightCutAlong");
+    alongStart.setAttribute("aria-label", "Resize isolation start");
+    alongEnd.setAttribute("aria-label", "Resize isolation end");
+
     strip.appendChild(svg);
     strip.appendChild(bandEl);
+    strip.appendChild(alongStart);
+    strip.appendChild(alongEnd);
     strip.appendChild(startBtn);
     strip.appendChild(endBtn);
 
     bindBand(strip, bandEl, handleMin, handleMax, startName === "A");
+    bindAlongHandle(alongStart, startName === "A", "start");
+    bindAlongHandle(alongEnd, startName === "A", "end");
     svg.addEventListener("click", onCutClick);
 
-    return { strip: strip, svg: svg, band: bandEl, startBtn: startBtn, endBtn: endBtn };
+    return {
+      strip: strip,
+      svg: svg,
+      band: bandEl,
+      startBtn: startBtn,
+      endBtn: endBtn,
+      alongStart: alongStart,
+      alongEnd: alongEnd,
+    };
   }
 
   function flipStrip(which) {
@@ -453,10 +479,12 @@ var HeightView = {};
     cutA.strip.style.cssText = "";
     cutB.strip.style.cssText = "";
     if (layout !== "flaps" || !isolation) {
+      positionEdgeHandles();
       return;
     }
     var box = boxScreenRect();
     if (!box) {
+      positionEdgeHandles();
       return;
     }
     var aLen = Math.max(FLAP_MIN_LENGTH_PX, box.width);
@@ -475,6 +503,7 @@ var HeightView = {};
     cutB.strip.style.top = box.top + "px";
     cutB.strip.style.width = bDepth + "px";
     cutB.strip.style.height = bLen + "px";
+    positionEdgeHandles();
   }
 
   function flapDepth(availablePx, hostPx, minPx, maxPx) {
@@ -539,6 +568,314 @@ var HeightView = {};
       isolationRect.remove();
       isolationRect = null;
     }
+  }
+
+  function syncIsolationRect() {
+    if (!isolation || !MapApp.map) {
+      return;
+    }
+    if (!isolationRect) {
+      showIsolationRect();
+      return;
+    }
+    isolationRect.setBounds([
+      [isolation.minY, isolation.minX],
+      [isolation.maxY, isolation.maxX],
+    ]);
+  }
+
+  function placingNow() {
+    return !!(window.EditorTool && EditorTool.isPlacing && EditorTool.isPlacing());
+  }
+
+  function minEdgeSpanMap(axis) {
+    if (!MapApp.map) {
+      return 8;
+    }
+    var a = MapApp.map.containerPointToLatLng(L.point(0, 0));
+    var b = MapApp.map.containerPointToLatLng(L.point(MIN_EDGE_SPAN_PX, MIN_EDGE_SPAN_PX));
+    return axis === "x" ? Math.abs(b.lng - a.lng) : Math.abs(b.lat - a.lat);
+  }
+
+  function setIsolationEdge(edge, value) {
+    if (!isolation || typeof value !== "number" || !isFinite(value)) {
+      return;
+    }
+    var spanX = minEdgeSpanMap("x");
+    var spanY = minEdgeSpanMap("y");
+    if (edge === "minX") {
+      isolation.minX = Math.min(value, isolation.maxX - spanX);
+    } else if (edge === "maxX") {
+      isolation.maxX = Math.max(value, isolation.minX + spanX);
+    } else if (edge === "minY") {
+      isolation.minY = Math.min(value, isolation.maxY - spanY);
+    } else if (edge === "maxY") {
+      isolation.maxY = Math.max(value, isolation.minY + spanY);
+    }
+  }
+
+  function alongEdgeName(isA, visualEnd) {
+    var flipped = isA ? flipA : flipB;
+    if (isA) {
+      if (visualEnd === "start") {
+        return flipped ? "maxX" : "minX";
+      }
+      return flipped ? "minX" : "maxX";
+    }
+    if (visualEnd === "start") {
+      return flipped ? "maxY" : "minY";
+    }
+    return flipped ? "minY" : "maxY";
+  }
+
+  function alongHandleLabel(isA, visualEnd) {
+    var start = isA ? "A" : "B";
+    var end = isA ? "A′" : "B′";
+    var flipped = isA ? flipA : flipB;
+    var name = visualEnd === "start"
+      ? (flipped ? end : start)
+      : (flipped ? start : end);
+    return "Resize isolation " + name;
+  }
+
+  function mapEdgeLabel(edge) {
+    if (edge === "minX") return "Resize isolation west edge";
+    if (edge === "maxX") return "Resize isolation east edge";
+    if (edge === "minY") return "Resize isolation north edge";
+    return "Resize isolation south edge";
+  }
+
+  function ensureMapEdgeHandles() {
+    if (mapEdgeEls) {
+      return;
+    }
+    var wrap = UI.el("div", "heightMapEdges");
+    mapEdgeEls = {
+      wrap: wrap,
+      minX: UI.el("div", "heightMapEdge heightMapEdgeX"),
+      maxX: UI.el("div", "heightMapEdge heightMapEdgeX"),
+      minY: UI.el("div", "heightMapEdge heightMapEdgeY"),
+      maxY: UI.el("div", "heightMapEdge heightMapEdgeY"),
+    };
+    ["minX", "maxX", "minY", "maxY"].forEach(function(edge) {
+      var el = mapEdgeEls[edge];
+      el.setAttribute("aria-label", mapEdgeLabel(edge));
+      el.title = mapEdgeLabel(edge);
+      wrap.appendChild(el);
+      bindMapEdgeHandle(el, edge);
+    });
+    host.appendChild(wrap);
+    wrap.style.display = "none";
+  }
+
+  function positionEdgeHandles() {
+    if (!mapEdgeEls) {
+      return;
+    }
+    var showMap = !!(isolation && !placingNow());
+    mapEdgeEls.wrap.style.display = showMap ? "block" : "none";
+    if (cutA && cutA.alongStart) {
+      var showAlong = !!isolation;
+      cutA.alongStart.style.display = showAlong ? "block" : "none";
+      cutA.alongEnd.style.display = showAlong ? "block" : "none";
+      cutB.alongStart.style.display = showAlong ? "block" : "none";
+      cutB.alongEnd.style.display = showAlong ? "block" : "none";
+    }
+    if (!isolation) {
+      return;
+    }
+    if (showMap) {
+      var box = boxScreenRect();
+      if (!box || box.width < 4 || box.height < 4) {
+        mapEdgeEls.wrap.style.display = "none";
+      } else {
+        var hit = EDGE_HIT_PX;
+        var insetX = box.height >= hit * 3 ? hit : 0;
+        var insetY = box.width >= hit * 3 ? hit : 0;
+        placeMapEdge(mapEdgeEls.minX, box.left, box.top + insetX, hit, Math.max(4, box.height - insetX * 2));
+        placeMapEdge(mapEdgeEls.maxX, box.left + box.width - hit, box.top + insetX, hit, Math.max(4, box.height - insetX * 2));
+        placeMapEdge(mapEdgeEls.minY, box.left + insetY, box.top, Math.max(4, box.width - insetY * 2), hit);
+        placeMapEdge(mapEdgeEls.maxY, box.left + insetY, box.top + box.height - hit, Math.max(4, box.width - insetY * 2), hit);
+      }
+    }
+    positionAlongHandles();
+  }
+
+  function placeMapEdge(el, left, top, width, height) {
+    el.style.left = left + "px";
+    el.style.top = top + "px";
+    el.style.width = width + "px";
+    el.style.height = height + "px";
+  }
+
+  function positionAlongHandles() {
+    if (!cutA || !cutA.alongStart || !isolation || !svgA) {
+      return;
+    }
+    placeAlongPair(cutA, true);
+    placeAlongPair(cutB, false);
+  }
+
+  function placeAlongPair(cut, isA) {
+    var svg = isA ? svgA : svgB;
+    var geom = stripGeom(svg, isA);
+    var thickness = 12;
+    var z0 = Math.min(geom.zHighPx, geom.zLowPx);
+    var z1 = Math.max(geom.zHighPx, geom.zLowPx);
+    cut.alongStart.setAttribute("aria-label", alongHandleLabel(isA, "start"));
+    cut.alongEnd.setAttribute("aria-label", alongHandleLabel(isA, "end"));
+    cut.alongStart.title = alongHandleLabel(isA, "start");
+    cut.alongEnd.title = alongHandleLabel(isA, "end");
+    if (geom.zIsVertical) {
+      cut.alongStart.style.left = (geom.along0 - thickness / 2) + "px";
+      cut.alongEnd.style.left = (geom.along1 - thickness / 2) + "px";
+      cut.alongStart.style.top = z0 + "px";
+      cut.alongEnd.style.top = z0 + "px";
+      cut.alongStart.style.width = thickness + "px";
+      cut.alongEnd.style.width = thickness + "px";
+      cut.alongStart.style.height = Math.max(8, z1 - z0) + "px";
+      cut.alongEnd.style.height = Math.max(8, z1 - z0) + "px";
+    } else {
+      cut.alongStart.style.top = (geom.along0 - thickness / 2) + "px";
+      cut.alongEnd.style.top = (geom.along1 - thickness / 2) + "px";
+      cut.alongStart.style.left = z0 + "px";
+      cut.alongEnd.style.left = z0 + "px";
+      cut.alongStart.style.height = thickness + "px";
+      cut.alongEnd.style.height = thickness + "px";
+      cut.alongStart.style.width = Math.max(8, z1 - z0) + "px";
+      cut.alongEnd.style.width = Math.max(8, z1 - z0) + "px";
+    }
+  }
+
+  function pxToAlongFrozen(drag, clientX, clientY) {
+    var p = drag.zIsVertical ? (clientX - drag.svgLeft) : (clientY - drag.svgTop);
+    var span = drag.along1 - drag.along0;
+    if (span === 0) {
+      return drag.alongMin;
+    }
+    var t = (p - drag.along0) / span;
+    return drag.alongMin + t * (drag.alongMax - drag.alongMin);
+  }
+
+  function clientToIsolationValue(edge, ev) {
+    if (!MapApp.map) {
+      return null;
+    }
+    var latlng = MapApp.map.mouseEventToLatLng(ev);
+    if (!latlng) {
+      return null;
+    }
+    return (edge === "minX" || edge === "maxX") ? latlng.lng : latlng.lat;
+  }
+
+  function bindMapEdgeHandle(el, edge) {
+    el.addEventListener("pointerdown", function(ev) {
+      startEdgeDrag({ edge: edge, fromCut: false }, ev, el);
+    });
+    bindEdgePointer(el);
+  }
+
+  function bindAlongHandle(el, isA, visualEnd) {
+    el.addEventListener("pointerdown", function(ev) {
+      if (!isolation) {
+        return;
+      }
+      var svg = isA ? svgA : svgB;
+      var geom = stripGeom(svg, isA);
+      var rect = svg.getBoundingClientRect();
+      startEdgeDrag({
+        edge: alongEdgeName(isA, visualEnd),
+        fromCut: true,
+        svg: svg,
+        isA: isA,
+        zIsVertical: geom.zIsVertical,
+        along0: geom.along0,
+        along1: geom.along1,
+        alongMin: geom.alongMin,
+        alongMax: geom.alongMax,
+        svgLeft: rect.left,
+        svgTop: rect.top,
+      }, ev, el);
+    });
+    bindEdgePointer(el);
+  }
+
+  function bindEdgePointer(el) {
+    el.addEventListener("pointermove", onEdgePointerMove);
+    el.addEventListener("pointerup", onEdgePointerUp);
+    el.addEventListener("pointercancel", onEdgePointerUp);
+  }
+
+  function startEdgeDrag(spec, ev, el) {
+    if (!isolation || ev.button !== 0 || placingNow()) {
+      return;
+    }
+    ev.preventDefault();
+    ev.stopPropagation();
+    el.setPointerCapture(ev.pointerId);
+    edgeDrag = {
+      edge: spec.edge,
+      pointerId: ev.pointerId,
+      fromCut: !!spec.fromCut,
+      svg: spec.svg || null,
+      isA: spec.isA,
+      zIsVertical: spec.zIsVertical,
+      along0: spec.along0,
+      along1: spec.along1,
+      alongMin: spec.alongMin,
+      alongMax: spec.alongMax,
+      svgLeft: spec.svgLeft,
+      svgTop: spec.svgTop,
+    };
+    document.body.classList.add("height-view-edge-drag");
+  }
+
+  function onEdgePointerMove(ev) {
+    if (!edgeDrag || ev.pointerId !== edgeDrag.pointerId || !isolation) {
+      return;
+    }
+    var value;
+    if (edgeDrag.fromCut) {
+      value = pxToAlongFrozen(edgeDrag, ev.clientX, ev.clientY);
+    } else {
+      value = clientToIsolationValue(edgeDrag.edge, ev);
+    }
+    if (value == null || !isFinite(value)) {
+      return;
+    }
+    setIsolationEdge(edgeDrag.edge, value);
+    syncIsolationRect();
+    positionChrome();
+  }
+
+  function onEdgePointerUp(ev) {
+    if (!edgeDrag || ev.pointerId !== edgeDrag.pointerId) {
+      return;
+    }
+    edgeDrag = null;
+    document.body.classList.remove("height-view-edge-drag");
+    if (!isolation) {
+      return;
+    }
+    applyXyResize();
+  }
+
+  function applyXyResize() {
+    var prevBand = { min: band.min, max: band.max };
+    xyCacheValid = false;
+    xyOccupants = collectXyOccupants();
+    cacheExtents(xyOccupants);
+    xyCacheValid = true;
+    excludedOverlap = collectExcludedOverlap();
+    cacheExtents(excludedOverlap);
+    domain = computeDomain(xyOccupants);
+    band.min = prevBand.min;
+    band.max = prevBand.max;
+    clampBandToCap();
+    applyPeel();
+    syncIsolationRect();
+    positionChrome();
+    requestDrawCuts();
   }
 
   function svgEl(name, attrs) {
@@ -1225,6 +1562,7 @@ var HeightView = {};
     drawOneCut(svgB, false);
     positionBandEl(bandA, true);
     positionBandEl(bandB, false);
+    positionAlongHandles();
     lastCutSizeA = (svgA.clientWidth || 0) * 65536 + (svgA.clientHeight || 0);
     lastCutSizeB = (svgB.clientWidth || 0) * 65536 + (svgB.clientHeight || 0);
   }
@@ -1392,6 +1730,11 @@ var HeightView = {};
     lastCutSizeB = 0;
     cutHitsA = [];
     cutHitsB = [];
+    edgeDrag = null;
+    document.body.classList.remove("height-view-edge-drag");
+    if (mapEdgeEls) {
+      mapEdgeEls.wrap.style.display = "none";
+    }
     syncLayoutClass();
   }
 
@@ -1417,6 +1760,7 @@ var HeightView = {};
     openChrome();
     applyPeel();
     positionChrome();
+    positionEdgeHandles();
     requestDrawCuts();
   };
 
@@ -1445,6 +1789,12 @@ var HeightView = {};
 
   HeightView.onFiltersChanged = function() {
     HeightView.onAltitudeChanged();
+  };
+
+  HeightView.onPlacementChanged = function() {
+    if (isolation) {
+      positionEdgeHandles();
+    }
   };
 
   window.addEventListener("resize", function() {
