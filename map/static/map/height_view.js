@@ -43,7 +43,12 @@ var HeightView = {};
   var PAD_RATIO = 0.2;
   var PAD_MIN_M = 4;
   var PAD_MAX_M = 50;
+  // Spec 19: domain is occupant min/max + pad (max 50 m). One clearance
+  // union must not set that scale: Space Elevator is 1 km
+  // (research/cut-laterals.md). Occupancy still uses the full AABB.
+  var DOMAIN_OCCUPANT_SPAN_MAX_M = 80;
   var FADE_OPACITY = 0.28;
+  var MARK_STROKE_PX = 1.2;
   // Ticket 19: one mark per (type + along bin + Z bin), separately for
   // in-Build vs out-crossing (and faded). 2 m is finer than a foundation
   // slab and still collapses depth-stacked twins on a strip.
@@ -208,11 +213,35 @@ var HeightView = {};
     return { min: zMin - pad, max: zMax + pad };
   }
 
+  // Domain (scale) only. A 1 km mark still occupies and still draws;
+  // it just cannot stretch the strip so real floors become 1 px slivers.
+  function domainExtent(r) {
+    var ext = occupantZ(r);
+    if (!isFinite(ext.min) || !isFinite(ext.max)) {
+      return ext;
+    }
+    var span = ext.max - ext.min;
+    if (span <= DOMAIN_OCCUPANT_SPAN_MAX_M) {
+      return ext;
+    }
+    var z = recordZ(r);
+    if (typeof z !== "number" || !isFinite(z)) {
+      return { min: ext.min, max: ext.min + DOMAIN_OCCUPANT_SPAN_MAX_M };
+    }
+    var lo = Math.max(ext.min, z - DOMAIN_OCCUPANT_SPAN_MAX_M * 0.25);
+    var hi = lo + DOMAIN_OCCUPANT_SPAN_MAX_M;
+    if (hi > ext.max) {
+      hi = ext.max;
+      lo = Math.max(ext.min, hi - DOMAIN_OCCUPANT_SPAN_MAX_M);
+    }
+    return { min: lo, max: hi };
+  }
+
   function computeDomain(occupants) {
     var zMin = Infinity;
     var zMax = -Infinity;
     for (var i = 0; i < occupants.length; i++) {
-      var ext = occupantZ(occupants[i]);
+      var ext = domainExtent(occupants[i]);
       if (!isFinite(ext.min) || !isFinite(ext.max)) {
         continue;
       }
@@ -230,7 +259,7 @@ var HeightView = {};
     var zMin = Infinity;
     var zMax = -Infinity;
     for (var i = 0; i < occupants.length; i++) {
-      var ext = occupantZ(occupants[i]);
+      var ext = domainExtent(occupants[i]);
       if (!isFinite(ext.min) || !isFinite(ext.max)) {
         continue;
       }
@@ -1062,9 +1091,21 @@ var HeightView = {};
     var solidity = 0.35 + 0.65 * (1 - depth);
     var faded = !included && !excluded;
     var rgb = hexRgb(excluded ? "#e8b84a" : (r.bucket.color || "#5ba3e0"));
-    var alpha = excluded ? 0.35 : (faded ? FADE_OPACITY * 0.45 : 0.45 * solidity);
+    // GL is the default path. Match the SVG fallback's stroke weight
+    // (opacity = solidity, up to 1.0) so in-band laterals read solid on
+    // the dark strip. The old fill-only 0.45 multiplier washed marks to
+    // ghosts once table height made GL the production path. Faded stays
+    // FADE_OPACITY — still readable. Excluded yellow uses a strong stroke
+    // (SVG 0.9) and a light fill. Dash hatches the stroke only.
+    var stroke = excluded ? 0.9 : (faded ? FADE_OPACITY : solidity);
+    var fill = excluded ? 0.16 : (faded ? FADE_OPACITY : Math.min(1, Math.max(0.55, solidity)));
     var missing = !r.bucket.lines && !!r._missingHeight;
-    return { rgb: rgb, alpha: alpha, dash: (excluded || missing) ? 1 : 0 };
+    return {
+      rgb: rgb,
+      fill: fill,
+      stroke: stroke,
+      dash: (excluded || missing) ? 1 : 0,
+    };
   }
 
   function growCutStream(stream, needFloats) {
@@ -1098,6 +1139,28 @@ var HeightView = {};
     pushCutQuad(stream, x, y, x + rw, y, x, y + rh, x + rw, y + rh, rgb, alpha, dash);
   }
 
+  // SVG marks are fill + 1.2 px stroke. Thin foundation slabs are almost
+  // entirely that stroke; fill-only quads at low alpha read as empty.
+  function appendRectStroke(stream, x, y, rw, rh, rgb, alpha, dash) {
+    var t = MARK_STROKE_PX;
+    if (rw <= 0 || rh <= 0) {
+      return;
+    }
+    var tw = Math.min(t, rw);
+    var th = Math.min(t, rh);
+    pushAxisQuad(stream, x, y, rw, th, rgb, alpha, dash);
+    if (rh > th) {
+      pushAxisQuad(stream, x, y + rh - th, rw, th, rgb, alpha, dash);
+    }
+    var innerH = Math.max(0, rh - 2 * th);
+    if (innerH > 0) {
+      pushAxisQuad(stream, x, y + th, tw, innerH, rgb, alpha, dash);
+      if (rw > tw) {
+        pushAxisQuad(stream, x + rw - tw, y + th, tw, innerH, rgb, alpha, dash);
+      }
+    }
+  }
+
   function appendRectMark(stream, hits, geom, r, excluded, included) {
     var cap = altitudeCap();
     var ext = occupantZ(r);
@@ -1125,7 +1188,8 @@ var HeightView = {};
       rw = Math.max(2, Math.abs(z1 - z0));
       rh = Math.max(2, widthPx);
     }
-    pushAxisQuad(stream, x, y, rw, rh, look.rgb, look.alpha, look.dash);
+    pushAxisQuad(stream, x, y, rw, rh, look.rgb, look.fill, 0);
+    appendRectStroke(stream, x, y, rw, rh, look.rgb, look.stroke, look.dash);
     var key = SelectionTool.recordKey(r);
     markRecords.set(key, r);
     hits.push({ key: key, r: r, x: x, y: y, w: rw, h: rh });
@@ -1140,6 +1204,7 @@ var HeightView = {};
     var look = markLook(r, excluded, included, geom);
     var stride = r.bucket.pointStride;
     var hw = excluded ? 0.7 : 1;
+    var lineAlpha = included ? Math.min(1, look.stroke + 0.2) : look.stroke;
     var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     var run = [];
     function pushPt(px, py) {
@@ -1164,7 +1229,7 @@ var HeightView = {};
           x1 + nx, y1 + ny,
           x0 - nx, y0 - ny,
           x1 - nx, y1 - ny,
-          look.rgb, Math.min(1, look.alpha + 0.25), look.dash
+          look.rgb, lineAlpha, look.dash
         );
       }
       run = [];
