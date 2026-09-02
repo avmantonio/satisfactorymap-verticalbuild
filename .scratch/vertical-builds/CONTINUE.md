@@ -19,6 +19,20 @@ Lee `.scratch/vertical-builds/CONTINUE.md`, `OBJECTIVE.md`, `map.md`, `CONTEXT.m
 Do not implement sav_core editor internals. Do not weld belts. Do not geometric-split chains.
 ```
 
+## Runtime test (user)
+
+Not CI. Human smoke for ticket 16 one-axis edit + Move proof.
+
+1. Serve `dist/` at **http://127.0.0.1:8791/** (`python tools/serve_site.py`). After editing `map/static/map/*`, copy those files into `dist/` or run `python tools/build_site.py` so the served site picks them up. Only one `serve_site` may bind the port on Windows.
+2. Load a save: drop a local `.sav`, or `map/uploads/All_080726-163150.sav` (after `python tools/fetch_test_saves.py`; gitignored). Hard-refresh the tab.
+3. **Open Height view:** right-drag a rectangle over a factory. Side-panel Cuts (A–A′ top, B–B′ bottom) appear. Empty volume still keeps the strips.
+4. **Map-edge (XY):** drag one isolation-bar on the map (east/west or north/south). Opposite side stays. Corners do not start a two-axis drag. Occupants/peel update **on release**, not while dragging. The Z band does **not** reset.
+5. **Cut vertical (XY):** drag the A / A′ bar on A–A′ (X) or B / B′ on B–B′ (Y). Same contract: one axis, opposite stays, Z kept. Cut **band** (handles + body) is Z peel, not XY — occupancy updates on release.
+6. **Move proof:** with occupants selected, click **Move**, click the map to place. Existing editor runs (`applyEdits` + re-parse + fresh payload). Copy is allowed; it does not prove re-parse.
+7. **Flaps:** switch Side panel → Flaps on Height-view chrome (not the tool dock). Repeat a map-edge drag and a Cut vertical. New rectangle keeps the session preference.
+
+**Pass:** one axis at a time; peel/occupancy after pointerup; Move still commits; side panel and flaps both work. **Still open in 16:** table height (not on the payload — 4 m dashed). **Not this cut:** 14 Relocate on place; 15 isolate+copy/paste/delete/undo CI.
+
 ## Ambits (different chats, different jobs)
 
 ### 1. Chart the Next cluster — done 2026-08-15
@@ -29,7 +43,7 @@ Tickets 12–16 exist. Do not re-chart Next cluster. Do not invent tickets to fi
 
 - **Ticket:** [Height view chrome](issues/13-height-view-chrome.md) is specced. Do not re-grill dock, two Z widgets, or A↔A′ / B↔B′ flip chrome. Placement of the Cuts was amended 2026-09-01 after the walking skeleton: default is the docked side panel (stacked halves), flaps stay as a session mode, L-frame overlay is out.
 - **Predecessor:** [2.5D loop prototype](issues/11-2-5d-loop-prototype.md) is specced. [Cut elevation marks](issues/19-cut-elevation-marks.md) is specced.
-- **Job:** [Real-client skeleton](issues/16-real-client-skeleton.md) implementation **started** in the current client (`map/static/map/height_view.js`): rectangle → side-panel/flaps Cuts, Cut band peel, AABB marks, Move still the proof. Not shipped. Perf A–E: bin-dedupe, spatial collect, peel cache, draw scheduling, Cut marks on the **existing map WebGL** (FBO → SVG image; no second canvas in the strip). Next: one-axis rectangle edit and remaining 16 polish. Worker / 600k measure is research stage F.
+- **Job:** [Real-client skeleton](issues/16-real-client-skeleton.md) implementation **started** in the current client (`map/static/map/height_view.js`): rectangle → side-panel/flaps Cuts, Cut band peel, AABB marks, Move still the proof. Not shipped. Perf A–E landed. One-axis rectangle edit is in (map-edge + matching Cut vertical; Z band kept). Table height is not on the payload — 4 m dashed still. Worker / 600k measure is research stage F. Human smoke: [Runtime test (user)](#runtime-test-user).
 - **Must not:** 3D camera, Three.js, belt splitting, sav_core mutation, named-file export, claiming the first ship is done because 16 is specced. Do not reopen [Survey cut laterals](issues/20-survey-cut-laterals.md). Do not fuse [Height-driven edits](issues/14-height-driven-edits.md) into the skeleton chat.
 
 ### 3. Parallel Next cluster — 14 done 2026-08-30 (15 resolved)
@@ -42,7 +56,7 @@ Tickets 12–16 exist. Do not re-chart Next cluster. Do not invent tickets to fi
 ### 4. Browser and desktop / Runtime limits / Visual presentation / Build package
 
 - **Ticket:** [Real-client skeleton](issues/16-real-client-skeleton.md) is specced: additive in the tab; Height view is not a browser/desktop split. Integrity “re-parse” in the UI walk is existing Move; CI remains the 15 contract.
-- **Job:** Implementation of 16 against [specs/2-5d-first-cut.md](specs/2-5d-first-cut.md) is **in progress** in this tab (`height_view.js`) — walking skeleton + perf stages A–E, not closed. Chart further only when that work makes a question sharp (wasm headroom numbers, named-file). Adding from outside the cube stays Horizon fog.
+- **Job:** Implementation of 16 against [specs/2-5d-first-cut.md](specs/2-5d-first-cut.md) is **in progress** in this tab (`height_view.js`) — walking skeleton + perf A–E + one-axis edge edit, not closed. Chart further only when that work makes a question sharp (wasm headroom numbers, named-file). Adding from outside the cube stays Horizon fog.
 - **Must not:** build a second renderer “to see”; do not vendor Coffee Stain art; do not re-grill 16’s host.
 
 ### 5. Schematic 3D — Horizon; do not mix with Next cluster
@@ -61,7 +75,7 @@ Tickets 12–16 exist. Do not re-chart Next cluster. Do not invent tickets to fi
 ### 7. Spec close — done 2026-08-30
 
 - **Spec:** [specs/2-5d-first-cut.md](specs/2-5d-first-cut.md) (`Status: ready-for-agent`). Slice specced (not the campaign, not 3D): [2.5D loop prototype](issues/11-2-5d-loop-prototype.md), [Volume occupancy](issues/12-volume-occupancy.md), [Height view chrome](issues/13-height-view-chrome.md), [Real-client skeleton](issues/16-real-client-skeleton.md), [Cut elevation marks](issues/19-cut-elevation-marks.md).
-- **Job:** Continue **implement 16** (`height_view.js`) against that spec. Walking skeleton is on the tab (committed `a5e93d1`); Height-view perf stages A–E are in the working tree (uncommitted until asked). One-axis edge edit and remaining 16 polish still open. [Height-driven edits](issues/14-height-driven-edits.md) is a dedicated client chat *after* the skeleton — same first-ship, not fused into cut 1.
+- **Job:** Continue **implement 16** (`height_view.js`) against that spec. Walking skeleton `a5e93d1`; perf A–E `47e53f9`; one-axis edge edit on this branch. Table height stays open (not on the payload). [Height-driven edits](issues/14-height-driven-edits.md) is a dedicated client chat *after* the skeleton — same first-ship, not fused into cut 1.
 - **Must not:** start a full 3D ship in an implement-16 chat; treat specced 16 as first ship done; reopen 13/16/19/20/08/14 as grills; mark root/the whole map specced.
 
 ## Already decided (do not re-grill)
