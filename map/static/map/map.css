@@ -3272,6 +3272,19 @@ body.height-view-side {
   color: var(--accent-soft);
 }
 
+.heightCutYaw {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  padding: 0 var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  color: var(--text);
+  background: var(--surface-1);
+  border: 1px solid var(--accent-border);
+  white-space: nowrap;
+}
+
 #heightCutA .heightCutLabel:first-of-type {
   left: var(--sp-1);
   bottom: var(--sp-05);
@@ -3345,7 +3358,7 @@ body.height-view-side {
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 3px;
+  width: 8px;
   transform: translateX(-50%);
 }
 
@@ -3353,12 +3366,12 @@ body.height-view-side {
   left: 0;
   right: 0;
   top: 50%;
-  height: 3px;
+  height: 8px;
   transform: translateY(-50%);
 }
 
 .heightCutAlong {
-  z-index: 2;
+  z-index: 1;
   cursor: ew-resize;
 }
 
@@ -3366,10 +3379,10 @@ body.height-view-side {
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 3px;
+  width: 8px;
   transform: translateX(-50%);
-  background: var(--accent-soft);
-  opacity: 0.75;
+  background: var(--accent);
+  opacity: 0.9;
 }
 
 body.height-view-edge-drag {
