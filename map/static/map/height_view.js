@@ -43,8 +43,9 @@ var HeightView = {};
   var PAD_RATIO = 0.2;
   var PAD_MIN_M = 4;
   var PAD_MAX_M = 50;
-  // Spec 19: domain is occupant min/max + pad (max 50 m). One clearance
-  // union must not set that scale: Space Elevator is 1 km
+  // Spec 19 / story 32: domain is XY-occupant min/max + pad (min 4 m,
+  // max 50 m pad), never MapApp.altitudeRange / the ±500 m rail. One
+  // clearance union must not set that scale: Space Elevator is 1 km
   // (research/cut-laterals.md). Occupancy still uses the full AABB.
   var DOMAIN_OCCUPANT_SPAN_MAX_M = 80;
   var FADE_OPACITY = 0.28;
@@ -215,9 +216,16 @@ var HeightView = {};
 
   // Domain (scale) only. A 1 km mark still occupies and still draws;
   // it just cannot stretch the strip so real floors become 1 px slivers.
+  // Lines keep their in-XY vertex span (real altitude). A building whose
+  // clearance union exceeds the cap contributes only a local slice around
+  // the actor origin — not an 80 m dummy window, which still crushes a
+  // 12 m factory under empty pad.
   function domainExtent(r) {
     var ext = occupantZ(r);
     if (!isFinite(ext.min) || !isFinite(ext.max)) {
+      return ext;
+    }
+    if (r.bucket.lines) {
       return ext;
     }
     var span = ext.max - ext.min;
@@ -225,14 +233,14 @@ var HeightView = {};
       return ext;
     }
     var z = recordZ(r);
-    if (typeof z !== "number" || !isFinite(z)) {
-      return { min: ext.min, max: ext.min + DOMAIN_OCCUPANT_SPAN_MAX_M };
+    if (typeof z !== "number" || !isFinite(z) || z < ext.min || z > ext.max) {
+      z = ext.min;
     }
-    var lo = Math.max(ext.min, z - DOMAIN_OCCUPANT_SPAN_MAX_M * 0.25);
-    var hi = lo + DOMAIN_OCCUPANT_SPAN_MAX_M;
-    if (hi > ext.max) {
-      hi = ext.max;
-      lo = Math.max(ext.min, hi - DOMAIN_OCCUPANT_SPAN_MAX_M);
+    var lo = Math.max(ext.min, z);
+    var hi = Math.min(ext.max, lo + DEFAULT_HEIGHT_M);
+    if (hi <= lo) {
+      hi = Math.min(ext.max, ext.min + DEFAULT_HEIGHT_M);
+      lo = Math.max(ext.min, hi - DEFAULT_HEIGHT_M);
     }
     return { min: lo, max: hi };
   }
@@ -273,6 +281,7 @@ var HeightView = {};
   }
 
   function clampBandToCap() {
+    // Peel only. Do not copy the rail into `domain` — story 32 / 34.
     var cap = altitudeCap();
     if (isFinite(cap.min) && band.min < cap.min) {
       band.min = cap.min;
