@@ -43,11 +43,10 @@ var HeightView = {};
   var PAD_RATIO = 0.2;
   var PAD_MIN_M = 4;
   var PAD_MAX_M = 50;
-  // Spec 19 / story 32: domain is XY-occupant min/max + pad (min 4 m,
-  // max 50 m pad), never MapApp.altitudeRange / the ±500 m rail. One
-  // clearance union must not set that scale: Space Elevator is 1 km
-  // (research/cut-laterals.md). Occupancy still uses the full AABB.
-  var DOMAIN_OCCUPANT_SPAN_MAX_M = 80;
+  // Allow Z px/m up to this × along px/m before letterboxing. 1.0 is
+  // strict isotropic; a little stretch keeps a short stack readable.
+  var SCALE_STRETCH_CAP = 1.25;
+  var STRIP_PAD = { start: 28, end: 18, z0: 10, z1: 10 };
   var FADE_OPACITY = 0.28;
   var MARK_STROKE_PX = 1.2;
   // Ticket 19: one mark per (type + along bin + Z bin), separately for
@@ -214,70 +213,82 @@ var HeightView = {};
     return { min: zMin - pad, max: zMax + pad };
   }
 
-  // Domain (scale) only. A 1 km mark still occupies and still draws;
-  // it just cannot stretch the strip so real floors become 1 px slivers.
-  // Lines keep their in-XY vertex span (real altitude). A building whose
-  // clearance union exceeds the cap contributes only a local slice around
-  // the actor origin — not an 80 m dummy window, which still crushes a
-  // 12 m factory under empty pad.
-  function domainExtent(r) {
-    var ext = occupantZ(r);
-    if (!isFinite(ext.min) || !isFinite(ext.max)) {
-      return ext;
+  // Spec 19 / story 32: domain is XY-occupant AABB min/max + 20% pad
+  // (min 4 m, max 50 m pad), never MapApp.altitudeRange. A tall mark
+  // (Space Elevator 1 km clearance, cut-laterals.md) still sets the
+  // domain — do not clip one occupant. Extra letterbox below is aspect,
+  // not that pad cap.
+  function occupantRange(occupants) {
+    var zMin = Infinity;
+    var zMax = -Infinity;
+    for (var i = 0; i < occupants.length; i++) {
+      var ext = occupantZ(occupants[i]);
+      if (!isFinite(ext.min) || !isFinite(ext.max)) {
+        continue;
+      }
+      if (ext.min < zMin) zMin = ext.min;
+      if (ext.max > zMax) zMax = ext.max;
     }
-    if (r.bucket.lines) {
-      return ext;
+    if (zMin > zMax) {
+      return null;
     }
-    var span = ext.max - ext.min;
-    if (span <= DOMAIN_OCCUPANT_SPAN_MAX_M) {
-      return ext;
+    return { min: zMin, max: zMax };
+  }
+
+  // Smallest domain span (m) that keeps scaleZ <= SCALE_STRETCH_CAP ×
+  // scaleAlong on both strips. Shared so A and B stay aligned. If the
+  // occupant span is already larger (tall AABB), fit-to-height compresses.
+  function isotropicMinSpanM() {
+    if (!isolation || !svgA || !svgB) {
+      return 0;
     }
-    var z = recordZ(r);
-    if (typeof z !== "number" || !isFinite(z) || z < ext.min || z > ext.max) {
-      z = ext.min;
+    var needed = 0;
+    function consider(svg) {
+      var w = svg.clientWidth || 0;
+      var h = svg.clientHeight || 0;
+      if (w < 32 || h < 32) {
+        return;
+      }
+      var alongPx = Math.max(1, w - STRIP_PAD.start - STRIP_PAD.end);
+      var zPx = Math.max(1, h - STRIP_PAD.z0 - STRIP_PAD.z1);
+      var isA = svg === svgA;
+      var alongM = Math.max(
+        1e-6,
+        Math.abs(isA ? isolation.maxX - isolation.minX : isolation.maxY - isolation.minY)
+          * METERS_PER_MAP_PX
+      );
+      var scaleAlong = alongPx / alongM;
+      var maxScaleZ = scaleAlong * SCALE_STRETCH_CAP;
+      if (maxScaleZ <= 1e-9) {
+        return;
+      }
+      needed = Math.max(needed, zPx / maxScaleZ);
     }
-    var lo = Math.max(ext.min, z);
-    var hi = Math.min(ext.max, lo + DEFAULT_HEIGHT_M);
-    if (hi <= lo) {
-      hi = Math.min(ext.max, ext.min + DEFAULT_HEIGHT_M);
-      lo = Math.max(ext.min, hi - DEFAULT_HEIGHT_M);
-    }
-    return { min: lo, max: hi };
+    consider(svgA);
+    consider(svgB);
+    return needed;
   }
 
   function computeDomain(occupants) {
-    var zMin = Infinity;
-    var zMax = -Infinity;
-    for (var i = 0; i < occupants.length; i++) {
-      var ext = domainExtent(occupants[i]);
-      if (!isFinite(ext.min) || !isFinite(ext.max)) {
-        continue;
-      }
-      if (ext.min < zMin) zMin = ext.min;
-      if (ext.max > zMax) zMax = ext.max;
+    var range = occupantRange(occupants);
+    var base = range
+      ? paddedDomain(range.min, range.max)
+      : paddedDomain(0, DEFAULT_HEIGHT_M);
+    var span = base.max - base.min;
+    var minSpan = isotropicMinSpanM();
+    if (minSpan > span) {
+      var extra = minSpan - span;
+      return { min: base.min - extra / 2, max: base.max + extra / 2 };
     }
-    if (zMin > zMax) {
-      // Empty volume: a readable local scale, never the altitude rail.
-      return paddedDomain(0, DEFAULT_HEIGHT_M);
-    }
-    return paddedDomain(zMin, zMax);
+    return base;
   }
 
   function occupantSpan(occupants) {
-    var zMin = Infinity;
-    var zMax = -Infinity;
-    for (var i = 0; i < occupants.length; i++) {
-      var ext = domainExtent(occupants[i]);
-      if (!isFinite(ext.min) || !isFinite(ext.max)) {
-        continue;
-      }
-      if (ext.min < zMin) zMin = ext.min;
-      if (ext.max > zMax) zMax = ext.max;
-    }
-    if (zMin > zMax) {
+    var range = occupantRange(occupants);
+    if (!range) {
       return { min: domain.min, max: domain.max };
     }
-    return { min: zMin, max: zMax };
+    return range;
   }
 
   function clampBandToCap() {
@@ -992,7 +1003,7 @@ var HeightView = {};
   function stripGeom(svg, isA) {
     var w = svg.clientWidth || 1;
     var h = svg.clientHeight || 1;
-    var pad = { start: 28, end: 18, z0: 10, z1: 10 };
+    var pad = STRIP_PAD;
     // Side panel and flaps both draw Z as the vertical axis. L-frame B
     // used a fold-out (Z horizontal); that layout is gone.
     var zIsVertical = true;
@@ -1641,6 +1652,11 @@ var HeightView = {};
     if (!isolation || !svgA) {
       return;
     }
+    // Letterbox needs live strip CSS px. Occupants are unchanged by peel
+    // (story 33: do not recompact); XY/filter/resize still refresh the list
+    // before this paint.
+    domain = computeDomain(xyOccupants);
+    clampBandToCap();
     markRecords = new Map();
     cutHitsA = [];
     cutHitsB = [];
