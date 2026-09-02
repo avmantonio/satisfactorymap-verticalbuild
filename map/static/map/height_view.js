@@ -83,8 +83,7 @@ var HeightView = {};
   var cutsDrawQueued = false;
   var lastCutSizeA = 0;
   var lastCutSizeB = 0;
-  var cutHitsA = [];
-  var cutHitsB = [];
+  var bandJustDragged = false;
 
   HeightView.isOpen = function() {
     return isolation !== null;
@@ -411,8 +410,19 @@ var HeightView = {};
     bindBand(strip, bandEl, handleMin, handleMax, startName === "A");
     bindAlongHandle(alongStart, startName === "A", "start");
     bindAlongHandle(alongEnd, startName === "A", "end");
-    svg.addEventListener("click", onCutClick);
     bindCutHover(svg, strip, startName === "A");
+    strip.addEventListener("click", function(e) {
+      if (e.target.closest(".heightCutHandle")
+          || e.target.closest(".heightCutAlong")
+          || e.target.closest(".heightCutLabel")
+          || e.target.closest(".heightViewSwitch")) {
+        return;
+      }
+      if (bandJustDragged) {
+        return;
+      }
+      onCutClick(svg, e.clientX, e.clientY);
+    });
 
     return {
       strip: strip,
@@ -1630,8 +1640,14 @@ var HeightView = {};
       yawEl.textContent = "";
     }
 
-    svg.addEventListener("pointermove", function(e) {
+    function onMove(e) {
       if (!isolation || edgeDrag) {
+        hideYaw();
+        return;
+      }
+      if (e.target.closest(".heightCutHandle")
+          || e.target.closest(".heightCutAlong")
+          || e.target.closest(".heightCutLabel")) {
         hideYaw();
         return;
       }
@@ -1644,18 +1660,24 @@ var HeightView = {};
       yawEl.textContent = text;
       yawEl.removeAttribute("hidden");
       var rect = strip.getBoundingClientRect();
-      var x = e.clientX - rect.left + 10;
-      var y = e.clientY - rect.top + 10;
-      var maxX = Math.max(8, rect.width - 48);
-      var maxY = Math.max(8, rect.height - 24);
+      var x = e.clientX - rect.left + 12;
+      var y = e.clientY - rect.top + 12;
+      var maxX = Math.max(8, rect.width - 56);
+      var maxY = Math.max(8, rect.height - 28);
       yawEl.style.left = Math.max(8, Math.min(maxX, x)) + "px";
       yawEl.style.top = Math.max(8, Math.min(maxY, y)) + "px";
+    }
+
+    strip.addEventListener("pointermove", onMove);
+    strip.addEventListener("pointerleave", function(e) {
+      if (!strip.contains(e.relatedTarget)) {
+        hideYaw();
+      }
     });
-    svg.addEventListener("pointerleave", hideYaw);
   }
 
-  function onCutClick(e) {
-    var r = hitCutRecord(e.currentTarget, e.clientX, e.clientY);
+  function onCutClick(svg, clientX, clientY) {
+    var r = hitCutRecord(svg, clientX, clientY);
     if (!r || !SelectionTool.toggleRecord) {
       return;
     }
@@ -1761,6 +1783,8 @@ var HeightView = {};
         return;
       }
       drag = null;
+      bandJustDragged = true;
+      setTimeout(function() { bandJustDragged = false; }, 0);
       applyPeel();
       requestDrawCuts();
     }

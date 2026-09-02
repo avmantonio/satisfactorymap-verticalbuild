@@ -3274,12 +3274,12 @@ body.height-view-side {
 
 .heightCutYaw {
   position: absolute;
-  z-index: 3;
+  z-index: 4;
   pointer-events: none;
-  padding: 0 var(--sp-1);
-  font-size: var(--fs-xs);
+  padding: 2px var(--sp-2);
+  font-size: var(--fs-sm);
   font-weight: 650;
-  color: var(--text);
+  color: var(--text-bright);
   background: var(--surface-1);
   border: 1px solid var(--accent-border);
   white-space: nowrap;
