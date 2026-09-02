@@ -9,8 +9,9 @@
 // in the strip, no world-scale second buffer.
 // After commit, the cube is one-axis editable: a map-edge handle or the
 // matching Cut vertical (A/A′ = X, B/B′ = Y). Opposite side stays; the
-// Z band is not reset. Table height is not on the payload — AABB Z is
-// still the 4 m dashed placeholder (19).
+// Z band is not reset. Building AABB Z comes from bucket.heightExtentM
+// (clearance / dimensions.Height); missing table height is the 4 m
+// dashed placeholder (19).
 // Spec: .scratch/vertical-builds/specs/2-5d-first-cut.md
 
 var HeightView = {};
@@ -36,7 +37,7 @@ var HeightView = {};
   var FLAP_B_MIN_DEPTH_PX = 240;
   var FLAP_B_MAX_DEPTH_PX = 320;
   var FLAP_MIN_LENGTH_PX = 160;
-  var EDGE_HIT_PX = 10;
+  var EDGE_HIT_PX = 16;
   var MIN_EDGE_SPAN_PX = 16;
   var DEFAULT_HEIGHT_M = 4;
   var PAD_RATIO = 0.2;
@@ -138,15 +139,21 @@ var HeightView = {};
         }
       }
       if (z0 > z1) {
-        return { min: 0, max: DEFAULT_HEIGHT_M };
+        return { min: 0, max: DEFAULT_HEIGHT_M, missing: false };
       }
-      return { min: z0, max: z1 };
+      return { min: z0, max: z1, missing: false };
     }
     var z = recordZ(r);
-    if (typeof z !== "number" || !isFinite(z)) {
-      return { min: 0, max: DEFAULT_HEIGHT_M };
+    var extent = r.bucket.heightExtentM;
+    if (typeof z === "number" && isFinite(z)
+        && extent && extent.length >= 2
+        && isFinite(extent[0]) && isFinite(extent[1])) {
+      return { min: z + extent[0], max: z + extent[1], missing: false };
     }
-    return { min: z, max: z + DEFAULT_HEIGHT_M };
+    if (typeof z !== "number" || !isFinite(z)) {
+      return { min: 0, max: DEFAULT_HEIGHT_M, missing: true };
+    }
+    return { min: z, max: z + DEFAULT_HEIGHT_M, missing: true };
   }
 
   function recordInBand(r) {
@@ -184,6 +191,7 @@ var HeightView = {};
       var ext = zExtent(list[i]);
       list[i]._zMin = ext.min;
       list[i]._zMax = ext.max;
+      list[i]._missingHeight = !!ext.missing;
     }
   }
 
@@ -404,6 +412,7 @@ var HeightView = {};
     bindAlongHandle(alongStart, startName === "A", "start");
     bindAlongHandle(alongEnd, startName === "A", "end");
     svg.addEventListener("click", onCutClick);
+    bindCutHover(svg, strip, startName === "A");
 
     return {
       strip: strip,
@@ -719,7 +728,7 @@ var HeightView = {};
   function placeAlongPair(cut, isA) {
     var svg = isA ? svgA : svgB;
     var geom = stripGeom(svg, isA);
-    var thickness = 12;
+    var thickness = 16;
     var z0 = Math.min(geom.zHighPx, geom.zLowPx);
     var z1 = Math.max(geom.zHighPx, geom.zLowPx);
     cut.alongStart.setAttribute("aria-label", alongHandleLabel(isA, "start"));
@@ -1042,10 +1051,8 @@ var HeightView = {};
     var faded = !included && !excluded;
     var rgb = hexRgb(excluded ? "#e8b84a" : (r.bucket.color || "#5ba3e0"));
     var alpha = excluded ? 0.35 : (faded ? FADE_OPACITY * 0.45 : 0.45 * solidity);
-    // 19 dashes missing-height and excluded overlap. Table height is not
-    // on the payload yet, so every AABB stroke is dashed in SVG; GL hatch
-    // only the yellow excluded channel so in-band fills stay readable.
-    return { rgb: rgb, alpha: alpha, dash: excluded ? 1 : 0 };
+    var missing = !r.bucket.lines && !!r._missingHeight;
+    return { rgb: rgb, alpha: alpha, dash: (excluded || missing) ? 1 : 0 };
   }
 
   function growCutStream(stream, needFloats) {
@@ -1308,9 +1315,8 @@ var HeightView = {};
     var faded = !included && !excluded;
     var opacity = excluded ? 0.9 : (faded ? FADE_OPACITY : solidity);
     var color = excluded ? "#e8b84a" : (r.bucket.color || "#5ba3e0");
-    // Table height is not on the payload yet; 19's missing-height mark is
-    // a 4 m dashed AABB. Excluded overlap is yellow dashed for the same reason.
-    var dashed = true;
+    var missing = !r.bucket.lines && !!r._missingHeight;
+    var dashed = excluded || missing;
 
     if (r.bucket.lines) {
       var line = r.bucket.lines[r.index];
@@ -1567,33 +1573,89 @@ var HeightView = {};
     lastCutSizeB = (svgB.clientWidth || 0) * 65536 + (svgB.clientHeight || 0);
   }
 
-  function onCutClick(e) {
-    var svg = e.currentTarget;
+  function hitCutRecord(svg, clientX, clientY) {
     var hits = svg === svgA ? cutHitsA : cutHitsB;
     if (hits && hits.length) {
       var rect = svg.getBoundingClientRect();
-      var x = e.clientX - rect.left;
-      var y = e.clientY - rect.top;
+      var x = clientX - rect.left;
+      var y = clientY - rect.top;
       for (var i = hits.length - 1; i >= 0; i--) {
         var hit = hits[i];
         if (x >= hit.x && x <= hit.x + hit.w && y >= hit.y && y <= hit.y + hit.h) {
-          if (hit.r && SelectionTool.toggleRecord) {
-            SelectionTool.toggleRecord(hit.r);
-          }
-          return;
+          return hit.r || null;
         }
       }
-      return;
+      return null;
     }
-    var node = e.target;
-    if (!node || !node.getAttribute) {
-      return;
+    var node = document.elementFromPoint(clientX, clientY);
+    while (node && node !== svg) {
+      if (node.getAttribute) {
+        var key = node.getAttribute("data-key");
+        if (key) {
+          return markRecords.get(key) || null;
+        }
+      }
+      node = node.parentNode;
     }
-    var key = node.getAttribute("data-key");
-    if (!key) {
-      return;
+    return null;
+  }
+
+  function formatStripYawDeg(r, isA) {
+    if (!r || r.bucket.lines || r.bucket.pointStride !== 4 || !r.bucket.points) {
+      return null;
     }
-    var r = markRecords.get(key);
+    var yaw = r.bucket.points[r.index * 4 + 2] || 0;
+    var geom = stripGeom(isA ? svgA : svgB, isA);
+    var rel = geom.axis === "x" ? yaw : yaw - Math.PI / 2;
+    if (geom.flipped) {
+      rel += Math.PI;
+    }
+    var deg = rel * 180 / Math.PI;
+    deg = ((deg + 180) % 360 + 360) % 360 - 180;
+    var rounded = Math.round(deg);
+    if (rounded === -180) {
+      rounded = 180;
+    }
+    return (rounded > 0 ? "+" : "") + rounded + "\u00b0";
+  }
+
+  function bindCutHover(svg, strip, isA) {
+    var yawEl = UI.el("div", "heightCutYaw");
+    yawEl.setAttribute("hidden", "");
+    yawEl.setAttribute("aria-hidden", "true");
+    strip.appendChild(yawEl);
+
+    function hideYaw() {
+      yawEl.setAttribute("hidden", "");
+      yawEl.textContent = "";
+    }
+
+    svg.addEventListener("pointermove", function(e) {
+      if (!isolation || edgeDrag) {
+        hideYaw();
+        return;
+      }
+      var r = hitCutRecord(svg, e.clientX, e.clientY);
+      var text = formatStripYawDeg(r, isA);
+      if (!text) {
+        hideYaw();
+        return;
+      }
+      yawEl.textContent = text;
+      yawEl.removeAttribute("hidden");
+      var rect = strip.getBoundingClientRect();
+      var x = e.clientX - rect.left + 10;
+      var y = e.clientY - rect.top + 10;
+      var maxX = Math.max(8, rect.width - 48);
+      var maxY = Math.max(8, rect.height - 24);
+      yawEl.style.left = Math.max(8, Math.min(maxX, x)) + "px";
+      yawEl.style.top = Math.max(8, Math.min(maxY, y)) + "px";
+    });
+    svg.addEventListener("pointerleave", hideYaw);
+  }
+
+  function onCutClick(e) {
+    var r = hitCutRecord(e.currentTarget, e.clientX, e.clientY);
     if (!r || !SelectionTool.toggleRecord) {
       return;
     }
