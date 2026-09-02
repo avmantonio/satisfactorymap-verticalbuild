@@ -57,6 +57,9 @@ var SelectionTool = {};
   // objects; every edit/load clears it via SelectionTool.reset (buckets are
   // rebuilt then, so records would dangle).
   var selected = new Map();
+  // Reused by collectInBox so a heavy box query does not allocate a new
+  // index list per bucket. Not shared with the map layer's scratch.
+  var collectScratch = [];
 
   function recordOf(bucket, index, id, x, y) {
     return { bucket: bucket, index: index, id: id, x: x, y: y };
@@ -128,6 +131,8 @@ var SelectionTool = {};
     var altMin = MapApp.altitudeRange ? MapApp.altitudeRange.min : -Infinity;
     var altMax = MapApp.altitudeRange ? MapApp.altitudeRange.max : Infinity;
     var records = [];
+    var finiteBox = isFinite(minX) && isFinite(maxX) && isFinite(minY) && isFinite(maxY);
+    var collectGrid = MapApp.collectGridIndices;
 
     MapApp.layer.buckets.forEach(function(bucket) {
       if (!bucket.visible) {
@@ -149,7 +154,17 @@ var SelectionTool = {};
         }
         var lineStride = bucket.pointStride;
         var lineZ = lineStride - 1;
+        var lineBounds = bucket._lineBounds;
         for (var li = 0; li < bucket.lines.length; li++) {
+          var lb = lineBounds && lineBounds[li];
+          if (lb) {
+            if (lb.maxX < minX || lb.minX > maxX || lb.maxY < minY || lb.minY > maxY) {
+              continue;
+            }
+            if (lb.maxZ < altMin || lb.minZ > altMax) {
+              continue;
+            }
+          }
           var line = bucket.lines[li];
           var hit = false;
           for (var vi = 0; vi < line.length; vi += lineStride) {
@@ -171,6 +186,19 @@ var SelectionTool = {};
       var stride = bucket.pointStride;
       var zIndex = stride - 1;
       var pts = bucket.points;
+      if (finiteBox && bucket._grid && collectGrid) {
+        var indices = collectGrid(bucket._grid, minX, maxX, minY, maxY, collectScratch);
+        for (var k = 0; k < indices.length; k++) {
+          var idx = indices[k];
+          var off = idx * stride;
+          var gx = pts[off], gy = pts[off + 1], gz = pts[off + zIndex];
+          if (gx < minX || gx > maxX || gy < minY || gy > maxY || gz < altMin || gz > altMax) {
+            continue;
+          }
+          records.push(recordOf(bucket, idx, bucket.ids ? bucket.ids[idx] : null, gx, gy));
+        }
+        return;
+      }
       for (var i = 0; i < pts.length; i += stride) {
         var x = pts[i], y = pts[i + 1], z = pts[i + zIndex];
         if (x < minX || x > maxX || y < minY || y > maxY || z < altMin || z > altMax) {
@@ -968,6 +996,21 @@ var SelectionTool = {};
   SelectionTool.recordKey = recordKey;
   SelectionTool.recordZ = recordZ;
   SelectionTool.setRecords = function(records) {
+    var nextKeys = new Set();
+    for (var i = 0; i < records.length; i++) {
+      nextKeys.add(recordKey(records[i]));
+    }
+    if (nextKeys.size === selected.size) {
+      var same = true;
+      selected.forEach(function(_, key) {
+        if (!nextKeys.has(key)) {
+          same = false;
+        }
+      });
+      if (same) {
+        return;
+      }
+    }
     selected.clear();
     records.forEach(function(r) {
       selected.set(recordKey(r), r);

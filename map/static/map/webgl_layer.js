@@ -268,6 +268,46 @@
     "}",
   ].join("\n");
 
+  // Height-view Cut (along × Z) on THIS context: typed-array quads, XY∩rail
+  // only, drawn to an FBO and read back into an <image> in the strip. No
+  // second <canvas> in the Cut chrome, no world-scale second buffer. CSS
+  // pixels, y-down, same premultiplied blend as the map. a_dash hatches
+  // 19's missing-height / excluded-overlap marks.
+  var CUT_VS = [
+    "#version 300 es",
+    "precision highp float;",
+    "layout(location=0) in vec2 a_pos;",
+    "layout(location=1) in vec4 a_color;",
+    "layout(location=2) in float a_dash;",
+    "uniform vec2 u_viewport;",
+    "out vec4 v_color;",
+    "out float v_dash;",
+    "out vec2 v_fragPx;",
+    "void main() {",
+    "  v_color = a_color;",
+    "  v_dash = a_dash;",
+    "  v_fragPx = a_pos;",
+    "  gl_Position = vec4(a_pos.x / max(u_viewport.x, 1.0) * 2.0 - 1.0,",
+    "                     1.0 - a_pos.y / max(u_viewport.y, 1.0) * 2.0, 0.0, 1.0);",
+    "}",
+  ].join("\n");
+
+  var CUT_FS = [
+    "#version 300 es",
+    "precision highp float;",
+    "in vec4 v_color;",
+    "in float v_dash;",
+    "in vec2 v_fragPx;",
+    "out vec4 outColor;",
+    "void main() {",
+    "  if (v_dash > 0.5) {",
+    "    float s = floor(v_fragPx.x * 0.25) + floor(v_fragPx.y * 0.25);",
+    "    if (mod(s, 2.0) < 0.5) discard;",
+    "  }",
+    "  outColor = vec4(v_color.rgb * v_color.a, v_color.a);",
+    "}",
+  ].join("\n");
+
   // Lines draw from ONE merged z-sorted stream interleaved with the rect
   // stream (see _buildLineStream), so color, width, and bucket visibility
   // all ride per-vertex attributes instead of per-run uniforms.
@@ -713,11 +753,188 @@
       this._lineBucketList = null;
     },
 
+    _disposeCutPass: function() {
+      var gl = this._gl;
+      if (this._cut && gl) {
+        if (this._cut.vao) gl.deleteVertexArray(this._cut.vao);
+        if (this._cut.buffer) gl.deleteBuffer(this._cut.buffer);
+        if (this._cut.fbo) gl.deleteFramebuffer(this._cut.fbo);
+        if (this._cut.tex) gl.deleteTexture(this._cut.tex);
+        if (this._cut.prog) gl.deleteProgram(this._cut.prog.prog);
+      }
+      this._cut = null;
+    },
+
+    _ensureCutPass: function() {
+      var gl = this._gl;
+      if (!gl || this._contextLost) {
+        return false;
+      }
+      if (this._cut && this._cut.prog) {
+        return true;
+      }
+      try {
+        var prog = _compileProgram(gl, CUT_VS, CUT_FS, "cut");
+        var vao = gl.createVertexArray();
+        var buffer = gl.createBuffer();
+        var STRIDE = 7 * 4;
+        gl.bindVertexArray(vao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, STRIDE, 0);
+        gl.enableVertexAttribArray(1);
+        gl.vertexAttribPointer(1, 4, gl.FLOAT, false, STRIDE, 8);
+        gl.enableVertexAttribArray(2);
+        gl.vertexAttribPointer(2, 1, gl.FLOAT, false, STRIDE, 24);
+        gl.bindVertexArray(null);
+        this._cut = {
+          prog: prog,
+          vao: vao,
+          buffer: buffer,
+          fbo: null,
+          tex: null,
+          texW: 0,
+          texH: 0,
+          blit: null,
+        };
+        return true;
+      } catch (e) {
+        console.error(e);
+        this._cut = null;
+        return false;
+      }
+    },
+
+    _resizeCutTarget: function(w, h) {
+      var gl = this._gl;
+      if (!this._cut) {
+        return false;
+      }
+      if (this._cut.tex && this._cut.texW === w && this._cut.texH === h) {
+        return true;
+      }
+      if (this._cut.tex) gl.deleteTexture(this._cut.tex);
+      if (this._cut.fbo) gl.deleteFramebuffer(this._cut.fbo);
+      var tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, w, h);
+      var fbo = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      var ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.bindTexture(gl.TEXTURE_2D, null);
+      if (!ok) {
+        gl.deleteTexture(tex);
+        gl.deleteFramebuffer(fbo);
+        return false;
+      }
+      this._cut.tex = tex;
+      this._cut.fbo = fbo;
+      this._cut.texW = w;
+      this._cut.texH = h;
+      return true;
+    },
+
+    // Height view: rasterize along×Z AABB quads (CSS px, y-down) on the
+    // map's GL context. `vertices` is stride-7 (x,y,r,g,b,a,dash) × 4
+    // corners per quad. Returns a PNG data URL for an SVG <image>, or
+    // null to keep the SVG mark path.
+    renderHeightCut: function(cssW, cssH, vertices) {
+      var gl = this._gl;
+      if (!gl || this._contextLost || !vertices || vertices.length < 28) {
+        return null;
+      }
+      if (!this._ensureCutPass()) {
+        return null;
+      }
+      var dpr = Math.min(2, window.devicePixelRatio || 1);
+      var w = Math.max(1, Math.min(2048, Math.round(cssW * dpr)));
+      var h = Math.max(1, Math.min(2048, Math.round(cssH * dpr)));
+      var quadCount = Math.floor(vertices.length / 28);
+      if (quadCount < 1) {
+        return null;
+      }
+      var prevFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+      var prevVao = gl.getParameter(gl.VERTEX_ARRAY_BINDING);
+      var prevViewport = gl.getParameter(gl.VIEWPORT);
+      var prevProgram = gl.getParameter(gl.CURRENT_PROGRAM);
+      var prevBlend = gl.isEnabled(gl.BLEND);
+      var prevDepth = gl.isEnabled(gl.DEPTH_TEST);
+      var prevSrc = gl.getParameter(gl.BLEND_SRC_RGB);
+      var prevDst = gl.getParameter(gl.BLEND_DST_RGB);
+      var prevSrcA = gl.getParameter(gl.BLEND_SRC_ALPHA);
+      var prevDstA = gl.getParameter(gl.BLEND_DST_ALPHA);
+      var prevTex = gl.getParameter(gl.TEXTURE_BINDING_2D);
+      var prevPack = gl.getParameter(gl.PACK_ALIGNMENT);
+      try {
+        if (!this._resizeCutTarget(w, h)) {
+          return null;
+        }
+        this._ensureIndexCapacity(quadCount);
+        gl.bindVertexArray(this._cut.vao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._cut.buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._indexBuffer);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this._cut.fbo);
+        gl.viewport(0, 0, w, h);
+        gl.disable(gl.DEPTH_TEST);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.useProgram(this._cut.prog.prog);
+        gl.uniform2f(this._cut.prog.u.u_viewport, cssW, cssH);
+        gl.drawElements(gl.TRIANGLES, quadCount * 6, gl.UNSIGNED_INT, 0);
+        gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
+        var pixels = new Uint8Array(w * h * 4);
+        gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        var row = w * 4;
+        var tmp = new Uint8Array(row);
+        for (var y = 0; y < Math.floor(h / 2); y++) {
+          var a = y * row;
+          var b = (h - 1 - y) * row;
+          tmp.set(pixels.subarray(a, a + row));
+          pixels.copyWithin(a, b, b + row);
+          pixels.set(tmp, b);
+        }
+        if (!this._cut.blit) {
+          this._cut.blit = document.createElement("canvas");
+        }
+        var blit = this._cut.blit;
+        blit.width = w;
+        blit.height = h;
+        var ctx = blit.getContext("2d");
+        var img = ctx.createImageData(w, h);
+        img.data.set(pixels);
+        ctx.putImageData(img, 0, 0);
+        return blit.toDataURL("image/png");
+      } catch (e) {
+        console.error(e);
+        return null;
+      } finally {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, prevFbo);
+        gl.bindVertexArray(prevVao);
+        gl.viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+        gl.useProgram(prevProgram);
+        if (prevDepth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);
+        if (prevBlend) gl.enable(gl.BLEND); else gl.disable(gl.BLEND);
+        gl.blendFuncSeparate(prevSrc, prevDst, prevSrcA, prevDstA);
+        gl.bindTexture(gl.TEXTURE_2D, prevTex);
+        gl.pixelStorei(gl.PACK_ALIGNMENT, prevPack);
+      }
+    },
+
     _disposeGL: function() {
       var gl = this._gl;
       if (!gl) {
         return;
       }
+      this._disposeCutPass();
       this._disposeStreams();
       if (this._programs) {
         gl.deleteProgram(this._programs.rect.prog);
