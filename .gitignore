@@ -48,3 +48,5 @@ LAUNCH.md
 .wrangler
 # Screenshot-harness output (tools/ui_shots.py)
 ui_shots/
+#playwright usage
+.playwright-cli/
