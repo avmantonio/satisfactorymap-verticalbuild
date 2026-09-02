@@ -83,6 +83,8 @@ var HeightView = {};
   var cutsDrawQueued = false;
   var lastCutSizeA = 0;
   var lastCutSizeB = 0;
+  var cutHitsA = [];
+  var cutHitsB = [];
   var bandJustDragged = false;
 
   HeightView.isOpen = function() {
