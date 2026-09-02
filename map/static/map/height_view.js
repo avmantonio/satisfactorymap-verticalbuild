@@ -3,7 +3,10 @@
 // ∩ Cut band). Chrome is a docked side panel (A–A′ top half, B–B′ bottom
 // half) with a session switch to flaps. L-frame overlay was dropped after
 // the walking skeleton: edge gutters stay too thin to read Z. Cut marks
-// are projected AABB in SVG — no second canvas, no 3D.
+// are projected AABB with 19 bin-dedupe, rasterized on the map's WebGL
+// context (typed-array stream, XY∩rail only, FBO → SVG <image>). SVG
+// marks remain the fallback when WebGL is unavailable. No second canvas
+// in the strip, no world-scale second buffer.
 // Spec: .scratch/vertical-builds/specs/2-5d-first-cut.md
 
 var HeightView = {};
@@ -34,6 +37,11 @@ var HeightView = {};
   var PAD_MIN_M = 4;
   var PAD_MAX_M = 50;
   var FADE_OPACITY = 0.28;
+  // Ticket 19: one mark per (type + along bin + Z bin), separately for
+  // in-Build vs out-crossing (and faded). 2 m is finer than a foundation
+  // slab and still collapses depth-stacked twins on a strip.
+  var ALONG_BIN_M = 2;
+  var Z_BIN_M = 2;
 
   var host = document.getElementById("heightView");
   var cutA = null;
@@ -54,12 +62,20 @@ var HeightView = {};
   var band = { min: 0, max: 20 };
   var xyOccupants = [];
   var cubeOccupants = [];
+  var cubeKeys = new Set();
   var subtractIds = new Set();
   var isolationRect = null;
   var mapEventsBound = false;
   var markRecords = new Map();
   var excludedOverlap = [];
   var resizeObserver = null;
+  var xyCacheValid = false;
+  var gridScratch = [];
+  var cutsDrawQueued = false;
+  var lastCutSizeA = 0;
+  var lastCutSizeB = 0;
+  var cutHitsA = [];
+  var cutHitsB = [];
 
   HeightView.isOpen = function() {
     return isolation !== null;
@@ -148,6 +164,27 @@ var HeightView = {};
     return typeof z === "number" && z >= band.min && z <= band.max;
   }
 
+  function occupantZ(r) {
+    if (typeof r._zMin === "number" && typeof r._zMax === "number") {
+      return { min: r._zMin, max: r._zMax };
+    }
+    return zExtent(r);
+  }
+
+  function cacheExtents(list) {
+    for (var i = 0; i < list.length; i++) {
+      var ext = zExtent(list[i]);
+      list[i]._zMin = ext.min;
+      list[i]._zMax = ext.max;
+    }
+  }
+
+  function refreshInBandFlags(list) {
+    for (var i = 0; i < list.length; i++) {
+      list[i]._inBand = recordInBand(list[i]);
+    }
+  }
+
   function paddedDomain(zMin, zMax) {
     var span = zMax - zMin;
     var pad = Math.min(PAD_MAX_M, Math.max(PAD_MIN_M, span * PAD_RATIO));
@@ -157,14 +194,14 @@ var HeightView = {};
   function computeDomain(occupants) {
     var zMin = Infinity;
     var zMax = -Infinity;
-    occupants.forEach(function(r) {
-      var ext = zExtent(r);
+    for (var i = 0; i < occupants.length; i++) {
+      var ext = occupantZ(occupants[i]);
       if (!isFinite(ext.min) || !isFinite(ext.max)) {
-        return;
+        continue;
       }
       if (ext.min < zMin) zMin = ext.min;
       if (ext.max > zMax) zMax = ext.max;
-    });
+    }
     if (zMin > zMax) {
       // Empty volume: a readable local scale, never the altitude rail.
       return paddedDomain(0, DEFAULT_HEIGHT_M);
@@ -175,14 +212,14 @@ var HeightView = {};
   function occupantSpan(occupants) {
     var zMin = Infinity;
     var zMax = -Infinity;
-    occupants.forEach(function(r) {
-      var ext = zExtent(r);
+    for (var i = 0; i < occupants.length; i++) {
+      var ext = occupantZ(occupants[i]);
       if (!isFinite(ext.min) || !isFinite(ext.max)) {
-        return;
+        continue;
       }
       if (ext.min < zMin) zMin = ext.min;
       if (ext.max > zMax) zMax = ext.max;
-    });
+    }
     if (zMin > zMax) {
       return { min: domain.min, max: domain.max };
     }
@@ -223,12 +260,24 @@ var HeightView = {};
   }
 
   function applyPeel() {
-    xyOccupants = collectXyOccupants();
-    cubeOccupants = xyOccupants.filter(recordInBand);
+    if (!xyCacheValid) {
+      xyOccupants = collectXyOccupants();
+      cacheExtents(xyOccupants);
+      xyCacheValid = true;
+    }
+    refreshInBandFlags(xyOccupants);
+    cubeOccupants = [];
+    cubeKeys.clear();
     var inCube = new Set();
-    cubeOccupants.forEach(function(r) {
+    for (var i = 0; i < xyOccupants.length; i++) {
+      var r = xyOccupants[i];
+      if (!r._inBand) {
+        continue;
+      }
+      cubeOccupants.push(r);
+      cubeKeys.add(SelectionTool.recordKey(r));
       inCube.add(actorId(r));
-    });
+    }
     subtractIds.forEach(function(id) {
       if (!inCube.has(id)) {
         subtractIds.delete(id);
@@ -247,9 +296,7 @@ var HeightView = {};
     if (!isolation) {
       return true;
     }
-    return cubeOccupants.some(function(o) {
-      return SelectionTool.recordKey(o) === SelectionTool.recordKey(r);
-    });
+    return cubeKeys.has(SelectionTool.recordKey(r));
   };
 
   HeightView.onDeselect = function(r) {
@@ -293,9 +340,15 @@ var HeightView = {};
     bandB = cutB.band;
 
     resizeObserver = new ResizeObserver(function() {
-      if (isolation) {
-        drawCuts();
+      if (!isolation) {
+        return;
       }
+      var sizeA = (svgA.clientWidth || 0) * 65536 + (svgA.clientHeight || 0);
+      var sizeB = (svgB.clientWidth || 0) * 65536 + (svgB.clientHeight || 0);
+      if (sizeA === lastCutSizeA && sizeB === lastCutSizeB) {
+        return;
+      }
+      requestDrawCuts();
     });
     resizeObserver.observe(cutA.strip);
     resizeObserver.observe(cutB.strip);
@@ -343,7 +396,7 @@ var HeightView = {};
     } else {
       flipB = !flipB;
     }
-    drawCuts();
+    requestDrawCuts();
   }
 
   function setLayout(next) {
@@ -353,9 +406,7 @@ var HeightView = {};
     layoutSideBtn.classList.toggle("active", layout === "side");
     layoutFlapsBtn.classList.toggle("active", layout === "flaps");
     positionChrome();
-    requestAnimationFrame(function() {
-      drawCuts();
-    });
+    requestDrawCuts();
   }
 
   function applyHostDisplay() {
@@ -439,7 +490,8 @@ var HeightView = {};
     if (mapEventsBound || !MapApp.map) {
       return;
     }
-    MapApp.map.on("move zoom resize", onMapViewChanged);
+    MapApp.map.on("move", onMapMove);
+    MapApp.map.on("zoomend moveend resize", onMapViewChanged);
     mapEventsBound = true;
   }
 
@@ -447,14 +499,19 @@ var HeightView = {};
     if (!mapEventsBound || !MapApp.map) {
       return;
     }
-    MapApp.map.off("move zoom resize", onMapViewChanged);
+    MapApp.map.off("move", onMapMove);
+    MapApp.map.off("zoomend moveend resize", onMapViewChanged);
     mapEventsBound = false;
+  }
+
+  function onMapMove() {
+    positionChrome();
   }
 
   function onMapViewChanged() {
     positionChrome();
     if (layout === "flaps") {
-      drawCuts();
+      requestDrawCuts();
     }
   }
 
@@ -596,15 +653,251 @@ var HeightView = {};
     return geom.zLowPx + t * (geom.zHighPx - geom.zLowPx);
   }
 
-  function drawOneCut(svg, isA) {
-    while (svg.firstChild) {
-      svg.removeChild(svg.firstChild);
+  function frontDepth(r, geom) {
+    var t = depthT(r, geom.axis);
+    return geom.flipped ? 1 - t : t;
+  }
+
+  function markBinKey(r, geom, excluded, included) {
+    var alongM = alongCenter(r, geom.axis) * METERS_PER_MAP_PX;
+    var ext = occupantZ(r);
+    var zMid = (ext.min + ext.max) / 2;
+    var alongBin = Math.round(alongM / ALONG_BIN_M);
+    var zBin = Math.round(zMid / Z_BIN_M);
+    var channel = excluded ? "x" : (included ? "i" : "f");
+    return r.bucket.key + "|" + alongBin + "|" + zBin + "|" + channel;
+  }
+
+  function dedupeDrawList(drawList, geom) {
+    var bins = new Map();
+    for (var i = 0; i < drawList.length; i++) {
+      var item = drawList[i];
+      var key = markBinKey(item.r, geom, item.excluded, item.included);
+      var prev = bins.get(key);
+      if (!prev || frontDepth(item.r, geom) < frontDepth(prev.r, geom)) {
+        bins.set(key, item);
+      }
     }
+    var unique = [];
+    bins.forEach(function(item) {
+      unique.push(item);
+    });
+    unique.sort(function(a, b) {
+      return frontDepth(b.r, geom) - frontDepth(a.r, geom);
+    });
+    return unique;
+  }
+
+  function hexRgb(hex) {
+    if (typeof hex === "string" && hex.charAt(0) === "#" && hex.length >= 7) {
+      return [
+        parseInt(hex.slice(1, 3), 16) / 255,
+        parseInt(hex.slice(3, 5), 16) / 255,
+        parseInt(hex.slice(5, 7), 16) / 255,
+      ];
+    }
+    return [0.357, 0.639, 0.878];
+  }
+
+  function markLook(r, excluded, included, geom) {
+    var depth = frontDepth(r, geom);
+    var solidity = 0.35 + 0.65 * (1 - depth);
+    var faded = !included && !excluded;
+    var rgb = hexRgb(excluded ? "#e8b84a" : (r.bucket.color || "#5ba3e0"));
+    var alpha = excluded ? 0.35 : (faded ? FADE_OPACITY * 0.45 : 0.45 * solidity);
+    // 19 dashes missing-height and excluded overlap. Table height is not
+    // on the payload yet, so every AABB stroke is dashed in SVG; GL hatch
+    // only the yellow excluded channel so in-band fills stay readable.
+    return { rgb: rgb, alpha: alpha, dash: excluded ? 1 : 0 };
+  }
+
+  function growCutStream(stream, needFloats) {
+    if (stream.data.length >= stream.n + needFloats) {
+      return;
+    }
+    var next = new Float32Array(Math.max(stream.data.length * 2, stream.n + needFloats));
+    next.set(stream.data);
+    stream.data = next;
+  }
+
+  function pushCutCorner(stream, x, y, rgb, alpha, dash) {
+    growCutStream(stream, 7);
+    var d = stream.data;
+    var i = stream.n;
+    d[i] = x; d[i + 1] = y;
+    d[i + 2] = rgb[0]; d[i + 3] = rgb[1]; d[i + 4] = rgb[2]; d[i + 5] = alpha;
+    d[i + 6] = dash;
+    stream.n = i + 7;
+  }
+
+  function pushCutQuad(stream, x0, y0, x1, y1, x2, y2, x3, y3, rgb, alpha, dash) {
+    pushCutCorner(stream, x0, y0, rgb, alpha, dash);
+    pushCutCorner(stream, x1, y1, rgb, alpha, dash);
+    pushCutCorner(stream, x2, y2, rgb, alpha, dash);
+    pushCutCorner(stream, x3, y3, rgb, alpha, dash);
+    stream.quads++;
+  }
+
+  function pushAxisQuad(stream, x, y, rw, rh, rgb, alpha, dash) {
+    pushCutQuad(stream, x, y, x + rw, y, x, y + rh, x + rw, y + rh, rgb, alpha, dash);
+  }
+
+  function appendRectMark(stream, hits, geom, r, excluded, included) {
+    var cap = altitudeCap();
+    var ext = occupantZ(r);
+    if (ext.max < cap.min || ext.min > cap.max) {
+      return;
+    }
+    var look = markLook(r, excluded, included, geom);
+    var along = alongCenter(r, geom.axis);
+    var widthM = projectedWidthM(r, geom.axis);
+    var alongSpanM = Math.abs((geom.alongMax - geom.alongMin) * METERS_PER_MAP_PX) || 1;
+    var alongPxSpan = Math.abs(geom.along1 - geom.along0);
+    var widthPx = (widthM / alongSpanM) * alongPxSpan;
+    var z0 = zToPx(geom, ext.min);
+    var z1 = zToPx(geom, ext.max);
+    var a0 = alongToPx(geom, along) - widthPx / 2;
+    var x, y, rw, rh;
+    if (geom.zIsVertical) {
+      x = a0;
+      y = Math.min(z0, z1);
+      rw = Math.max(2, widthPx);
+      rh = Math.max(2, Math.abs(z1 - z0));
+    } else {
+      x = Math.min(z0, z1);
+      y = a0;
+      rw = Math.max(2, Math.abs(z1 - z0));
+      rh = Math.max(2, widthPx);
+    }
+    pushAxisQuad(stream, x, y, rw, rh, look.rgb, look.alpha, look.dash);
+    var key = SelectionTool.recordKey(r);
+    markRecords.set(key, r);
+    hits.push({ key: key, r: r, x: x, y: y, w: rw, h: rh });
+  }
+
+  function appendLineMark(stream, hits, geom, r, excluded, included) {
+    var cap = altitudeCap();
+    var line = r.bucket.lines[r.index];
+    if (!line) {
+      return;
+    }
+    var look = markLook(r, excluded, included, geom);
+    var stride = r.bucket.pointStride;
+    var hw = excluded ? 0.7 : 1;
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    var run = [];
+    function pushPt(px, py) {
+      run.push(px, py);
+      minX = Math.min(minX, px);
+      minY = Math.min(minY, py);
+      maxX = Math.max(maxX, px);
+      maxY = Math.max(maxY, py);
+    }
+    function flushRun() {
+      for (var i = 0; i + 3 < run.length; i += 2) {
+        var x0 = run[i], y0 = run[i + 1], x1 = run[i + 2], y1 = run[i + 3];
+        var dx = x1 - x0, dy = y1 - y0;
+        var len = Math.hypot(dx, dy);
+        if (len < 0.5) {
+          continue;
+        }
+        var nx = -dy / len * hw, ny = dx / len * hw;
+        pushCutQuad(
+          stream,
+          x0 + nx, y0 + ny,
+          x1 + nx, y1 + ny,
+          x0 - nx, y0 - ny,
+          x1 - nx, y1 - ny,
+          look.rgb, Math.min(1, look.alpha + 0.25), look.dash
+        );
+      }
+      run = [];
+    }
+    for (var vi = 0; vi < line.length; vi += stride) {
+      var lx = line[vi];
+      var ly = line[vi + 1];
+      var lz = line[vi + stride - 1];
+      if (!inRect(lx, ly, isolation) || !inAltitude(lz, cap)) {
+        flushRun();
+        continue;
+      }
+      var along = geom.axis === "x" ? lx : ly;
+      var ax = alongToPx(geom, along);
+      var zp = zToPx(geom, lz);
+      var px = geom.zIsVertical ? ax : zp;
+      var py = geom.zIsVertical ? zp : ax;
+      pushPt(px, py);
+    }
+    flushRun();
+    if (!isFinite(minX)) {
+      return;
+    }
+    var key = SelectionTool.recordKey(r);
+    markRecords.set(key, r);
+    hits.push({
+      key: key, r: r,
+      x: minX - 2, y: minY - 2,
+      w: Math.max(4, maxX - minX + 4),
+      h: Math.max(4, maxY - minY + 4),
+    });
+  }
+
+  function buildCutStream(geom, unique) {
+    var stream = { data: new Float32Array(256 * 28), n: 0, quads: 0 };
+    var hits = [];
+    for (var ui = 0; ui < unique.length; ui++) {
+      var item = unique[ui];
+      if (item.r.bucket.lines) {
+        appendLineMark(stream, hits, geom, item.r, item.excluded, item.included);
+      } else {
+        appendRectMark(stream, hits, geom, item.r, item.excluded, item.included);
+      }
+    }
+    return {
+      vertices: stream.n ? stream.data.subarray(0, stream.n) : null,
+      hits: hits,
+    };
+  }
+
+  function glCutAvailable() {
+    var layer = MapApp.layer;
+    return !!(layer && layer._isWebGL && typeof layer.renderHeightCut === "function");
+  }
+
+  function uniqueDrawList(geom) {
+    var faded = [];
+    var inBand = [];
+    for (var oi = 0; oi < xyOccupants.length; oi++) {
+      var occ = xyOccupants[oi];
+      occ._excluded = false;
+      if (occ._inBand) {
+        inBand.push(occ);
+      } else {
+        faded.push(occ);
+      }
+    }
+    var drawList = [];
+    for (var fi = 0; fi < faded.length; fi++) {
+      drawList.push({ r: faded[fi], excluded: false, included: false });
+    }
+    for (var ei = 0; ei < excludedOverlap.length; ei++) {
+      excludedOverlap[ei]._excluded = true;
+      drawList.push({ r: excludedOverlap[ei], excluded: true, included: false });
+    }
+    for (var bi = 0; bi < inBand.length; bi++) {
+      drawList.push({ r: inBand[bi], excluded: false, included: true });
+    }
+    return dedupeDrawList(drawList, geom);
+  }
+
+  function drawOneCut(svg, isA) {
+    svg.textContent = "";
     if (!isolation) {
       return;
     }
     var geom = stripGeom(svg, isA);
-    svg.appendChild(svgEl("rect", {
+    var frag = document.createDocumentFragment();
+    frag.appendChild(svgEl("rect", {
       x: 0, y: 0, width: geom.w, height: geom.h, class: "heightCutBg",
     }));
 
@@ -613,49 +906,58 @@ var HeightView = {};
       var z = domain.min + (i / ticks) * (domain.max - domain.min);
       var p = zToPx(geom, z);
       if (geom.zIsVertical) {
-        svg.appendChild(svgEl("line", {
+        frag.appendChild(svgEl("line", {
           x1: geom.along0, y1: p, x2: geom.along1, y2: p, class: "heightCutGrid",
         }));
       } else {
-        svg.appendChild(svgEl("line", {
+        frag.appendChild(svgEl("line", {
           x1: p, y1: geom.along0, x2: p, y2: geom.along1, class: "heightCutGrid",
         }));
       }
     }
 
-    var axis = geom.axis;
-    var faded = [];
-    var inBand = [];
-    xyOccupants.forEach(function(r) {
-      if (recordInBand(r)) {
-        inBand.push(r);
-      } else {
-        faded.push(r);
+    var unique = uniqueDrawList(geom);
+    var hits = [];
+    var usedGl = false;
+    if (glCutAvailable() && unique.length) {
+      var packed = buildCutStream(geom, unique);
+      hits = packed.hits;
+      if (packed.vertices) {
+        var url = MapApp.layer.renderHeightCut(geom.w, geom.h, packed.vertices);
+        if (url) {
+          var raster = svgEl("image", {
+            x: 0,
+            y: 0,
+            width: geom.w,
+            height: geom.h,
+            class: "heightCutRaster",
+            preserveAspectRatio: "none",
+          });
+          raster.setAttribute("href", url);
+          raster.setAttributeNS("http://www.w3.org/1999/xlink", "href", url);
+          frag.appendChild(raster);
+          usedGl = true;
+        }
       }
-    });
-    var excluded = excludedOverlap;
-    var drawList = faded.concat(excluded.map(function(r) {
-      r._excluded = true;
-      return r;
-    })).concat(inBand);
-
-    drawList.sort(function(a, b) {
-      var da = depthT(a, axis);
-      var db = depthT(b, axis);
-      if (geom.flipped) {
-        return da - db;
+    }
+    if (!usedGl) {
+      hits = [];
+      for (var ui = 0; ui < unique.length; ui++) {
+        var item = unique[ui];
+        drawMark(frag, geom, item.r, item.excluded, item.included);
       }
-      return db - da;
-    });
-
-    drawList.forEach(function(r) {
-      drawMark(svg, geom, r, !!r._excluded, recordInBand(r));
-    });
+    }
+    if (isA) {
+      cutHitsA = hits;
+    } else {
+      cutHitsB = hits;
+    }
+    svg.appendChild(frag);
   }
 
-  function drawMark(svg, geom, r, excluded, included) {
+  function drawMark(parent, geom, r, excluded, included) {
     var cap = altitudeCap();
-    var ext = zExtent(r);
+    var ext = occupantZ(r);
     if (ext.max < cap.min || ext.min > cap.max) {
       return;
     }
@@ -713,7 +1015,7 @@ var HeightView = {};
         class: "heightCutMark",
         "data-key": key,
       });
-      svg.appendChild(path);
+      parent.appendChild(path);
       markRecords.set(key, r);
       return;
     }
@@ -752,7 +1054,7 @@ var HeightView = {};
       class: "heightCutMark",
       "data-key": key,
     });
-    svg.appendChild(rect);
+    parent.appendChild(rect);
     markRecords.set(key, r);
   }
 
@@ -762,10 +1064,11 @@ var HeightView = {};
     }
     var cap = altitudeCap();
     var inSet = new Set();
-    xyOccupants.forEach(function(r) {
-      inSet.add(SelectionTool.recordKey(r));
-    });
+    for (var oi = 0; oi < xyOccupants.length; oi++) {
+      inSet.add(SelectionTool.recordKey(xyOccupants[oi]));
+    }
     var out = [];
+    var collectGrid = MapApp.collectGridIndices;
     MapApp.layer.buckets.forEach(function(bucket) {
       if (!bucket.visible || bucket.excludeFromSelection) {
         return;
@@ -775,9 +1078,19 @@ var HeightView = {};
           return;
         }
         var stride = bucket.pointStride;
+        var lineBounds = bucket._lineBounds;
+        var pad = bucket.maxFootprintRadius || 0;
+        var qMinX = isolation.minX - pad;
+        var qMaxX = isolation.maxX + pad;
+        var qMinY = isolation.minY - pad;
+        var qMaxY = isolation.maxY + pad;
         for (var li = 0; li < bucket.lines.length; li++) {
           var key = bucket.key + "#" + li;
           if (inSet.has(key)) {
+            continue;
+          }
+          var lb = lineBounds && lineBounds[li];
+          if (lb && (lb.maxX < qMinX || lb.minX > qMaxX || lb.maxY < qMinY || lb.minY > qMaxY)) {
             continue;
           }
           var line = bucket.lines[li];
@@ -789,9 +1102,7 @@ var HeightView = {};
             if (!inAltitude(lz, cap)) {
               continue;
             }
-            var pad = bucket.maxFootprintRadius || 0;
-            if (lx >= isolation.minX - pad && lx <= isolation.maxX + pad
-                && ly >= isolation.minY - pad && ly <= isolation.maxY + pad) {
+            if (lx >= qMinX && lx <= qMaxX && ly >= qMinY && ly <= qMaxY) {
               crosses = true;
               break;
             }
@@ -816,20 +1127,16 @@ var HeightView = {};
       var hx = half ? half[0] : 0;
       var hy = half ? half[1] : 0;
       var pts = bucket.points;
-      for (var i = 0; i < pts.length; i += pStride) {
-        var idx = i / pStride;
-        var key = bucket.key + "#" + idx;
-        if (inSet.has(key)) {
-          continue;
+      function considerPoint(idx, x, y, z) {
+        var pKey = bucket.key + "#" + idx;
+        if (inSet.has(pKey)) {
+          return;
         }
-        var x = pts[i];
-        var y = pts[i + 1];
-        var z = pts[i + pStride - 1];
         if (!inAltitude(z, cap)) {
-          continue;
+          return;
         }
         if (inRect(x, y, isolation)) {
-          continue;
+          return;
         }
         var overlaps = x + hx >= isolation.minX && x - hx <= isolation.maxX
           && y + hy >= isolation.minY && y - hy <= isolation.maxY;
@@ -842,6 +1149,23 @@ var HeightView = {};
             y: y,
           });
         }
+      }
+      if (bucket._grid && collectGrid) {
+        var indices = collectGrid(
+          bucket._grid,
+          isolation.minX - hx, isolation.maxX + hx,
+          isolation.minY - hy, isolation.maxY + hy,
+          gridScratch
+        );
+        for (var k = 0; k < indices.length; k++) {
+          var idx = indices[k];
+          var off = idx * pStride;
+          considerPoint(idx, pts[off], pts[off + 1], pts[off + pStride - 1]);
+        }
+        return;
+      }
+      for (var i = 0; i < pts.length; i += pStride) {
+        considerPoint(i / pStride, pts[i], pts[i + 1], pts[i + pStride - 1]);
       }
     });
     return out;
@@ -873,11 +1197,24 @@ var HeightView = {};
     }
   }
 
+  function requestDrawCuts() {
+    if (cutsDrawQueued) {
+      return;
+    }
+    cutsDrawQueued = true;
+    requestAnimationFrame(function() {
+      cutsDrawQueued = false;
+      drawCuts();
+    });
+  }
+
   function drawCuts() {
     if (!isolation || !svgA) {
       return;
     }
     markRecords = new Map();
+    cutHitsA = [];
+    cutHitsB = [];
     if (cutA.startBtn) {
       cutA.startBtn.querySelector("span").textContent = flipA ? "A′" : "A";
       cutA.endBtn.querySelector("span").textContent = flipA ? "A" : "A′";
@@ -888,9 +1225,28 @@ var HeightView = {};
     drawOneCut(svgB, false);
     positionBandEl(bandA, true);
     positionBandEl(bandB, false);
+    lastCutSizeA = (svgA.clientWidth || 0) * 65536 + (svgA.clientHeight || 0);
+    lastCutSizeB = (svgB.clientWidth || 0) * 65536 + (svgB.clientHeight || 0);
   }
 
   function onCutClick(e) {
+    var svg = e.currentTarget;
+    var hits = svg === svgA ? cutHitsA : cutHitsB;
+    if (hits && hits.length) {
+      var rect = svg.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      for (var i = hits.length - 1; i >= 0; i--) {
+        var hit = hits[i];
+        if (x >= hit.x && x <= hit.x + hit.w && y >= hit.y && y <= hit.y + hit.h) {
+          if (hit.r && SelectionTool.toggleRecord) {
+            SelectionTool.toggleRecord(hit.r);
+          }
+          return;
+        }
+      }
+      return;
+    }
     var node = e.target;
     if (!node || !node.getAttribute) {
       return;
@@ -936,10 +1292,32 @@ var HeightView = {};
     handleMin.addEventListener("pointerdown", function(ev) { startDrag("min", ev); });
     handleMax.addEventListener("pointerdown", function(ev) { startDrag("max", ev); });
     bandEl.addEventListener("pointerdown", function(ev) {
-      if (ev.target === handleMin || ev.target === handleMax) {
+      if (ev.target.closest(".heightCutHandleMax")) {
+        startDrag("max", ev);
         return;
       }
-      startDrag("body", ev);
+      if (ev.target.closest(".heightCutHandleMin")) {
+        startDrag("min", ev);
+        return;
+      }
+      // The 8px bars are easy to miss; treat the band's max/min edge as
+      // a resize, not a translate. Upper (visual top / high Z) must not
+      // drag the floor along as a block.
+      var kind = "body";
+      var rect = bandEl.getBoundingClientRect();
+      var edge = 16;
+      if (bandEl.classList.contains("is-vertical-z")) {
+        if (ev.clientY <= rect.top + edge) {
+          kind = "max";
+        } else if (ev.clientY >= rect.bottom - edge) {
+          kind = "min";
+        }
+      } else if (ev.clientX >= rect.right - edge) {
+        kind = "max";
+      } else if (ev.clientX <= rect.left + edge) {
+        kind = "min";
+      }
+      startDrag(kind, ev);
     });
 
     bandEl.addEventListener("pointermove", function(ev) {
@@ -984,7 +1362,7 @@ var HeightView = {};
       }
       drag = null;
       applyPeel();
-      drawCuts();
+      requestDrawCuts();
     }
     bandEl.addEventListener("pointerup", endDrag);
     bandEl.addEventListener("pointercancel", endDrag);
@@ -1006,7 +1384,14 @@ var HeightView = {};
     isolation = null;
     xyOccupants = [];
     cubeOccupants = [];
+    cubeKeys.clear();
     subtractIds = new Set();
+    excludedOverlap = [];
+    xyCacheValid = false;
+    lastCutSizeA = 0;
+    lastCutSizeB = 0;
+    cutHitsA = [];
+    cutHitsB = [];
     syncLayoutClass();
   }
 
@@ -1021,7 +1406,10 @@ var HeightView = {};
     flipB = false;
     subtractIds = new Set();
     xyOccupants = collectXyOccupants();
+    cacheExtents(xyOccupants);
+    xyCacheValid = true;
     excludedOverlap = collectExcludedOverlap();
+    cacheExtents(excludedOverlap);
     domain = computeDomain(xyOccupants);
     var span = occupantSpan(xyOccupants);
     band = { min: span.min, max: span.max };
@@ -1029,7 +1417,7 @@ var HeightView = {};
     openChrome();
     applyPeel();
     positionChrome();
-    drawCuts();
+    requestDrawCuts();
   };
 
   HeightView.dismiss = function() {
@@ -1041,14 +1429,18 @@ var HeightView = {};
       return;
     }
     var prevBand = { min: band.min, max: band.max };
+    xyCacheValid = false;
     xyOccupants = collectXyOccupants();
+    cacheExtents(xyOccupants);
+    xyCacheValid = true;
     excludedOverlap = collectExcludedOverlap();
+    cacheExtents(excludedOverlap);
     domain = computeDomain(xyOccupants);
     band.min = prevBand.min;
     band.max = prevBand.max;
     clampBandToCap();
     applyPeel();
-    drawCuts();
+    requestDrawCuts();
   };
 
   HeightView.onFiltersChanged = function() {
@@ -1058,7 +1450,7 @@ var HeightView = {};
   window.addEventListener("resize", function() {
     if (isolation) {
       positionChrome();
-      drawCuts();
+      requestDrawCuts();
     }
   });
 })();

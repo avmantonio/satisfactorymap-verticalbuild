@@ -217,14 +217,29 @@ A non-DOM Cut of **XY ∩ rail only** (16) is small: even 150k quads × 32 bytes
 - Bundler / React.
 - Treat wasm OOM as the current slowness (it is not).
 
+## Implementation plan (2026-09-01, post-`a5e93d1`)
+
+Pointerup peel is landed. This chat implements remaining main-thread wins **in Height view + `collectInBox`**, without a new `<canvas>` (user rule). Ordered; land as many as stay coherent.
+
+| Stage | Rank | What | Ship in this chat? |
+| --- | --- | --- | --- |
+| **A** | 1 first cut | **Bin-dedupe SVG marks** `(bucket.key + along bin + Z bin)` separately for faded / in-band / excluded. One SVG node per bin; click → painter’s nearest representative. DocumentFragment batch. | **Landed** — 19’s bins without a second canvas. Solo half-map (~34k selected) drew ~11k marks/strip instead of one node per occupant. |
+| **B** | 2 | **Spatial `collectInBox`** via `bucket._grid` / `_lineBounds` (expose `MapApp.collectGridIndices`). Same occupancy predicate. **Yellow overlap** uses the same index with footprint pad. Skip the grid on non-finite boxes (Ctrl+A). | **Landed** |
+| **C** | 3 + 5 | **Band peel cache:** `xyOccupants` + cached `_zMin/_zMax`; peel only refreshes `_inBand`. No second `collectInBox` on commit. **`setRecords` no-op** when the key set is unchanged. `allowToggle` via `Set`. | **Landed** — unchanged-band peel ~53 ms on 34k selected (no collect, no highlight rewrite). |
+| **D** | 4 | **Draw scheduling:** rAF-coalesce `ResizeObserver` / skip unchanged strip size; flaps `move` → `positionChrome` only; rebuild on `moveend` / `zoomend` / `resize`. Side panel still does not resize the map. | **Landed** |
+| **E** | 1 remainder | **Cut marks on the existing map WebGL path** (typed-array stream, XY∩rail only). Not a second canvas, not a second world buffer. | **Landed** — FBO on the map context, SVG `<image>` in the strip; SVG marks if WebGL is down. |
+| **F** | 6–9 | Worker / OffscreenCanvas tessellation; 600k JS+wasm heap measure. | After E |
+
+Do not: hide rest-of-save in WebGL, restore `hiddenClasses`, desktop-only, ticket 14, 3D, L-frame, live peel on `pointermove`.
+
+---
+
 ## Suggested future implementation chats (separate)
 
-1. **Cut marks renderer** — non-DOM AABB (map-family WebGL stream or canvas 2D), 19 bin-dedupe, Cut-click → occupant mapping. Largest remaining win.
-2. **Spatial collect** — `collectInBox` + `collectExcludedOverlap` use `_grid` / `_lineBounds`. Largest win for small boxes on huge saves. Can parallel 1.
-3. **Band peel delta** — cache `xyOccupants`; peel = `recordInBand` + delta `selected`; do not `collectInBox` or `setRecords` rewrite when only the band moved.
-4. **Draw scheduling** — coalesce ResizeObserver; flaps pan repositions chrome only. Small, safe, can merge with 1.
+1. ~~Cut marks renderer (stage E)~~ — landed: FBO on the map WebGL context, XY∩rail typed-array quads, SVG `<image>` in the strip (no second canvas in chrome). SVG marks remain the fallback.
+2. ~~Spatial collect / band peel / draw scheduling~~ — landed (stages B–D).
 
-Later, not now: Cut tessellation worker; 600k heap measurement once (1) exists. Height-driven edits (14) and integrity CI (15) stay their own chats and are not perf.
+Later, not now: Cut tessellation worker; 600k heap measurement once (E) exists. Height-driven edits (14) and integrity CI (15) stay their own chats and are not perf.
 
 ## Ticket map
 

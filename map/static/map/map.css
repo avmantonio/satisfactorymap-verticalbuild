@@ -3152,6 +3152,11 @@ body.height-view-side {
   display: block;
 }
 
+.heightCutBg,
+.heightCutGrid {
+  pointer-events: none;
+}
+
 .heightCutBg {
   fill: var(--inset);
 }
@@ -3161,6 +3166,7 @@ body.height-view-side {
   stroke-width: 1;
 }
 
+.heightCutRaster,
 .heightCutMark {
   cursor: pointer;
 }
@@ -3181,40 +3187,77 @@ body.height-view-side {
 
 .heightCutHandle {
   position: absolute;
+  z-index: 2;
+  background: transparent;
+  opacity: 1;
+}
+
+.heightCutHandle::after {
+  content: "";
+  position: absolute;
   background: var(--accent);
   opacity: 0.9;
+  pointer-events: none;
 }
 
 .heightCutBand.is-vertical-z .heightCutHandleMax,
 .heightCutBand.is-vertical-z .heightCutHandleMin {
   left: 0;
   right: 0;
-  height: 8px;
+  height: 16px;
   cursor: ns-resize;
 }
 
 .heightCutBand.is-vertical-z .heightCutHandleMax {
-  top: -4px;
+  top: 0;
 }
 
 .heightCutBand.is-vertical-z .heightCutHandleMin {
-  bottom: -4px;
+  bottom: 0;
+}
+
+.heightCutBand.is-vertical-z .heightCutHandle::after {
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
+.heightCutBand.is-vertical-z .heightCutHandleMax::after {
+  top: 0;
+}
+
+.heightCutBand.is-vertical-z .heightCutHandleMin::after {
+  bottom: 0;
 }
 
 .heightCutBand:not(.is-vertical-z) .heightCutHandleMax,
 .heightCutBand:not(.is-vertical-z) .heightCutHandleMin {
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 16px;
   cursor: ew-resize;
 }
 
 .heightCutBand:not(.is-vertical-z) .heightCutHandleMax {
-  right: -4px;
+  right: 0;
 }
 
 .heightCutBand:not(.is-vertical-z) .heightCutHandleMin {
-  left: -4px;
+  left: 0;
+}
+
+.heightCutBand:not(.is-vertical-z) .heightCutHandle::after {
+  top: 0;
+  bottom: 0;
+  width: 8px;
+}
+
+.heightCutBand:not(.is-vertical-z) .heightCutHandleMax::after {
+  right: 0;
+}
+
+.heightCutBand:not(.is-vertical-z) .heightCutHandleMin::after {
+  left: 0;
 }
 
 .heightCutLabel {
