@@ -1580,6 +1580,9 @@ var Filters = {};
       "building:" + typeEntry.typePath, typeEntry.label, color, typeEntry.points, typeEntry.renderType, 4,
       typeEntry.ids, "server", null, typeEntry.footprintPixels, drawPriority,
       typeEntry.tiltedFootprints, typeEntry.maxFootprintRadius);
+    if (typeEntry.heightExtentM) {
+      bucket.heightExtentM = typeEntry.heightExtentM;
+    }
     return { label: typeEntry.label, count: pointCount(typeEntry.points, 4), color: color, renderType: typeEntry.renderType, buckets: [bucket] };
   }
 

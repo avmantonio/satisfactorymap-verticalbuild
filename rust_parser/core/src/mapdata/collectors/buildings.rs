@@ -6,7 +6,7 @@
 use crate::mapdata::categories::{categorize_subcategory, categorize_type_path, is_hidden_class};
 use crate::mapdata::consts::*;
 use crate::mapdata::geometry::{
-    footprint_for_instance, footprint_pixels, project_xy, world_z_to_meters,
+    footprint_for_instance, footprint_pixels, height_extent_meters, project_xy, world_z_to_meters,
 };
 use crate::mapdata::jsonval::{jnum, py_hypot};
 use crate::mapdata::names::readable_label;
@@ -207,7 +207,7 @@ pub fn collect_buildings(scan: &SaveScan) -> Value {
                 }
                 Value::Object(map)
             };
-            types.push(json!({
+            let mut entry = json!({
                 "typePath": type_path,
                 "label": bucket.label,
                 "points": bucket.points,
@@ -217,7 +217,13 @@ pub fn collect_buildings(scan: &SaveScan) -> Value {
                 "maxFootprintRadius": jnum(bucket.max_footprint_radius),
                 "renderType": if bucket.footprint_pixels.is_some() { "rect" } else { "circle" },
                 "subcategory": categorize_subcategory(&type_path),
-            }));
+            });
+            // Height-view Cut AABB (ticket 19): clearance Z / dimensions.Height
+            // relative to actor z. Omitted when the table has neither.
+            if let Some((z0, z1)) = height_extent_meters(&type_path) {
+                entry["heightExtentM"] = json!([jnum(z0), jnum(z1)]);
+            }
+            types.push(entry);
         }
         building_categories.push(json!({"category": category, "types": types}));
     }
