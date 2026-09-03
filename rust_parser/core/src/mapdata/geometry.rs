@@ -402,23 +402,44 @@ fn tables() -> &'static FootprintTables {
 /// Cut AABB height relative to the actor origin, in meters: clearance Z
 /// union when present, else `(0, dimensions.Height)`, else None (the
 /// client draws a 4 m dashed placeholder). Ticket 19 / Height view.
+/// Clearance boxes are origin-centered in XY (and often Z): a 4 m
+/// foundation is `z = -200 … 200` cm, a Packager `±600`. Sitting that
+/// union on actor `z` draws a phantom twin *below* the floor. Cut marks
+/// sit on the origin going up. Symmetric boxes keep their span (`±2` m
+/// → `0…4`); a junk underground leg (Fuel Generator `-13.5…11`) is
+/// dropped.
+fn floor_clearance_extent_m(min_z: f64, max_z: f64, height_m: Option<f64>) -> (f64, f64) {
+    let mut lo = min_z;
+    let mut hi = max_z;
+    if lo < 0.0 && hi > 0.0 {
+        let span = hi - lo;
+        let centered = (lo + hi).abs() <= 0.75_f64.max(0.1 * span);
+        lo = 0.0;
+        hi = if centered { span } else { hi };
+    }
+    if let Some(h) = height_m {
+        if h > hi {
+            hi = h;
+        }
+    }
+    (lo, hi)
+}
+
 pub fn height_extent_meters(type_path: &str) -> Option<(f64, f64)> {
     let class_name = short_class_name(type_path);
     let entry = gamedata::get().buildings.get(class_name)?;
-    if let Some(boxes) = clearance_boxes(entry) {
-        let min_z = fold_min(box_axis(boxes, "min", "z"));
-        let max_z = fold_max(box_axis(boxes, "max", "z"));
-        return Some((
-            min_z / WORLD_UNITS_PER_METER,
-            max_z / WORLD_UNITS_PER_METER,
-        ));
-    }
-    let height = entry
+    let height_m = entry
         .get("dimensions")
         .and_then(|d| d.get("Height"))
         .and_then(Value::as_f64)
-        .filter(|&h| h != 0.0)?;
-    Some((0.0, height / WORLD_UNITS_PER_METER))
+        .filter(|&h| h != 0.0)
+        .map(|h| h / WORLD_UNITS_PER_METER);
+    if let Some(boxes) = clearance_boxes(entry) {
+        let min_z = fold_min(box_axis(boxes, "min", "z")) / WORLD_UNITS_PER_METER;
+        let max_z = fold_max(box_axis(boxes, "max", "z")) / WORLD_UNITS_PER_METER;
+        return Some(floor_clearance_extent_m(min_z, max_z, height_m));
+    }
+    Some((0.0, height_m?))
 }
 
 /// sav_map_data.footprintPixels: bucket-level [halfWidthPx, halfDepthPx], or
@@ -556,6 +577,17 @@ mod tests {
                 "/Game/FactoryGame/Buildable/Factory/ConveyorLiftMk1/Build_ConveyorLiftMk1.Build_ConveyorLiftMk1_C"
             ),
             None
+        );
+        // Origin-centered clearance (±2 m) + dimensions.Height 4 m →
+        // sit on the floor, not a phantom below the slab.
+        assert_eq!(
+            height_extent_meters("Build_Foundation_8x4_01_C"),
+            Some((0.0, 4.0))
+        );
+        // Constructor already starts at z=0 — unchanged.
+        assert_eq!(
+            height_extent_meters("Build_ConstructorMk1_C"),
+            Some((0.0, 6.0))
         );
         // Unknown class, not a hole in the table lookup.
         assert_eq!(height_extent_meters("Build_DoesNotExist_C"), None);
