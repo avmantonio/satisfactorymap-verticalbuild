@@ -124,6 +124,19 @@ var HeightView = {};
     return x >= box.minX && x <= box.maxX && y >= box.minY && y <= box.maxY;
   }
 
+  // Clearance Z is often origin-centered like XY (±H/2). Drawing that
+  // union on actor z paints a phantom twin under the slab. Sit the
+  // mark on the origin: symmetric boxes keep span; underground-only
+  // junk (Fuel Generator legs) is dropped. Lines are vertex Z.
+  function floorClearanceExtent(lo, hi) {
+    if (!(lo < 0 && hi > 0)) {
+      return { lo: lo, hi: hi };
+    }
+    var span = hi - lo;
+    var centered = Math.abs(lo + hi) <= Math.max(0.75, 0.1 * span);
+    return { lo: 0, hi: centered ? span : hi };
+  }
+
   function zExtent(r) {
     var stride = r.bucket.pointStride;
     var cap = altitudeCap();
@@ -161,7 +174,8 @@ var HeightView = {};
     if (typeof z === "number" && isFinite(z)
         && extent && extent.length >= 2
         && isFinite(extent[0]) && isFinite(extent[1])) {
-      return { min: z + extent[0], max: z + extent[1], missing: false };
+      var floor = floorClearanceExtent(extent[0], extent[1]);
+      return { min: z + floor.lo, max: z + floor.hi, missing: false };
     }
     if (typeof z !== "number" || !isFinite(z)) {
       return { min: 0, max: DEFAULT_HEIGHT_M, missing: true };
