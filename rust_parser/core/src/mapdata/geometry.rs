@@ -589,6 +589,33 @@ mod tests {
             height_extent_meters("Build_ConstructorMk1_C"),
             Some((0.0, 6.0))
         );
+        // Origin-centered industrial boxes used to paint a twin under the
+        // slab (same width as the mark above). Sit on the origin, keep span.
+        assert_eq!(
+            height_extent_meters("Build_StorageContainerMk2_C"),
+            Some((0.0, 8.0))
+        );
+        assert_eq!(
+            height_extent_meters("Build_Packager_C"),
+            Some((0.0, 12.0))
+        );
+        // Fuel Generator: underground pipe/leg junk (−13.5) is dropped;
+        // the chimney (11 m) stays. Not treated as centered.
+        assert_eq!(
+            height_extent_meters("Build_GeneratorFuel_C"),
+            Some((0.0, 11.0))
+        );
+        // Double ramp: clearance ±4 m is the physical 8 m AABB; Height is
+        // only 4 m and must not shrink the mark.
+        assert_eq!(
+            height_extent_meters("Build_RampDouble_Asphalt_8x4_C"),
+            Some((0.0, 8.0))
+        );
+        // Splitter: small centered box, still sits on the origin.
+        assert_eq!(
+            height_extent_meters("Build_ConveyorAttachmentSplitter_C"),
+            Some((0.0, 2.6))
+        );
         // Unknown class, not a hole in the table lookup.
         assert_eq!(height_extent_meters("Build_DoesNotExist_C"), None);
     }
