@@ -9,8 +9,9 @@
 // in the strip, no world-scale second buffer.
 // After commit, the cube is one-axis editable: a map-edge handle or the
 // matching Cut vertical (A/A′ = X, B/B′ = Y). Opposite side stays; the
-// Z band is not reset. Table height is not on the payload — AABB Z is
-// still the 4 m dashed placeholder (19).
+// Z band is not reset. Building AABB Z comes from bucket.heightExtentM
+// (clearance / dimensions.Height); missing table height is the 4 m
+// dashed placeholder (19).
 // Spec: .scratch/vertical-builds/specs/2-5d-first-cut.md
 
 var HeightView = {};
@@ -36,13 +37,25 @@ var HeightView = {};
   var FLAP_B_MIN_DEPTH_PX = 240;
   var FLAP_B_MAX_DEPTH_PX = 320;
   var FLAP_MIN_LENGTH_PX = 160;
-  var EDGE_HIT_PX = 10;
+  var EDGE_HIT_PX = 16;
   var MIN_EDGE_SPAN_PX = 16;
   var DEFAULT_HEIGHT_M = 4;
   var PAD_RATIO = 0.2;
   var PAD_MIN_M = 4;
   var PAD_MAX_M = 50;
+  // Spec 19 / story 32: domain is XY-occupant min/max + pad (min 4 m,
+  // max 50 m pad), never MapApp.altitudeRange / the ±500 m rail. One
+  // clearance union must not set that scale: Space Elevator is 1 km
+  // (research/cut-laterals.md). Occupancy still uses the full AABB.
+  var DOMAIN_OCCUPANT_SPAN_MAX_M = 80;
+  // Allow Z px/m up to this × along px/m before letterboxing. 1.0 is
+  // strict isotropic; a little stretch keeps a short stack readable.
+  // Never letterbox so far that the Build becomes a sliver (Anto 2026-09-02).
+  var SCALE_STRETCH_CAP = 1.25;
+  var LETTERBOX_MIN_FILL = 0.4;
+  var STRIP_PAD = { start: 28, end: 18, z0: 10, z1: 10 };
   var FADE_OPACITY = 0.28;
+  var MARK_STROKE_PX = 1.2;
   // Ticket 19: one mark per (type + along bin + Z bin), separately for
   // in-Build vs out-crossing (and faded). 2 m is finer than a foundation
   // slab and still collapses depth-stacked twins on a strip.
@@ -84,6 +97,7 @@ var HeightView = {};
   var lastCutSizeB = 0;
   var cutHitsA = [];
   var cutHitsB = [];
+  var bandJustDragged = false;
 
   HeightView.isOpen = function() {
     return isolation !== null;
@@ -108,6 +122,19 @@ var HeightView = {};
 
   function inRect(x, y, box) {
     return x >= box.minX && x <= box.maxX && y >= box.minY && y <= box.maxY;
+  }
+
+  // Clearance Z is often origin-centered like XY (±H/2). Drawing that
+  // union on actor z paints a phantom twin under the slab. Sit the
+  // mark on the origin: symmetric boxes keep span; underground-only
+  // junk (Fuel Generator legs) is dropped. Lines are vertex Z.
+  function floorClearanceExtent(lo, hi) {
+    if (!(lo < 0 && hi > 0)) {
+      return { lo: lo, hi: hi };
+    }
+    var span = hi - lo;
+    var centered = Math.abs(lo + hi) <= Math.max(0.75, 0.1 * span);
+    return { lo: 0, hi: centered ? span : hi };
   }
 
   function zExtent(r) {
@@ -138,15 +165,22 @@ var HeightView = {};
         }
       }
       if (z0 > z1) {
-        return { min: 0, max: DEFAULT_HEIGHT_M };
+        return { min: 0, max: DEFAULT_HEIGHT_M, missing: false };
       }
-      return { min: z0, max: z1 };
+      return { min: z0, max: z1, missing: false };
     }
     var z = recordZ(r);
-    if (typeof z !== "number" || !isFinite(z)) {
-      return { min: 0, max: DEFAULT_HEIGHT_M };
+    var extent = r.bucket.heightExtentM;
+    if (typeof z === "number" && isFinite(z)
+        && extent && extent.length >= 2
+        && isFinite(extent[0]) && isFinite(extent[1])) {
+      var floor = floorClearanceExtent(extent[0], extent[1]);
+      return { min: z + floor.lo, max: z + floor.hi, missing: false };
     }
-    return { min: z, max: z + DEFAULT_HEIGHT_M };
+    if (typeof z !== "number" || !isFinite(z)) {
+      return { min: 0, max: DEFAULT_HEIGHT_M, missing: true };
+    }
+    return { min: z, max: z + DEFAULT_HEIGHT_M, missing: true };
   }
 
   function recordInBand(r) {
@@ -184,6 +218,7 @@ var HeightView = {};
       var ext = zExtent(list[i]);
       list[i]._zMin = ext.min;
       list[i]._zMax = ext.max;
+      list[i]._missingHeight = !!ext.missing;
     }
   }
 
@@ -199,29 +234,44 @@ var HeightView = {};
     return { min: zMin - pad, max: zMax + pad };
   }
 
-  function computeDomain(occupants) {
-    var zMin = Infinity;
-    var zMax = -Infinity;
-    for (var i = 0; i < occupants.length; i++) {
-      var ext = occupantZ(occupants[i]);
-      if (!isFinite(ext.min) || !isFinite(ext.max)) {
-        continue;
-      }
-      if (ext.min < zMin) zMin = ext.min;
-      if (ext.max > zMax) zMax = ext.max;
+  // Domain (scale) only. A 1 km mark still occupies and still draws;
+  // it just cannot stretch the strip so real floors become 1 px slivers.
+  // Lines keep their in-XY vertex span (real altitude). A building whose
+  // clearance union exceeds the cap contributes only a local slice around
+  // the actor origin — not an 80 m dummy window, which still crushes a
+  // 12 m factory under empty pad.
+  function domainExtent(r) {
+    var ext = occupantZ(r);
+    if (!isFinite(ext.min) || !isFinite(ext.max)) {
+      return ext;
     }
-    if (zMin > zMax) {
-      // Empty volume: a readable local scale, never the altitude rail.
-      return paddedDomain(0, DEFAULT_HEIGHT_M);
+    if (r.bucket.lines) {
+      return ext;
     }
-    return paddedDomain(zMin, zMax);
+    var span = ext.max - ext.min;
+    if (span <= DOMAIN_OCCUPANT_SPAN_MAX_M) {
+      return ext;
+    }
+    var z = recordZ(r);
+    if (typeof z !== "number" || !isFinite(z) || z < ext.min || z > ext.max) {
+      z = ext.min;
+    }
+    var lo = Math.max(ext.min, z);
+    var hi = Math.min(ext.max, lo + DEFAULT_HEIGHT_M);
+    if (hi <= lo) {
+      hi = Math.min(ext.max, ext.min + DEFAULT_HEIGHT_M);
+      lo = Math.max(ext.min, hi - DEFAULT_HEIGHT_M);
+    }
+    return { min: lo, max: hi };
   }
 
-  function occupantSpan(occupants) {
+  // Spec 19 / story 32: domain is XY-occupant boxes + 20% pad, never the
+  // altitude rail. Pathological clearance is capped in domainExtent.
+  function occupantRange(occupants) {
     var zMin = Infinity;
     var zMax = -Infinity;
     for (var i = 0; i < occupants.length; i++) {
-      var ext = occupantZ(occupants[i]);
+      var ext = domainExtent(occupants[i]);
       if (!isFinite(ext.min) || !isFinite(ext.max)) {
         continue;
       }
@@ -229,12 +279,75 @@ var HeightView = {};
       if (ext.max > zMax) zMax = ext.max;
     }
     if (zMin > zMax) {
-      return { min: domain.min, max: domain.max };
+      return null;
     }
     return { min: zMin, max: zMax };
   }
 
+  // Smallest domain span (m) that keeps scaleZ <= SCALE_STRETCH_CAP ×
+  // scaleAlong on both strips. Shared so A and B stay aligned. If the
+  // occupant span is already larger (tall AABB), fit-to-height compresses.
+  function isotropicMinSpanM() {
+    if (!isolation || !svgA || !svgB) {
+      return 0;
+    }
+    var needed = 0;
+    function consider(svg) {
+      var w = svg.clientWidth || 0;
+      var h = svg.clientHeight || 0;
+      if (w < 32 || h < 32) {
+        return;
+      }
+      var alongPx = Math.max(1, w - STRIP_PAD.start - STRIP_PAD.end);
+      var zPx = Math.max(1, h - STRIP_PAD.z0 - STRIP_PAD.z1);
+      var isA = svg === svgA;
+      var alongM = Math.max(
+        1e-6,
+        Math.abs(isA ? isolation.maxX - isolation.minX : isolation.maxY - isolation.minY)
+          * METERS_PER_MAP_PX
+      );
+      var scaleAlong = alongPx / alongM;
+      var maxScaleZ = scaleAlong * SCALE_STRETCH_CAP;
+      if (maxScaleZ <= 1e-9) {
+        return;
+      }
+      needed = Math.max(needed, zPx / maxScaleZ);
+    }
+    consider(svgA);
+    consider(svgB);
+    return needed;
+  }
+
+  function computeDomain(occupants) {
+    var range = occupantRange(occupants);
+    var base = range
+      ? paddedDomain(range.min, range.max)
+      : paddedDomain(0, DEFAULT_HEIGHT_M);
+    var span = base.max - base.min;
+    var occSpan = range ? (range.max - range.min) : DEFAULT_HEIGHT_M;
+    var minSpan = isotropicMinSpanM();
+    if (minSpan > span) {
+      var extra = minSpan - span;
+      var nextSpan = span + extra;
+      // Letterbox is aspect, not a second rail. Skip if it would crush
+      // the Build into a sliver at the bottom of the strip.
+      if (occSpan / nextSpan >= LETTERBOX_MIN_FILL) {
+        return { min: base.min - extra / 2, max: base.max + extra / 2 };
+      }
+    }
+    return base;
+  }
+
+  function occupantSpan(occupants) {
+    var range = occupantRange(occupants);
+    if (!range) {
+      return { min: domain.min, max: domain.max };
+    }
+    return range;
+  }
+
   function clampBandToCap() {
+    // Peel only. Do not copy the rail into `domain` — story 32 / 34.
     var cap = altitudeCap();
     if (isFinite(cap.min) && band.min < cap.min) {
       band.min = cap.min;
@@ -403,7 +516,19 @@ var HeightView = {};
     bindBand(strip, bandEl, handleMin, handleMax, startName === "A");
     bindAlongHandle(alongStart, startName === "A", "start");
     bindAlongHandle(alongEnd, startName === "A", "end");
-    svg.addEventListener("click", onCutClick);
+    bindCutHover(svg, strip, startName === "A");
+    strip.addEventListener("click", function(e) {
+      if (e.target.closest(".heightCutHandle")
+          || e.target.closest(".heightCutAlong")
+          || e.target.closest(".heightCutLabel")
+          || e.target.closest(".heightViewSwitch")) {
+        return;
+      }
+      if (bandJustDragged) {
+        return;
+      }
+      onCutClick(svg, e.clientX, e.clientY);
+    });
 
     return {
       strip: strip,
@@ -719,7 +844,7 @@ var HeightView = {};
   function placeAlongPair(cut, isA) {
     var svg = isA ? svgA : svgB;
     var geom = stripGeom(svg, isA);
-    var thickness = 12;
+    var thickness = 16;
     var z0 = Math.min(geom.zHighPx, geom.zLowPx);
     var z1 = Math.max(geom.zHighPx, geom.zLowPx);
     cut.alongStart.setAttribute("aria-label", alongHandleLabel(isA, "start"));
@@ -933,7 +1058,7 @@ var HeightView = {};
   function stripGeom(svg, isA) {
     var w = svg.clientWidth || 1;
     var h = svg.clientHeight || 1;
-    var pad = { start: 28, end: 18, z0: 10, z1: 10 };
+    var pad = STRIP_PAD;
     // Side panel and flaps both draw Z as the vertical axis. L-frame B
     // used a fold-out (Z horizontal); that layout is gone.
     var zIsVertical = true;
@@ -1041,11 +1166,21 @@ var HeightView = {};
     var solidity = 0.35 + 0.65 * (1 - depth);
     var faded = !included && !excluded;
     var rgb = hexRgb(excluded ? "#e8b84a" : (r.bucket.color || "#5ba3e0"));
-    var alpha = excluded ? 0.35 : (faded ? FADE_OPACITY * 0.45 : 0.45 * solidity);
-    // 19 dashes missing-height and excluded overlap. Table height is not
-    // on the payload yet, so every AABB stroke is dashed in SVG; GL hatch
-    // only the yellow excluded channel so in-band fills stay readable.
-    return { rgb: rgb, alpha: alpha, dash: excluded ? 1 : 0 };
+    // GL is the default path. Match the SVG fallback's stroke weight
+    // (opacity = solidity, up to 1.0) so in-band laterals read solid on
+    // the dark strip. The old fill-only 0.45 multiplier washed marks to
+    // ghosts once table height made GL the production path. Faded stays
+    // FADE_OPACITY — still readable. Excluded yellow uses a strong stroke
+    // (SVG 0.9) and a light fill. Dash hatches the stroke only.
+    var stroke = excluded ? 0.9 : (faded ? FADE_OPACITY : solidity);
+    var fill = excluded ? 0.16 : (faded ? FADE_OPACITY : Math.min(1, Math.max(0.55, solidity)));
+    var missing = !r.bucket.lines && !!r._missingHeight;
+    return {
+      rgb: rgb,
+      fill: fill,
+      stroke: stroke,
+      dash: (excluded || missing) ? 1 : 0,
+    };
   }
 
   function growCutStream(stream, needFloats) {
@@ -1079,6 +1214,28 @@ var HeightView = {};
     pushCutQuad(stream, x, y, x + rw, y, x, y + rh, x + rw, y + rh, rgb, alpha, dash);
   }
 
+  // SVG marks are fill + 1.2 px stroke. Thin foundation slabs are almost
+  // entirely that stroke; fill-only quads at low alpha read as empty.
+  function appendRectStroke(stream, x, y, rw, rh, rgb, alpha, dash) {
+    var t = MARK_STROKE_PX;
+    if (rw <= 0 || rh <= 0) {
+      return;
+    }
+    var tw = Math.min(t, rw);
+    var th = Math.min(t, rh);
+    pushAxisQuad(stream, x, y, rw, th, rgb, alpha, dash);
+    if (rh > th) {
+      pushAxisQuad(stream, x, y + rh - th, rw, th, rgb, alpha, dash);
+    }
+    var innerH = Math.max(0, rh - 2 * th);
+    if (innerH > 0) {
+      pushAxisQuad(stream, x, y + th, tw, innerH, rgb, alpha, dash);
+      if (rw > tw) {
+        pushAxisQuad(stream, x + rw - tw, y + th, tw, innerH, rgb, alpha, dash);
+      }
+    }
+  }
+
   function appendRectMark(stream, hits, geom, r, excluded, included) {
     var cap = altitudeCap();
     var ext = occupantZ(r);
@@ -1106,7 +1263,8 @@ var HeightView = {};
       rw = Math.max(2, Math.abs(z1 - z0));
       rh = Math.max(2, widthPx);
     }
-    pushAxisQuad(stream, x, y, rw, rh, look.rgb, look.alpha, look.dash);
+    pushAxisQuad(stream, x, y, rw, rh, look.rgb, look.fill, 0);
+    appendRectStroke(stream, x, y, rw, rh, look.rgb, look.stroke, look.dash);
     var key = SelectionTool.recordKey(r);
     markRecords.set(key, r);
     hits.push({ key: key, r: r, x: x, y: y, w: rw, h: rh });
@@ -1121,6 +1279,7 @@ var HeightView = {};
     var look = markLook(r, excluded, included, geom);
     var stride = r.bucket.pointStride;
     var hw = excluded ? 0.7 : 1;
+    var lineAlpha = included ? Math.min(1, look.stroke + 0.2) : look.stroke;
     var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     var run = [];
     function pushPt(px, py) {
@@ -1145,7 +1304,7 @@ var HeightView = {};
           x1 + nx, y1 + ny,
           x0 - nx, y0 - ny,
           x1 - nx, y1 - ny,
-          look.rgb, Math.min(1, look.alpha + 0.25), look.dash
+          look.rgb, lineAlpha, look.dash
         );
       }
       run = [];
@@ -1308,9 +1467,8 @@ var HeightView = {};
     var faded = !included && !excluded;
     var opacity = excluded ? 0.9 : (faded ? FADE_OPACITY : solidity);
     var color = excluded ? "#e8b84a" : (r.bucket.color || "#5ba3e0");
-    // Table height is not on the payload yet; 19's missing-height mark is
-    // a 4 m dashed AABB. Excluded overlap is yellow dashed for the same reason.
-    var dashed = true;
+    var missing = !r.bucket.lines && !!r._missingHeight;
+    var dashed = excluded || missing;
 
     if (r.bucket.lines) {
       var line = r.bucket.lines[r.index];
@@ -1549,6 +1707,11 @@ var HeightView = {};
     if (!isolation || !svgA) {
       return;
     }
+    // Letterbox needs live strip CSS px. Occupants are unchanged by peel
+    // (story 33: do not recompact); XY/filter/resize still refresh the list
+    // before this paint.
+    domain = computeDomain(xyOccupants);
+    clampBandToCap();
     markRecords = new Map();
     cutHitsA = [];
     cutHitsB = [];
@@ -1567,33 +1730,101 @@ var HeightView = {};
     lastCutSizeB = (svgB.clientWidth || 0) * 65536 + (svgB.clientHeight || 0);
   }
 
-  function onCutClick(e) {
-    var svg = e.currentTarget;
+  function hitCutRecord(svg, clientX, clientY) {
     var hits = svg === svgA ? cutHitsA : cutHitsB;
     if (hits && hits.length) {
       var rect = svg.getBoundingClientRect();
-      var x = e.clientX - rect.left;
-      var y = e.clientY - rect.top;
+      var x = clientX - rect.left;
+      var y = clientY - rect.top;
       for (var i = hits.length - 1; i >= 0; i--) {
         var hit = hits[i];
         if (x >= hit.x && x <= hit.x + hit.w && y >= hit.y && y <= hit.y + hit.h) {
-          if (hit.r && SelectionTool.toggleRecord) {
-            SelectionTool.toggleRecord(hit.r);
-          }
-          return;
+          return hit.r || null;
         }
       }
-      return;
+      return null;
     }
-    var node = e.target;
-    if (!node || !node.getAttribute) {
-      return;
+    var node = document.elementFromPoint(clientX, clientY);
+    while (node && node !== svg) {
+      if (node.getAttribute) {
+        var key = node.getAttribute("data-key");
+        if (key) {
+          return markRecords.get(key) || null;
+        }
+      }
+      node = node.parentNode;
     }
-    var key = node.getAttribute("data-key");
-    if (!key) {
-      return;
+    return null;
+  }
+
+  function formatStripYawDeg(r, isA) {
+    if (!r || r.bucket.lines || r.bucket.pointStride !== 4 || !r.bucket.points) {
+      return null;
     }
-    var r = markRecords.get(key);
+    var yaw = r.bucket.points[r.index * 4 + 2] || 0;
+    var geom = stripGeom(isA ? svgA : svgB, isA);
+    var rel = geom.axis === "x" ? yaw : yaw - Math.PI / 2;
+    if (geom.flipped) {
+      rel += Math.PI;
+    }
+    var deg = rel * 180 / Math.PI;
+    deg = ((deg + 180) % 360 + 360) % 360 - 180;
+    var rounded = Math.round(deg);
+    if (rounded === -180) {
+      rounded = 180;
+    }
+    return (rounded > 0 ? "+" : "") + rounded + "\u00b0";
+  }
+
+  function bindCutHover(svg, strip, isA) {
+    var yawEl = UI.el("div", "heightCutYaw");
+    yawEl.setAttribute("hidden", "");
+    yawEl.setAttribute("aria-hidden", "true");
+    strip.appendChild(yawEl);
+
+    function hideYaw() {
+      yawEl.setAttribute("hidden", "");
+      yawEl.textContent = "";
+    }
+
+    function onMove(e) {
+      if (!isolation || edgeDrag) {
+        hideYaw();
+        return;
+      }
+      if (e.target.closest(".heightCutHandle")
+          || e.target.closest(".heightCutAlong")
+          || e.target.closest(".heightCutLabel")) {
+        hideYaw();
+        return;
+      }
+      var r = hitCutRecord(svg, e.clientX, e.clientY);
+      var text = formatStripYawDeg(r, isA);
+      if (!text) {
+        hideYaw();
+        return;
+      }
+      yawEl.textContent = text;
+      yawEl.removeAttribute("hidden");
+      var rect = strip.getBoundingClientRect();
+      var x = e.clientX - rect.left + 12;
+      var y = e.clientY - rect.top + 12;
+      var maxX = Math.max(8, rect.width - 56);
+      var maxY = Math.max(8, rect.height - 28);
+      yawEl.style.left = Math.max(8, Math.min(maxX, x)) + "px";
+      yawEl.style.top = Math.max(8, Math.min(maxY, y)) + "px";
+    }
+
+    strip.addEventListener("pointermove", onMove);
+    strip.addEventListener("pointerleave", function(e) {
+      if (!strip.contains(e.relatedTarget)) {
+        hideYaw();
+      }
+    });
+  }
+
+  function onCutClick(svg, clientX, clientY) {
+    var r = hitCutRecord(svg, clientX, clientY);
     if (!r || !SelectionTool.toggleRecord) {
       return;
     }
@@ -1699,6 +1930,8 @@ var HeightView = {};
         return;
       }
       drag = null;
+      bandJustDragged = true;
+      setTimeout(function() { bandJustDragged = false; }, 0);
       applyPeel();
       requestDrawCuts();
     }

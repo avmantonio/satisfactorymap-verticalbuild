@@ -902,6 +902,18 @@
           pixels.copyWithin(a, b, b + row);
           pixels.set(tmp, b);
         }
+        // FBO stores premultiplied RGBA (shader * (ONE, ONE_MINUS_SRC_ALPHA)).
+        // ImageData / PNG are straight alpha; leaving RGB premultiplied
+        // made Cut marks muddy ghosts when the <image> composited again.
+        for (var i = 0; i < pixels.length; i += 4) {
+          var pa = pixels[i + 3];
+          if (pa > 0 && pa < 255) {
+            var s = 255 / pa;
+            pixels[i] = Math.min(255, Math.round(pixels[i] * s));
+            pixels[i + 1] = Math.min(255, Math.round(pixels[i + 1] * s));
+            pixels[i + 2] = Math.min(255, Math.round(pixels[i + 2] * s));
+          }
+        }
         if (!this._cut.blit) {
           this._cut.blit = document.createElement("canvas");
         }
