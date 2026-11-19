@@ -84,6 +84,10 @@ var HeightView = {};
   var lastCutSizeB = 0;
   var cutHitsA = [];
   var cutHitsB = [];
+  // pointerdown on the band calls preventDefault, which swallows the click
+  // that would have reached the SVG. A stationary release is forwarded to
+  // the hit test instead; this flag drops a click if the browser still emits one.
+  var swallowCutClick = false;
 
   HeightView.isOpen = function() {
     return isolation !== null;
@@ -403,7 +407,12 @@ var HeightView = {};
     bindBand(strip, bandEl, handleMin, handleMax, startName === "A");
     bindAlongHandle(alongStart, startName === "A", "start");
     bindAlongHandle(alongEnd, startName === "A", "end");
-    svg.addEventListener("click", onCutClick);
+    svg.addEventListener("click", function(e) {
+      if (swallowCutClick) {
+        return;
+      }
+      onCutClick(e);
+    });
 
     return {
       strip: strip,
@@ -1281,7 +1290,7 @@ var HeightView = {};
       hits = [];
       for (var ui = 0; ui < unique.length; ui++) {
         var item = unique[ui];
-        drawMark(frag, geom, item.r, item.excluded, item.included);
+        drawMark(frag, hits, geom, item.r, item.excluded, item.included);
       }
     }
     if (isA) {
@@ -1292,7 +1301,7 @@ var HeightView = {};
     svg.appendChild(frag);
   }
 
-  function drawMark(parent, geom, r, excluded, included) {
+  function drawMark(parent, hits, geom, r, excluded, included) {
     var cap = altitudeCap();
     var ext = occupantZ(r);
     if (ext.max < cap.min || ext.min > cap.max) {
@@ -1319,6 +1328,10 @@ var HeightView = {};
       }
       var stride = r.bucket.pointStride;
       var parts = [];
+      var minX = Infinity;
+      var minY = Infinity;
+      var maxX = -Infinity;
+      var maxY = -Infinity;
       for (var vi = 0; vi < line.length; vi += stride) {
         var lx = line[vi];
         var ly = line[vi + 1];
@@ -1332,6 +1345,12 @@ var HeightView = {};
         var along = axis === "x" ? lx : ly;
         var ax = alongToPx(geom, along);
         var zp = zToPx(geom, lz);
+        var px = geom.zIsVertical ? ax : zp;
+        var py = geom.zIsVertical ? zp : ax;
+        if (px < minX) minX = px;
+        if (py < minY) minY = py;
+        if (px > maxX) maxX = px;
+        if (py > maxY) maxY = py;
         if (geom.zIsVertical) {
           parts.push((parts.length && parts[parts.length - 1] !== "M" ? "L" : "M") + ax + "," + zp);
         } else {
@@ -1354,6 +1373,16 @@ var HeightView = {};
       });
       parent.appendChild(path);
       markRecords.set(key, r);
+      if (isFinite(minX)) {
+        hits.push({
+          key: key,
+          r: r,
+          x: minX - 2,
+          y: minY - 2,
+          w: Math.max(4, maxX - minX + 4),
+          h: Math.max(4, maxY - minY + 4),
+        });
+      }
       return;
     }
 
@@ -1393,6 +1422,7 @@ var HeightView = {};
     });
     parent.appendChild(rect);
     markRecords.set(key, r);
+    hits.push({ key: key, r: r, x: x, y: y, w: rw, h: rh });
   }
 
   function collectExcludedOverlap() {
@@ -1461,9 +1491,34 @@ var HeightView = {};
       }
       var pStride = bucket.pointStride;
       var half = bucket.footprintPixels;
-      var hx = half ? half[0] : 0;
-      var hy = half ? half[1] : 0;
+      var hx0 = half ? half[0] : 0;
+      var hy0 = half ? half[1] : 0;
+      // Query pad is the largest center-to-corner the bucket can reach at
+      // any yaw (or a tilted override). The per-point test uses that
+      // instance's rotated AABB, same projection as projectedWidthM.
+      var queryPad = bucket.maxFootprintRadius || Math.hypot(hx0, hy0);
       var pts = bucket.points;
+      function rotatedHalfExtents(idx) {
+        var tilted = bucket.tiltedFootprints && bucket.tiltedFootprints[idx];
+        if (tilted && tilted.length >= 2) {
+          var maxX = 0;
+          var maxY = 0;
+          for (var ti = 0; ti < tilted.length; ti += 2) {
+            var ax = Math.abs(tilted[ti]);
+            var ay = Math.abs(tilted[ti + 1]);
+            if (ax > maxX) maxX = ax;
+            if (ay > maxY) maxY = ay;
+          }
+          return { hx: maxX, hy: maxY };
+        }
+        if (!(hx0 || hy0) || bucket.pointStride !== 4) {
+          return { hx: hx0, hy: hy0 };
+        }
+        var yaw = pts[idx * 4 + 2] || 0;
+        var c = Math.abs(Math.cos(yaw));
+        var s = Math.abs(Math.sin(yaw));
+        return { hx: hx0 * c + hy0 * s, hy: hx0 * s + hy0 * c };
+      }
       function considerPoint(idx, x, y, z) {
         var pKey = bucket.key + "#" + idx;
         if (inSet.has(pKey)) {
@@ -1475,8 +1530,9 @@ var HeightView = {};
         if (inRect(x, y, isolation)) {
           return;
         }
-        var overlaps = x + hx >= isolation.minX && x - hx <= isolation.maxX
-          && y + hy >= isolation.minY && y - hy <= isolation.maxY;
+        var ext = rotatedHalfExtents(idx);
+        var overlaps = x + ext.hx >= isolation.minX && x - ext.hx <= isolation.maxX
+          && y + ext.hy >= isolation.minY && y - ext.hy <= isolation.maxY;
         if (overlaps) {
           out.push({
             bucket: bucket,
@@ -1490,8 +1546,8 @@ var HeightView = {};
       if (bucket._grid && collectGrid) {
         var indices = collectGrid(
           bucket._grid,
-          isolation.minX - hx, isolation.maxX + hx,
-          isolation.minY - hy, isolation.maxY + hy,
+          isolation.minX - queryPad, isolation.maxX + queryPad,
+          isolation.minY - queryPad, isolation.maxY + queryPad,
           gridScratch
         );
         for (var k = 0; k < indices.length; k++) {
@@ -1621,6 +1677,8 @@ var HeightView = {};
       drag = {
         kind: kind,
         pointerId: ev.pointerId,
+        startX: ev.clientX,
+        startY: ev.clientY,
         startZ: pxToZ(isA ? svgA : svgB, isA, ev.clientX, ev.clientY),
         bandMin: band.min,
         bandMax: band.max,
@@ -1698,7 +1756,31 @@ var HeightView = {};
       if (!drag || ev.pointerId !== drag.pointerId) {
         return;
       }
+      var info = drag;
       drag = null;
+      var dx = ev.clientX - info.startX;
+      var dy = ev.clientY - info.startY;
+      // A press that does not move is a click on whatever mark the band
+      // is covering, not a peel. Restore the band so jitter cannot shift it.
+      var stationary = info.kind === "body" && dx * dx + dy * dy <= 16;
+      swallowCutClick = true;
+      setTimeout(function() { swallowCutClick = false; }, 0);
+      if (stationary) {
+        band.min = info.bandMin;
+        band.max = info.bandMax;
+        if (bandA) {
+          positionBandEl(bandA, true);
+        }
+        if (bandB) {
+          positionBandEl(bandB, false);
+        }
+        onCutClick({
+          currentTarget: isA ? svgA : svgB,
+          clientX: ev.clientX,
+          clientY: ev.clientY,
+        });
+        return;
+      }
       applyPeel();
       requestDrawCuts();
     }
