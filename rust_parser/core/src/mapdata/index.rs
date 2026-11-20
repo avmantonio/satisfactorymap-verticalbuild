@@ -17,6 +17,7 @@ use crate::extract::find_prop;
 use crate::store::*;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 /// sav_map_data.PIPE_CONNECTOR_SUFFIXES: every naming convention seen so far
 /// for the FGPipeConnectionComponent sub-objects that carry "mPipeNetworkID".
@@ -129,7 +130,25 @@ pub struct MapIndex {
     pub parse_failures: ParseFailures,
 }
 
+/// What [`MapIndex::reject_new_parse_failures`] needs after the index itself
+/// is gone. Shells drop the index before rebuilding -- a 600k-object save
+/// cannot hold two — so the instance names and the failure set move here
+/// first. Names only: the slot map and the rest of the index are not part of
+/// the check.
+pub struct EditBaseline {
+    failures: ParseFailures,
+    names: HashSet<Vec<u8>>,
+}
+
 impl MapIndex {
+    /// Move the edit-gate baseline out of an index that is about to be freed.
+    pub fn into_edit_baseline(self) -> EditBaseline {
+        EditBaseline {
+            failures: self.parse_failures,
+            names: self.by_instance_name.into_keys().collect(),
+        }
+    }
+
     /// The edit-path gate, `self` being the index rebuilt after an edit.
     ///
     /// A build tolerates objects it cannot re-parse (modded property shapes
@@ -146,15 +165,17 @@ impl MapIndex {
     /// Newly created objects are the editor's own output and are covered by
     /// the editor round-trip tests instead.
     ///
-    /// `before` is None for a session with nothing to diff against (one
-    /// recovering from a failed edit), which must not read as "all new".
-    pub fn reject_new_parse_failures(&self, before: Option<&MapIndex>) -> Result<(), String> {
+    /// `before` is None only when the session had already lost its index (a
+    /// failed edit, not yet recovered). That must not read as "all new".
+    /// An edit that still had an index passes the baseline taken from it
+    /// *before* the index was freed.
+    pub fn reject_new_parse_failures(&self, before: Option<&EditBaseline>) -> Result<(), String> {
         let Some(before) = before else { return Ok(()) };
         let broken: Vec<&[u8]> = self
             .parse_failures
-            .newly_failing(&before.parse_failures)
+            .newly_failing(&before.failures)
             .into_iter()
-            .filter(|name| before.by_instance_name.contains_key(*name))
+            .filter(|name| before.names.contains(*name))
             .collect();
         if broken.is_empty() {
             return Ok(());

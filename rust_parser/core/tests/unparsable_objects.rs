@@ -125,6 +125,9 @@ fn edit_gate_rejects_only_newly_broken_existing_objects() {
     }
     before.parse_failures = ParseFailures::default();
     before.parse_failures.names.insert(b"modded_thing".to_vec());
+    // The shells move this out and drop the index before the rebuild. The
+    // gate has to keep rejecting off the baseline alone.
+    let baseline = before.into_edit_baseline();
 
     let after = |failures: &[&[u8]]| {
         let mut index = MapIndex::build(&load_lean(SAVE));
@@ -136,12 +139,12 @@ fn edit_gate_rejects_only_newly_broken_existing_objects() {
     };
 
     // Unchanged, and "the edit removed the broken object", are both fine.
-    assert!(after(&[b"modded_thing"]).reject_new_parse_failures(Some(&before)).is_ok());
-    assert!(after(&[]).reject_new_parse_failures(Some(&before)).is_ok());
+    assert!(after(&[b"modded_thing"]).reject_new_parse_failures(Some(&baseline)).is_ok());
+    assert!(after(&[]).reject_new_parse_failures(Some(&baseline)).is_ok());
 
     // An object that parsed before this edit and no longer does: corruption.
     let err = after(&[b"modded_thing", b"was_fine"])
-        .reject_new_parse_failures(Some(&before))
+        .reject_new_parse_failures(Some(&baseline))
         .unwrap_err();
     assert!(err.contains("was_fine"), "{err}");
     assert!(!err.contains("modded_thing"), "pre-existing failure reported as new: {err}");
@@ -149,7 +152,7 @@ fn edit_gate_rejects_only_newly_broken_existing_objects() {
     // Pasting an unreadable buildable splices its bytes under a fresh name --
     // a new unreadable object, not damage to anything that existed.
     assert!(after(&[b"modded_thing", b"pasted_copy"])
-        .reject_new_parse_failures(Some(&before))
+        .reject_new_parse_failures(Some(&baseline))
         .is_ok());
 
     // No baseline (a session recovering from a failed edit) must not read as

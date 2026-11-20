@@ -160,13 +160,17 @@ impl SaveSession {
     fn finish_edit(
         &mut self,
         new_store: SaveStore,
+        baseline: Option<mapdata::index::EditBaseline>,
         call: &dyn Fn(u8, u64, u64),
     ) -> Result<Vec<u8>, JsError> {
         let mut build_progress = |current: u64, total: u64| call(2, current, total);
         let (payload_json, index) =
             mapdata::build_all_json(&new_store, Some(&mut build_progress))
                 .map_err(|e| JsError::new(&e))?;
-        index.reject_new_parse_failures(self.index.as_ref()).map_err(|e| JsError::new(&e))?;
+        // `baseline` was taken before this rebuild freed the previous index.
+        // Reading `self.index` here would always be None, and the gate would
+        // accept an edit that broke an object the previous index could read.
+        index.reject_new_parse_failures(baseline.as_ref()).map_err(|e| JsError::new(&e))?;
         self.store = Some(Arc::new(new_store));
         self.index = Some(index);
         Ok(payload_json)
@@ -358,9 +362,11 @@ impl SaveSession {
             }
         }
 
-        // Free the index and stale payload up front -- everything below is
-        // memory-critical on 600k-object saves.
-        self.index = None;
+        // Keep the names and parse failures, then free the rest of the index
+        // and the stale payload. The rebuild allocates another index, and a
+        // 600k-object save cannot hold both. The gate in finish_edit diffs
+        // against this baseline, not against self.index (already gone).
+        let baseline = self.index.take().map(MapIndex::into_edit_baseline);
         self.payload_json = Vec::new();
         let arc = self.store.take().ok_or_else(|| JsError::new(SESSION_LOST))?;
         let store = Arc::try_unwrap(arc).map_err(|_| JsError::new("save store is shared"))?;
@@ -369,7 +375,7 @@ impl SaveSession {
         let mut progress = |current: u64, total: u64| call(1, current, total);
         let store = session::fold_ops(store, &new_ops, &tables, Some(&mut progress))
             .map_err(|e| JsError::new(&e.msg))?;
-        self.finish_edit(store, &call)
+        self.finish_edit(store, baseline, &call)
     }
 
     /// Replace the whole edit state: drop the current save, decompress the
@@ -402,9 +408,11 @@ impl SaveSession {
         let raw_len = u64::from_le_bytes(pristine[0..8].try_into().unwrap()) as usize;
         let tables = ClassTables::embedded();
 
-        // Free everything before inflating the pristine body (the session's
-        // own file_header/info copies survive independently of the store).
-        self.index = None;
+        // Same baseline as apply_edits. None only when a failed edit already
+        // dropped the index: there is nothing left to diff, and that must
+        // not read as every unreadable object being new. Free the store
+        // before inflating the pristine body (file_header/info survive).
+        let baseline = self.index.take().map(MapIndex::into_edit_baseline);
         self.payload_json = Vec::new();
         self.store = None;
 
@@ -420,7 +428,7 @@ impl SaveSession {
             Some(&mut progress),
         )
         .map_err(|e| JsError::new(&e.msg))?;
-        self.finish_edit(store, &call)
+        self.finish_edit(store, baseline, &call)
     }
 
     /// The full map payload as JSON bytes (returned as a Uint8Array; decode +
