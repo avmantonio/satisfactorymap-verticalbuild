@@ -4,7 +4,7 @@
 
 use crate::error::{perr, PResult};
 use crate::properties::{parse_object_reference, parse_properties};
-use crate::reader::Cursor;
+use crate::reader::{Cursor, DataRef};
 use crate::store::*;
 use crate::version_data::parse_save_object_version_data;
 
@@ -12,6 +12,29 @@ use crate::version_data::parse_save_object_version_data;
 #[derive(Clone)]
 pub struct ClassTables {
     pub conveyor_belts: Vec<String>,
+}
+
+/// The optional per-item state record that follows an item's class path in a
+/// conveyor item slot. Save version 44 replaced the old `itemState`
+/// (levelName, pathName) reference pair with a flag plus, when set, an inline
+/// record: an empty level name, the state's type path, and its
+/// length-prefixed properties. Anything that carries state rides belts with
+/// one attached -- a jetpack's fuel (FGJetPackItemState), a weapon's
+/// magazine, a gas mask's filter -- and a save full of geared-up belts is
+/// unreadable without this.
+///
+/// The record is skipped, not decoded; the returned span covers it whole
+/// (flag excluded) so a writer can hand the bytes back verbatim.
+fn parse_item_state(c: &mut Cursor, ctx: &str) -> PResult<Option<DataRef>> {
+    if !c.bool_u32(ctx)? {
+        return Ok(None);
+    }
+    let off = c.pos;
+    c.confirm_u32(0)?; // state ObjectReference.levelName
+    let _state_type = c.string()?;
+    let state_size = c.u32()?;
+    c.data_ref(state_size as usize)?;
+    Ok(Some(DataRef { off, len: (c.pos - off) as u32 }))
 }
 
 const GAME_MODE_STATE: [&str; 2] = [
@@ -47,6 +70,16 @@ pub(crate) const CONVEYOR_CHAINS: [&str; 5] = [
     "/Script/FactoryGame.FGConveyorChainActor_RepSizeHuge",
 ];
 const PICKUP_SPAWNABLE: &str = "/Script/FactoryGame.FGItemPickup_Spawnable";
+/// Vanilla content ships under these two prefixes; anything else in a save
+/// was put there by a mod. Only used to decide what an object we could not
+/// fully consume means: a mod serialising its own payload (skip it, load the
+/// save) or a hole in our own reading of the format (fail, so it gets fixed).
+/// `MODDED_RAW` above stays an explicit list because a mod may also ship
+/// under a vanilla-looking path -- the golden golfcart does.
+fn is_vanilla_class(class: &str) -> bool {
+    class.starts_with("/Script/FactoryGame.") || class.starts_with("/Game/FactoryGame/")
+}
+
 const MODDED_RAW: [&str; 5] = [
     "/AB_CableMod/Cables_Heavy/Build_AB-PLHeavy-Cu.Build_AB-PLHeavy-Cu_C",
     "/FlexSplines/Conveyor/Build_Belt2.Build_Belt2_C",
@@ -172,21 +205,16 @@ pub fn parse_object(
                 let v44_item_format = header_save_version >= 44 && object_game_version >= 44;
                 for _ in 0..count {
                     let length = c.u32()?;
-                    let name = c.string()?;
-                    if v44_item_format {
-                        let has_state = c.bool_u32("ConveyorBelt.itemHasStateFlag")?;
-                        if has_state {
-                            c.confirm_u32(0)?; // state ObjectReference.Level
-                            let _state_type = c.string()?;
-                            let state_size = c.u32()?;
-                            c.data_ref(state_size as usize)?;
-                        }
+                    let item_path = c.string()?;
+                    let state = if v44_item_format {
+                        parse_item_state(c, "ConveyorBelt.itemHasStateFlag")?
                     } else {
                         c.confirm_string("")?;
                         c.confirm_string("")?;
-                    }
+                        None
+                    };
                     let position = c.f32()?;
-                    items.push((length, name, position));
+                    items.push(BeltItem { length, item_path, state, position });
                 }
                 actor_specific =
                     ActorSpecific::ConveyorBelt { items, count_field_off, end_off: c.pos };
@@ -399,12 +427,16 @@ pub fn parse_object(
                 let chain_tail = c.i32()?;
                 let num_items = c.u32()?;
                 let mut items = Vec::with_capacity(c.capped_capacity(num_items as usize, 8));
+                // Same slot layout as a per-belt item record, minus its
+                // leading length: an item class reference, then the optional
+                // state (chain actors only exist in 1.0+ saves, so the v44
+                // format is the only one that can appear here).
                 for _ in 0..num_items {
-                    c.confirm_u32(0)?;
+                    c.confirm_u32(0)?; // item class ObjectReference.levelName
                     let item_path = c.string()?;
-                    c.confirm_u32(0)?;
-                    let item_instance_id = c.u32()?;
-                    items.push((item_path, item_instance_id));
+                    let state = parse_item_state(c, "ConveyorChain.itemHasStateFlag")?;
+                    let chain_offset = c.f32()?;
+                    items.push(ChainItem { item_path, state, chain_offset });
                 }
                 actor_specific = ActorSpecific::ConveyorChain {
                     chain_actor,
@@ -470,18 +502,29 @@ pub fn parse_object(
         ));
     }
     if c.pos < offset_start_this + object_size {
-        return match header {
-            Header::Actor(ah) => Err(perr!(
-                "Found {} extra trailing bytes for ActorHeader {}.",
-                offset_start_this + object_size - c.pos,
-                ah.type_path.to_string(c.data)
-            )),
-            Header::Component(ch) => Err(perr!(
-                "Found {} extra trailing bytes for ComponentHeader {}.",
-                offset_start_this + object_size - c.pos,
-                ch.class_name.to_string(c.data)
-            )),
+        let remaining = offset_start_this + object_size - c.pos;
+        let (class, kind) = match header {
+            Header::Actor(ah) => (ah.type_path, "ActorHeader"),
+            Header::Component(ch) => (ch.class_name, "ComponentHeader"),
         };
+        let class_str = std::str::from_utf8(class.bytes(c.data)).unwrap_or("");
+        if is_vanilla_class(class_str) {
+            // Vanilla content we failed to consume is OUR bug, and staying
+            // loud about it is how the conveyor item-state hole got found.
+            return Err(perr!(
+                "Found {} extra trailing bytes for {} {}.",
+                remaining,
+                kind,
+                class_str
+            ));
+        }
+        // A mod serialises whatever it likes into its own actors and
+        // components -- FicsItCam parks a camera recording (hundreds of KB)
+        // on its FICCamera component. The object's own declared size tells
+        // us exactly where it ends, so the bytes can be carried verbatim
+        // without understanding any of them, and one mod cannot stop a save
+        // from loading.
+        actor_specific = ActorSpecific::RawBytes(c.data_ref(remaining)?);
     }
 
     if object_game_version >= 53 {
@@ -546,5 +589,91 @@ impl crate::store::SaveStore {
         )?;
         debug_assert_eq!(c.pos, off as usize + len as usize, "span reparse length drift");
         Ok(object)
+    }
+}
+
+#[cfg(test)]
+mod modded_class_tests {
+    use super::*;
+
+    /// The rule that decides whether an object we could not fully consume is
+    /// a mod's own payload (skip it) or our bug (fail loudly). Getting it
+    /// wrong in one direction hides parser holes; in the other it refuses
+    /// saves over data we were never going to read.
+    #[test]
+    fn vanilla_and_modded_classes_are_told_apart() {
+        for vanilla in [
+            "/Script/FactoryGame.FGConveyorChainActor",
+            "/Script/FactoryGame.FGInventoryComponent",
+            "/Game/FactoryGame/Buildable/Factory/PowerLine/Build_PowerLine.Build_PowerLine_C",
+            "/Game/FactoryGame/Character/Player/BP_PlayerState.BP_PlayerState_C",
+        ] {
+            assert!(is_vanilla_class(vanilla), "{vanilla} should count as vanilla");
+        }
+        for modded in [
+            "/Script/FicsItCam.FICCamera",
+            "/Script/FicsItNetworks.FINComputerCase",
+            "/DoggoHardHat/HAT.HAT_C",
+            "/FlexSplines/Conveyor/Build_Belt2.Build_Belt2_C",
+            "/SkyUI/SkyUI_SubSystem.SkyUI_SubSystem_C",
+            "",
+        ] {
+            assert!(!is_vanilla_class(modded), "{modded} should count as modded");
+        }
+        // Near-misses that must NOT be mistaken for vanilla: a mod is free to
+        // name itself something that merely starts the same way.
+        for lookalike in [
+            "/Script/FactoryGameExtra.Thing",
+            "/Game/FactoryGameMod/Thing.Thing_C",
+        ] {
+            assert!(!is_vanilla_class(lookalike), "{lookalike} should count as modded");
+        }
+    }
+
+    /// Mods whose trailing shape the parser has actually LEARNED, rather
+    /// than skipping as opaque. They matter because the branch that knows
+    /// them runs first: it consumes the trailing bytes, so the object ends
+    /// where it should and the opaque fallback never sees it. If one of
+    /// these ever changes shape, that branch fails on its own terms instead
+    /// of the failure being quietly absorbed.
+    const KNOWN_MODDED_SPECIAL_CASES: [&str; 7] = [
+        "/Script/FicsitFarming.FFDoggoHealthInfoComponent",
+        "/EditSwatchNames/DataHolder.DataHolder_C",
+        // MODDED_RAW: read to the object's end as raw bytes.
+        "/AB_CableMod/Cables_Heavy/Build_AB-PLHeavy-Cu.Build_AB-PLHeavy-Cu_C",
+        "/FlexSplines/Conveyor/Build_Belt2.Build_Belt2_C",
+        "/FlexSplines/PowerLine/Build_FlexPowerline.Build_FlexPowerline_C",
+        "/Game/FactoryGame/Buildable/Vehicle/Golfcart/BP_GolfcartGold.BP_GolfcartGold_C",
+        "/CharacterReplacer/Logic/SCS_CR_PlayerHook.SCS_CR_PlayerHook_C",
+    ];
+
+    /// Every class the parser special-cases by name is either vanilla or one
+    /// of the handful of mods we have deliberately learned. A NEW modded
+    /// special-case showing up here is worth a thought: its branch has to
+    /// consume the object fully, or the opaque fallback will absorb whatever
+    /// it leaves behind instead of reporting it.
+    #[test]
+    fn special_cased_classes_are_vanilla_or_known_mods() {
+        let named = GAME_MODE_STATE
+            .iter()
+            .chain(CONVEYOR_CHAINS.iter())
+            .chain(POWER_LINES.iter())
+            .chain(COMPONENT_TRAILING.iter())
+            .chain(CALC_ACTOR_WHITELIST.iter())
+            .chain(CALC_COMPONENT_WHITELIST.iter())
+            .chain(MODDED_RAW.iter())
+            .copied()
+            .chain([PLAYER_STATE, DRONE_TRANSPORT, CIRCUIT_SUBSYSTEM]);
+        for class in named {
+            assert!(
+                is_vanilla_class(class) || KNOWN_MODDED_SPECIAL_CASES.contains(&class),
+                "{class} is a modded class the parser special-cases but the test does not                  know about -- make sure its branch consumes the whole object, then add it                  to KNOWN_MODDED_SPECIAL_CASES"
+            );
+        }
+        // The golden golfcart is why MODDED_RAW cannot be replaced by the
+        // prefix rule: it is a mod shipping under a vanilla-looking path.
+        assert!(is_vanilla_class(
+            "/Game/FactoryGame/Buildable/Vehicle/Golfcart/BP_GolfcartGold.BP_GolfcartGold_C"
+        ));
     }
 }
