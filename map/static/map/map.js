@@ -2100,6 +2100,9 @@ var MapApp = {};
     if (MapApp.layer) {
       MapApp.layer.requestRedraw();
     }
+    if (window.HeightView && HeightView.onAltitudeChanged) {
+      HeightView.onAltitudeChanged();
+    }
   };
 
   // Currently hovered/pinned box (see _redrawHighlight), drawn at full
@@ -2193,6 +2196,9 @@ var MapApp = {};
   // its 2D pin pass needs the same pin radius the inherited hit-testing uses.
   MapApp.BucketedCanvasLayer = BucketedCanvasLayer;
   MapApp.iconRadiusForZoom = _iconRadiusForZoom;
+  // Occupancy queries (selection.js collectInBox, Height-view yellow
+  // overlap) reuse the same per-bucket grid redraw/hit-test already uses.
+  MapApp.collectGridIndices = _collectGridIndices;
 
   // Swaps the WebGL layer out for the plain 2D canvas layer -- called when
   // the GL context is lost (driver reset, GPU removed) or fails to create.

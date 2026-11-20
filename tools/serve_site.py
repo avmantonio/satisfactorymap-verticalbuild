@@ -42,8 +42,20 @@ def main():
     # Not 8080: WSL's wslrelay (and assorted proxies) squat that port and
     # intercept connections before this server sees them.
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8791
-    with http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler) as server:
-        print(f"Serving dist/ at http://127.0.0.1:{port}/")
+    # HTTPServer defaults allow_reuse_address=True. On Windows that lets a
+    # SECOND listener bind 127.0.0.1:port while the first is still alive
+    # (SO_REUSEADDR ≠ exclusive). Browsers then hit the stuck copy and get
+    # an empty reply. Fail loudly instead.
+    class Server(http.server.ThreadingHTTPServer):
+        allow_reuse_address = False
+
+    try:
+        server = Server(("127.0.0.1", port), Handler)
+    except OSError as e:
+        sys.exit(f"Port {port} is already in use ({e}). Stop the other "
+                 f"`python tools/serve_site.py` and retry.")
+    with server:
+        print(f"Serving dist/ at http://127.0.0.1:{port}/", flush=True)
         server.serve_forever()
 
 
