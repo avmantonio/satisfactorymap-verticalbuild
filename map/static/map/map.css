@@ -3019,10 +3019,6 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
     width: min(var(--dock-right-width), 78vw);
   }
 
-  body.height-view-side {
-    --height-side-width: min(var(--dock-right-width), 42vw);
-  }
-
   /* Dragging a width is a pointer-and-space affordance; neither applies here. */
   .dockResizeHandle {
     display: none;
@@ -3095,6 +3091,14 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
 
 body.height-view-side {
   --height-side-width: var(--dock-right-width);
+}
+
+/* Same specificity as the rule above, so it has to come later or the
+   narrow-screen cap never wins. */
+@media (max-width: 820px) {
+  body.height-view-side {
+    --height-side-width: min(var(--dock-right-width), 42vw);
+  }
 }
 
 #heightView.is-side {

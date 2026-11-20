@@ -902,6 +902,19 @@
           pixels.copyWithin(a, b, b + row);
           pixels.set(tmp, b);
         }
+        // The cut shader writes premultiplied RGB. ImageData (and the PNG
+        // putImageData encodes) stores straight alpha, so leaving the
+        // channels scaled would darken every translucent mark a second time
+        // when the browser composites the image.
+        for (var pi = 0; pi < pixels.length; pi += 4) {
+          var pa = pixels[pi + 3];
+          if (pa === 0 || pa === 255) {
+            continue;
+          }
+          pixels[pi] = Math.min(255, Math.round(pixels[pi] * 255 / pa));
+          pixels[pi + 1] = Math.min(255, Math.round(pixels[pi + 1] * 255 / pa));
+          pixels[pi + 2] = Math.min(255, Math.round(pixels[pi + 2] * 255 / pa));
+        }
         if (!this._cut.blit) {
           this._cut.blit = document.createElement("canvas");
         }

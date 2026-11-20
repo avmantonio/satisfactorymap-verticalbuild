@@ -153,6 +153,89 @@ var HeightView = {};
     return { min: z, max: z + DEFAULT_HEIGHT_M };
   }
 
+  // Closed overlap of [min(z0,z1), max(z0,z1)] with the altitude cap and
+  // the band. Z between two stored vertices is linear: the payload has no
+  // Z tangent, including on stride-7 Hermite curves.
+  function zSpanHitsBand(z0, z1, cap) {
+    var lo = z0 < z1 ? z0 : z1;
+    var hi = z0 > z1 ? z0 : z1;
+    if (lo < cap.min) lo = cap.min;
+    if (hi > cap.max) hi = cap.max;
+    if (!(lo <= hi)) {
+      return false;
+    }
+    return lo <= band.max && hi >= band.min;
+  }
+
+  // Liang–Barsky. t interval of the chord that lies inside the rect.
+  function clipChordT(x0, y0, x1, y1, box) {
+    var dx = x1 - x0;
+    var dy = y1 - y0;
+    var t0 = 0;
+    var t1 = 1;
+    function clip(p, q) {
+      if (p === 0) {
+        return q >= 0;
+      }
+      var r = q / p;
+      if (p < 0) {
+        if (r > t1) return false;
+        if (r > t0) t0 = r;
+      } else {
+        if (r < t0) return false;
+        if (r < t1) t1 = r;
+      }
+      return true;
+    }
+    if (!clip(-dx, x0 - box.minX)) return null;
+    if (!clip(dx, box.maxX - x0)) return null;
+    if (!clip(-dy, y0 - box.minY)) return null;
+    if (!clip(dy, box.maxY - y0)) return null;
+    if (t0 > t1) return null;
+    return { t0: t0, t1: t1 };
+  }
+
+  function chordHitsBand(x0, y0, z0, x1, y1, z1, cap) {
+    if (!zSpanHitsBand(z0, z1, cap)) {
+      return false;
+    }
+    var clip = clipChordT(x0, y0, x1, y1, isolation);
+    if (!clip) {
+      return false;
+    }
+    var za = z0 + (z1 - z0) * clip.t0;
+    var zb = z0 + (z1 - z0) * clip.t1;
+    return zSpanHitsBand(za, zb, cap);
+  }
+
+  // Same cubic as map.js _tracePolylinePath. Samples are short chords, so a
+  // curve that only crosses the rect away from its endpoints still counts.
+  function cubicHitsBand(x0, y0, z0, c1x, c1y, c2x, c2y, x1, y1, z1, cap) {
+    if (!zSpanHitsBand(z0, z1, cap)) {
+      return false;
+    }
+    var steps = 8;
+    var px = x0;
+    var py = y0;
+    var pz = z0;
+    for (var s = 1; s <= steps; s++) {
+      var t = s / steps;
+      var u = 1 - t;
+      var uu = u * u;
+      var tt = t * t;
+      var nx = uu * u * x0 + 3 * uu * t * c1x + 3 * u * tt * c2x + tt * t * x1;
+      var ny = uu * u * y0 + 3 * uu * t * c1y + 3 * u * tt * c2y + tt * t * y1;
+      var nz = z0 + (z1 - z0) * t;
+      if (chordHitsBand(px, py, pz, nx, ny, nz, cap)) {
+        return true;
+      }
+      px = nx;
+      py = ny;
+      pz = nz;
+    }
+    return false;
+  }
+
   function recordInBand(r) {
     var cap = altitudeCap();
     if (r.bucket.lines) {
@@ -161,14 +244,38 @@ var HeightView = {};
         return false;
       }
       var stride = r.bucket.pointStride;
+      var prev = 0;
+      var hasPrev = false;
       for (var vi = 0; vi < line.length; vi += stride) {
         var lx = line[vi];
         var ly = line[vi + 1];
         var lz = line[vi + stride - 1];
+        if (!isFinite(lx) || !isFinite(ly) || !isFinite(lz)) {
+          hasPrev = false;
+          continue;
+        }
         if (inRect(lx, ly, isolation) && inAltitude(lz, cap)
             && lz >= band.min && lz <= band.max) {
           return true;
         }
+        if (hasPrev) {
+          var x0 = line[prev];
+          var y0 = line[prev + 1];
+          var z0 = line[prev + stride - 1];
+          if (stride >= 7) {
+            var c1x = x0 + line[prev + 4] / 3;
+            var c1y = y0 + line[prev + 5] / 3;
+            var c2x = lx - line[vi + 2] / 3;
+            var c2y = ly - line[vi + 3] / 3;
+            if (cubicHitsBand(x0, y0, z0, c1x, c1y, c2x, c2y, lx, ly, lz, cap)) {
+              return true;
+            }
+          } else if (chordHitsBand(x0, y0, z0, lx, ly, lz, cap)) {
+            return true;
+          }
+        }
+        prev = vi;
+        hasPrev = true;
       }
       return false;
     }
@@ -650,8 +757,10 @@ var HeightView = {};
   function mapEdgeLabel(edge) {
     if (edge === "minX") return "Resize isolation west edge";
     if (edge === "maxX") return "Resize isolation east edge";
-    if (edge === "minY") return "Resize isolation north edge";
-    return "Resize isolation south edge";
+    // CRS.Simple negates lat, so map Y grows upward: the smaller lat is the
+    // south (bottom) edge, the larger lat is north (top).
+    if (edge === "minY") return "Resize isolation south edge";
+    return "Resize isolation north edge";
   }
 
   function ensureMapEdgeHandles() {
@@ -703,8 +812,10 @@ var HeightView = {};
         var insetY = box.width >= hit * 3 ? hit : 0;
         placeMapEdge(mapEdgeEls.minX, box.left, box.top + insetX, hit, Math.max(4, box.height - insetX * 2));
         placeMapEdge(mapEdgeEls.maxX, box.left + box.width - hit, box.top + insetX, hit, Math.max(4, box.height - insetX * 2));
-        placeMapEdge(mapEdgeEls.minY, box.left + insetY, box.top, Math.max(4, box.width - insetY * 2), hit);
-        placeMapEdge(mapEdgeEls.maxY, box.left + insetY, box.top + box.height - hit, Math.max(4, box.width - insetY * 2), hit);
+        // box.top is the smaller container Y, which latLngToContainerPoint
+        // assigns to the larger lat. maxY sits on the top edge, minY on the bottom.
+        placeMapEdge(mapEdgeEls.maxY, box.left + insetY, box.top, Math.max(4, box.width - insetY * 2), hit);
+        placeMapEdge(mapEdgeEls.minY, box.left + insetY, box.top + box.height - hit, Math.max(4, box.width - insetY * 2), hit);
       }
     }
     positionAlongHandles();
