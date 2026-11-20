@@ -421,7 +421,8 @@ var HeightView = {};
   function recordInBand(r) {
     var cap = altitudeCap();
     if (r.bucket.lines) {
-      // Story 19: whole actor if any in-XY vertex's Z is in the window.
+      // Vertices in XY∩band, plus chords that only cross the rect between
+      // vertices (interpolated Z). Buildings use floor-sat AABB below.
       var line = r.bucket.lines[r.index];
       if (!line || !isolation) {
         return false;
