@@ -1,80 +1,48 @@
-# Satisfactory Save Map
+# Height view (2.5D)
 
-**Drop your save file, see your whole factory in seconds — right in the
-browser, without uploading anything anywhere.**
+A fork of Valentin's
+[Satisfactory Save Map](https://github.com/valentinps/satisfactorymap).
+The original map is top-down. This one adds **vertical Cuts** through a
+selected slice of the factory, plus a shared **Z band**, so stacked floors
+are readable as elevation.
 
-**▶ [satisfactorymap.net](https://satisfactorymap.net/)** — no install, no
-account. Or get the [desktop app](#desktop-app) for saves too big for any
-browser.
+**WIP.** For personal use, still in progress. Free to take if it looks
+useful to you.
 
-![The map with a 632,000-object mega-factory loaded](docs/screenshot.png)
+![Height view: isolation box on the map, A–A′ and B–B′ Cuts, Z band](docs/height-view-2.5d.png)
 
-Your save is parsed **on your own machine** by a Rust parser compiled to
-WebAssembly. Nothing is uploaded, so there is nothing to wait for: a
-**600,000-object endgame save loads in ~8 seconds** — the same save takes
-almost two minutes on the incumbent web map, a measured **13× difference**.
-And it stays fast after loading: panning the full-factory overview, this
-map **never dropped a frame** (worst: 24 ms) where the incumbent froze for
-up to **15 seconds at a time** — WebGL rendering instead of DOM markers
-([methodology & reproducible script](docs/BENCHMARK.md)).
+Drop a `.sav` in the browser — parsed on your machine, nothing uploaded.
+Right-click-drag a rectangle to isolate an XY box. Height view opens on
+that box.
 
-## What you get
+## How it works
 
-- **The whole factory, mapped** — buildings by build-menu category,
-  belts/pipes/railways/power lines as curves, resource nodes with purity,
-  vehicles, trains, players, collectables and crash sites.
-- **The world itself** — every **cave** on the map outlined with its name,
-  area and depth; the damaging **world border** and the altitudes it starts
-  at; and where the water you can actually swim in and pump from ends, which
-  is well inside the ocean the game draws. None of it shows on the in-game
-  map — it's traced from the game's own level data.
-- **Find anything** — search across every inventory in the save ("where did
-  I leave my hard drives?"), per-building tooltips with recipe, power,
-  clock speed and belt/pipe **bottleneck detection**.
-- **Progression at a glance** — MAM research, alternate recipes, AWESOME
-  Shop, HUB milestones, Space Elevator status.
-- **Select & total** — rectangle-select any part of the factory and get its
-  combined inventory and object list.
-- **Edit your save** — move, copy/paste, rotate or delete whole factory
-  sections (with undo), then download the edited `.sav` and load it in the
-  game. Copies travel **between saves**, too: copy, load the other save in
-  the same tab, paste. Copies up to 50,000 objects also go through the OS
-  clipboard for pasting in another browser tab; beyond what the browser's
-  memory can carry, the desktop app takes over.
-- **Link straight to a map** — append `?url=<address-of-a-save>` to load a
-  hosted `.sav` automatically (e.g. a dedicated server's autosave exposed
-  over HTTP). The file downloads directly into your browser — never through
-  this site's servers — so its host must allow cross-origin (CORS) requests.
-- **Private by construction** — fully client-side; the save never leaves
-  your machine. Works offline once loaded.
+Height view is an isolation mode on the current map tab, not a second 3D
+scene.
 
-![Factory detail: production rows, belts and a rail roundabout](docs/screenshot_detail.png)
+- **Cuts** — two elevation strips of whatever sits in the box: **A–A′**
+  along X and **B–B′** along Y, each plotted as along × Z. Click **A / A′**
+  or **B / B′** to reverse that Cut (swap ends and the depth reading).
+- **Z band** — a shared elevation window on both Cuts. Drag the band or its
+  min/max handles to peel: objects inside the box *and* the band become the
+  active selection; out-of-band marks fade; buildings that only overlap the
+  box from outside show as yellow dashed marks.
+- **Layout** — **Side panel** (default): Cuts stacked to the left of the
+  **Altitude** rail, A–A′ on top, B–B′ below. **Flaps**: the same Cuts
+  overlay the isolation box on the map.
+- **One-axis edit** after commit — drag a map-edge handle or the matching
+  Cut vertical (A/A′ = X, B/B′ = Y). The opposite side stays put; the Z
+  band is not reset.
+- **Lines that cross** the box between vertices (belts, pipes, rails, …)
+  count as occupants, not only points that sit inside the rectangle.
+- The map's **Altitude** filter still caps Z. Clear the selection to
+  dismiss Height view.
 
-## Desktop app
+Building table height is not in the save payload; point marks on a Cut use
+a 4 m placeholder AABB.
 
-Browsers cap WebAssembly at 4 GB of memory, which the very largest
-mega-factory saves can exceed. The desktop app (Tauri, Windows) wraps the
-same engine and the same interface with no memory ceiling — and it's the
-fastest way to open saves straight from your save folder. It can also pull
-the newest save **straight off a dedicated server** (the official server
-HTTPS API — the same one the in-game Server Manager uses): enter the
-server's address and admin password in the Save File panel and hit *Fetch
-latest save*. One firewall note: the API listens on **TCP** port 7777,
-while the game itself uses UDP — so the server must have TCP 7777 (or its
-custom port) open too, not just UDP
-([details](docs/server-fetch.md)). Download the
-installer from the
-[Releases page](https://github.com/valentinps/satisfactorymap/releases),
-or build it from source in a few minutes
-(see [CONTRIBUTING.md](CONTRIBUTING.md#desktop-app-tauri)).
-
-**Why does Windows warn when installing?** The installer is not
-code-signed — signing certificates cost hundreds of euros per year, which
-isn't sensible for a free tool yet. Windows shows its standard "unknown
-publisher" SmartScreen prompt for any unsigned installer; "More info →
-Run anyway" proceeds. The app is open source, the installer is built from
-this repository, and every release lists SHA-256 checksums so you can
-verify what you downloaded.
+The rest of the client — layers, search, inventory, save editing — is still
+the original map. Build and run it the same way:
 
 ## Building from source
 
