@@ -27,16 +27,20 @@ pub struct SaveFileInfo {
 pub const TICKS_IN_SECOND: u64 = 10_000_000;
 pub const EPOCH_1_TO_1970: u64 = 719_162 * 24 * 60 * 60;
 
-/// COMPAT EXPERIMENT: first saveVersion carrying the 1.0 body layout -- header
-/// flags, the per-level version field, and the 1.0 collectables tail (see
-/// level.rs, which gates all three on this). Below it the file is an Update
-/// 8-era save; 42 is the only such version the accept list above takes today.
+/// First saveVersion whose *body* uses the 1.0 record layout: the actor-header
+/// `flags` u32, the per-level save version field, and no collectables list on
+/// the persistent level (see level.rs). Save version 42 (Update 8) and 46
+/// (early 1.0, header type 13, builds ~366202–385279, including SCIM re-saves)
+/// still use the pre-flags body. 52 is the oldest accepted version that
+/// carries the new layout — a full structural walk of a v52 save consumes
+/// only with these gates, and the same walk of a v46 save consumes only
+/// without them. 47–51 stay out of the accept list.
 ///
 /// Read paths honour the gates either way. WRITE paths do not: every record
 /// the editor emits is 1.0-format, so it refuses to touch a save below this
 /// (see editor::apply::plan_op) rather than produce a file the game can't
 /// load. Widening the accept list means auditing those write paths first.
-pub const FIRST_1_0_SAVE_VERSION: u32 = 46;
+pub const FIRST_1_0_SAVE_VERSION: u32 = 52;
 
 /// Returns (header, offset where the compressed body begins).
 pub fn parse_save_file_info(data: &[u8]) -> PResult<(SaveFileInfo, usize)> {
@@ -47,8 +51,9 @@ pub fn parse_save_file_info(data: &[u8]) -> PResult<(SaveFileInfo, usize)> {
         return Err(perr!("Unsupported save header version number {}.", save_header_type));
     }
     let save_version = c.u32()?;
-    // COMPAT EXPERIMENT: 42 = Update 8.
-    if !matches!(save_version, 42 | 52 | 53 | 58 | 59 | 60) {
+    // 42 = Update 8. 46 = early 1.0 with the pre-flags body (still below
+    // FIRST_1_0_SAVE_VERSION, so view-only). 52+ = 1.0 record layout.
+    if !matches!(save_version, 42 | 46 | 52 | 53 | 58 | 59 | 60) {
         return Err(perr!("Unsupported save version number {}.", save_version));
     }
     let build_version = c.u32()?;
