@@ -1,5 +1,6 @@
 name: CI
 
+# No-op comment: keep this workflow eligible to run on the fork.
 on:
   push:
     branches: [main]
