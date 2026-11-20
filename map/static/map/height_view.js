@@ -421,6 +421,7 @@ var HeightView = {};
   function recordInBand(r) {
     var cap = altitudeCap();
     if (r.bucket.lines) {
+      // Story 19: whole actor if any in-XY vertex's Z is in the window.
       var line = r.bucket.lines[r.index];
       if (!line || !isolation) {
         return false;
@@ -446,8 +447,14 @@ var HeightView = {};
       });
       return hit;
     }
-    var z = recordZ(r);
-    return typeof z === "number" && z >= band.min && z <= band.max;
+    // Buildings: floor-sat AABB (same as Cut marks) vs the peel.
+    // Origin-only faded a tall machine whose origin sat below a band
+    // that still crossed the mark. zExtent already sits symmetric
+    // clearance on the origin, so occupancy cannot phantom-twin under
+    // slabs the way raw ±H/2 would.
+    var ext = occupantZ(r);
+    return isFinite(ext.min) && isFinite(ext.max)
+      && ext.max >= band.min && ext.min <= band.max;
   }
 
   function occupantZ(r) {
