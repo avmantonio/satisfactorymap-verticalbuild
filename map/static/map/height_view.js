@@ -590,8 +590,11 @@ var HeightView = {};
     return range;
   }
 
-  function clampBandToCap() {
-    // Peel only. Do not copy the rail into `domain` — story 32 / 34.
+  // Selected peel vs display domain. The rail always caps the peel
+  // (stories 6 / 34). Domain depends on strip CSS px (letterbox), so
+  // clamping to it is only for a user band drag — panel↔flaps must not
+  // permanently shrink the window.
+  function clampBandToRail() {
     var cap = altitudeCap();
     if (isFinite(cap.min) && band.min < cap.min) {
       band.min = cap.min;
@@ -604,6 +607,9 @@ var HeightView = {};
       band.min = mid;
       band.max = mid;
     }
+  }
+
+  function clampBandToDomain() {
     if (band.min < domain.min) {
       band.min = domain.min;
     }
@@ -614,6 +620,11 @@ var HeightView = {};
       band.min = domain.min;
       band.max = domain.max;
     }
+  }
+
+  function clampBandToCap() {
+    clampBandToRail();
+    clampBandToDomain();
   }
 
   function collectXyOccupants() {
@@ -1301,7 +1312,7 @@ var HeightView = {};
     domain = computeDomain(xyOccupants);
     band.min = prevBand.min;
     band.max = prevBand.max;
-    clampBandToCap();
+    clampBandToRail();
     applyPeel();
     syncIsolationRect();
     positionChrome();
@@ -2037,6 +2048,13 @@ var HeightView = {};
     var z1 = zToPx(geom, band.max);
     var lo = Math.min(z0, z1);
     var hi = Math.max(z0, z1);
+    var plotLo = Math.min(geom.zLowPx, geom.zHighPx);
+    var plotHi = Math.max(geom.zLowPx, geom.zHighPx);
+    lo = Math.max(lo, plotLo);
+    hi = Math.min(hi, plotHi);
+    if (hi < lo) {
+      hi = lo;
+    }
     if (geom.zIsVertical) {
       bandEl.style.left = geom.along0 + "px";
       bandEl.style.width = Math.max(8, geom.along1 - geom.along0) + "px";
@@ -2073,9 +2091,9 @@ var HeightView = {};
     }
     // Letterbox needs live strip CSS px. Occupants are unchanged by peel
     // (story 33: do not recompact); XY/filter/resize still refresh the list
-    // before this paint.
+    // before this paint. Do not clamp the selected band to this domain:
+    // panel↔flaps changes clientWidth/Height and would shrink the peel.
     domain = computeDomain(xyOccupants);
-    clampBandToCap();
     markRecords = new Map();
     cutHitsA = [];
     cutHitsB = [];
@@ -2403,7 +2421,7 @@ var HeightView = {};
     domain = computeDomain(xyOccupants);
     band.min = prevBand.min;
     band.max = prevBand.max;
-    clampBandToCap();
+    clampBandToRail();
     applyPeel();
     requestDrawCuts();
   };
