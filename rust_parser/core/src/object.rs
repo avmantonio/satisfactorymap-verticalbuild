@@ -80,6 +80,15 @@ fn is_vanilla_class(class: &str) -> bool {
     class.starts_with("/Script/FactoryGame.") || class.starts_with("/Game/FactoryGame/")
 }
 
+/// A body that failed to parse on this class stops the load. Mod classes are
+/// skipped and reported: their layout is not ours to know. A vanilla class
+/// that fails is either damaged game data or a hole in this parser, and
+/// both have to stay loud. `MODDED_RAW` is the exception a mod ships under a
+/// vanilla-looking path (the golden golfcart).
+pub(crate) fn vanilla_body_failure_is_fatal(class: &str) -> bool {
+    is_vanilla_class(class) && !MODDED_RAW.contains(&class)
+}
+
 const MODDED_RAW: [&str; 5] = [
     "/AB_CableMod/Cables_Heavy/Build_AB-PLHeavy-Cu.Build_AB-PLHeavy-Cu_C",
     "/FlexSplines/Conveyor/Build_Belt2.Build_Belt2_C",
@@ -675,5 +684,14 @@ mod modded_class_tests {
         assert!(is_vanilla_class(
             "/Game/FactoryGame/Buildable/Vehicle/Golfcart/BP_GolfcartGold.BP_GolfcartGold_C"
         ));
+        // The same golfcart must not take the fatal-vanilla path: it is a
+        // mod that only looks vanilla.
+        assert!(!vanilla_body_failure_is_fatal(
+            "/Game/FactoryGame/Buildable/Vehicle/Golfcart/BP_GolfcartGold.BP_GolfcartGold_C"
+        ));
+        assert!(vanilla_body_failure_is_fatal(
+            "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C"
+        ));
+        assert!(!vanilla_body_failure_is_fatal("/Script/FicsItCam.FICCamera"));
     }
 }

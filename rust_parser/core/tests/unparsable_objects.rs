@@ -1,10 +1,10 @@
-//! A body this parser cannot read must not sink the whole save.
+//! A mod body this parser cannot read must not sink the whole save. An
+//! original game class that fails to parse does: that is damaged content or
+//! a hole in this parser, and it must not be reported as "probably a mod".
 //!
-//! Modded saves serialise property shapes sav_core has never seen (the case
-//! that prompted this: Modular Load Balancers stores a native 12-byte struct
-//! as a MapProperty value, where the parser expects a tagged property list).
-//! The build skips such an object and reports it instead of failing, and the
-//! object still draws on the map because buildings render off the header.
+//! The mod case that prompted the skip: Modular Load Balancers stores a
+//! native 12-byte struct as a MapProperty value, where the parser expects a
+//! tagged property list. A skipped mod buildable still draws from its header.
 
 use sav_core::level::parse_full_save_lean;
 use sav_core::mapdata;
@@ -38,6 +38,21 @@ fn a_parsable_buildable(store: &SaveStore) -> ((usize, usize), String, String) {
     panic!("no parsable buildable in {SAVE}");
 }
 
+/// Rewrite the class prefix in place so the object stops counting as vanilla.
+/// Same length, so the header's StrRef still points at a valid string.
+fn relabel_as_mod(store: &mut SaveStore, (li, oi): (usize, usize)) {
+    let Header::Actor(actor) = &store.levels[li].headers[oi] else {
+        panic!("not an actor");
+    };
+    assert!(!actor.type_path.wide);
+    let off = actor.type_path.off;
+    let prefix = b"/Game/FactoryGame/";
+    let replacement = b"/Game/NotVanillaX/";
+    assert_eq!(prefix.len(), replacement.len());
+    assert_eq!(&store.data[off..off + prefix.len()], prefix, "class prefix moved");
+    store.data[off..off + replacement.len()].copy_from_slice(replacement);
+}
+
 /// 0xFF over the whole body span: every length prefix in it becomes absurd,
 /// so the property walk fails wherever it first looks. The headers (and the
 /// recorded spans) are untouched -- exactly the shape of the real bug, where
@@ -63,14 +78,28 @@ fn clean_save_reports_no_unreadable_objects() {
 }
 
 #[test]
-fn unreadable_body_is_skipped_and_reported_not_fatal() {
+fn unreadable_vanilla_body_fails_the_load() {
     let mut store = load_lean(SAVE);
-    let (slot, type_path, instance_name) = a_parsable_buildable(&store);
+    let (slot, type_path, _) = a_parsable_buildable(&store);
     clobber_body(&mut store, slot);
 
-    // The whole point: this used to be Err.
-    let (payload, index) = mapdata::build_all_json(&store, None).expect("build must not fail");
+    let err = match mapdata::build_all_json(&store, None) {
+        Err(err) => err,
+        Ok(_) => panic!("vanilla body must stop the load"),
+    };
+    assert!(err.contains(&type_path), "{err}");
+    assert!(err.contains("original"), "{err}");
+}
 
+#[test]
+fn unreadable_mod_body_is_skipped_and_reported() {
+    let mut store = load_lean(SAVE);
+    let (slot, _, instance_name) = a_parsable_buildable(&store);
+    relabel_as_mod(&mut store, slot);
+    clobber_body(&mut store, slot);
+
+    let (payload, index) = mapdata::build_all_json(&store, None).expect("mod body must not sink the save");
+    assert!(index.parse_failures.vanilla_names.is_empty());
     assert_eq!(index.parse_failures.len(), 1);
     assert!(index.parse_failures.names.contains(instance_name.as_bytes()));
 
@@ -78,22 +107,23 @@ fn unreadable_body_is_skipped_and_reported_not_fatal() {
     let report = &payload["unreadableObjects"];
     assert_eq!(report["count"], 1);
     assert!(
-        report["samples"][0].as_str().unwrap().contains(&type_path),
-        "sample should name the class: {report}",
+        report["samples"][0].as_str().unwrap().contains("NotVanillaX"),
+        "sample should name the mod class: {report}",
     );
 }
 
-/// The map keeps the building: position/rotation/typePath live in the header,
-/// which parses fine -- only the body-derived detail is lost.
+/// The map keeps a skipped mod building: position/rotation/typePath live in
+/// the header, which parses fine -- only the body-derived detail is lost.
 #[test]
-fn unreadable_buildable_still_renders() {
+fn unreadable_mod_buildable_still_renders() {
     let store = load_lean(SAVE);
-    let (slot, type_path, instance_name) = a_parsable_buildable(&store);
+    let (slot, _, instance_name) = a_parsable_buildable(&store);
     let short_name = instance_name.rsplit('.').next().unwrap().to_string();
 
     let mut broken = load_lean(SAVE);
+    relabel_as_mod(&mut broken, slot);
     clobber_body(&mut broken, slot);
-    let (payload, _) = mapdata::build_all_json(&broken, None).expect("build");
+    let (payload, _) = mapdata::build_all_json(&broken, None).expect("mod body must not sink the save");
     let payload: serde_json::Value = serde_json::from_slice(&payload).unwrap();
 
     let rendered = payload["buildingCategories"]
@@ -101,7 +131,9 @@ fn unreadable_buildable_still_renders() {
         .unwrap()
         .iter()
         .flat_map(|category| category["types"].as_array().unwrap())
-        .filter(|bucket| bucket["typePath"] == type_path.as_str())
+        .filter(|bucket| {
+            bucket["typePath"].as_str().unwrap_or("").contains("NotVanillaX")
+        })
         .any(|bucket| {
             bucket["ids"]
                 .as_array()

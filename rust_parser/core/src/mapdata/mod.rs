@@ -328,14 +328,15 @@ pub fn build_all_json(
         collectors::STEP_ORDER.to_vec(),
         Some(&mut tick),
     )?;
-    // Objects whose bodies would not re-parse are skipped, not fatal: a
-    // modded save serializes property shapes this parser has never seen, and
-    // one such object must not sink a 40k-object save. Every collector
-    // already skips a None object, and buildings render off the header
-    // (position/rotation/typePath), so a skipped buildable still appears on
-    // the map -- only its body-derived detail is missing. The set rides out
-    // on the index; the edit paths diff it to keep catching real corruption.
+    // A mod class whose body will not re-parse is skipped, not fatal: one
+    // such object must not sink a 40k-object save. Buildings still draw from
+    // the header. A vanilla class is the other case -- damaged game data or
+    // a hole in this parser -- and fails the load below. The edit paths diff
+    // the skipped set so an edit that newly breaks an object is still refused.
     let map_index = index::MapIndex::build_with_scan(&scan);
+    if let Some(err) = map_index.parse_failures.vanilla_integrity_error() {
+        return Err(err);
+    }
     // The payload is serialized before the index is built, but objects the
     // INDEX build could not read belong in the same report -- so splice the
     // key in here, where both halves are in hand, rather than teach every

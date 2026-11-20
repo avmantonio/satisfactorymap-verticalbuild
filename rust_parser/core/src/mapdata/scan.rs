@@ -44,13 +44,11 @@ pub struct SaveScan<'a> {
     hard_drives: OnceCell<serde_json::Value>,
     depot_contents: OnceCell<serde_json::Value>,
     catalog_drops: OnceCell<Vec<(&'static str, i64, [f64; 3], &'static str)>>,
-    /// Objects whose body failed to re-parse during a build. Modded saves
-    /// serialize property shapes this parser does not know, so a failure here
-    /// is normal content rather than corruption: the collectors already skip
-    /// a None object, and the build reports the set instead of failing. The
-    /// edit paths turn it back into a hard error for objects that parsed
-    /// before an edit and stopped after it (see finish_edit) -- that IS
-    /// corruption, and the build is still its deep validation.
+    /// Objects whose body failed to re-parse during a build. A mod class is
+    /// skipped and reported: its property layout is not ours. A vanilla class
+    /// is not -- that is damaged game data or a hole in this parser, and
+    /// `build_all_json` fails the load. The edit paths still refuse an object
+    /// that parsed before an edit and stopped after it (see finish_edit).
     parse_failures: RefCell<ParseFailures>,
 }
 
@@ -61,9 +59,17 @@ pub struct ParseFailures {
     /// instanceName of each unparsable object, deduplicated, in first-seen
     /// order (one object is re-parsed by several collectors).
     pub names: IndexSet<Vec<u8>>,
-    /// The first few failures verbatim, for the user-facing report. Capped:
-    /// a save where everything fails must not build a 600k-string list.
+    /// The first few *mod* failures verbatim, for the user-facing report.
+    /// Capped: a save where everything fails must not build a 600k-string list.
+    /// Vanilla failures are not mixed in here; they fail the load instead.
     pub samples: Vec<String>,
+    /// instanceNames whose class is original game content. Non-empty means
+    /// the load must fail. `default` keeps older index blobs loadable.
+    #[serde(default)]
+    pub vanilla_names: IndexSet<Vec<u8>>,
+    /// The first few vanilla failures, named in the load error.
+    #[serde(default)]
+    pub vanilla_samples: Vec<String>,
 }
 
 /// How many failure messages `ParseFailures::samples` keeps.
@@ -76,6 +82,21 @@ impl ParseFailures {
 
     pub fn len(&self) -> usize {
         self.names.len()
+    }
+
+    /// Original game content that failed to parse. `None` when every failure
+    /// is a mod class (or there are none). The example is a class path plus
+    /// the parser error, so a report names the object rather than a count.
+    pub fn vanilla_integrity_error(&self) -> Option<String> {
+        let count = self.vanilla_names.len();
+        if count == 0 {
+            return None;
+        }
+        let example = self.vanilla_samples.first().map(String::as_str).unwrap_or("unknown");
+        Some(format!(
+            "save integrity: {count} original object(s) could not be read (e.g. {example}). \
+             Damaged game content stops the load; unreadable mod data is skipped instead"
+        ))
     }
 
     /// Failures present in `self` but not in `baseline` -- an edit's new
@@ -198,23 +219,24 @@ impl<'a> SaveScan<'a> {
     /// Identity is the instanceName, not the slot: an edit that splices bytes
     /// renumbers slots, and the edit paths diff these sets across that.
     fn record_parse_failure(&self, slot: Slot, msg: &str) {
-        let name = match self.header(slot) {
-            Header::Actor(a) => a.instance_name,
-            Header::Component(c) => c.instance_name,
+        let (name_ref, class_ref) = match self.header(slot) {
+            Header::Actor(a) => (a.instance_name, a.type_path),
+            Header::Component(c) => (c.instance_name, c.class_name),
         };
+        let name = name_ref.bytes(self.data()).to_vec();
+        let class = class_ref.to_string(self.data());
         let mut failures = self.parse_failures.borrow_mut();
-        if !failures.names.insert(name.bytes(self.data()).to_vec()) {
+        if !failures.names.insert(name.clone()) {
             return; // already recorded -- several collectors parse one object
         }
-        if failures.samples.len() < MAX_FAILURE_SAMPLES {
-            let type_path = match self.header(slot) {
-                Header::Actor(a) => a.type_path,
-                Header::Component(c) => c.class_name,
-            };
-            failures.samples.push(format!(
-                "{} at {slot:?}: {msg}",
-                String::from_utf8_lossy(type_path.bytes(self.data()))
-            ));
+        let line = format!("{class} at {slot:?}: {msg}");
+        if crate::object::vanilla_body_failure_is_fatal(&class) {
+            failures.vanilla_names.insert(name);
+            if failures.vanilla_samples.len() < MAX_FAILURE_SAMPLES {
+                failures.vanilla_samples.push(line);
+            }
+        } else if failures.samples.len() < MAX_FAILURE_SAMPLES {
+            failures.samples.push(line);
         }
     }
 

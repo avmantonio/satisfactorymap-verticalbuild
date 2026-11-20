@@ -18,18 +18,19 @@
   }
 
   // "Loaded: <session> (<date>)", plus a note when the parser had to skip
-  // objects. Skipping is normal on modded saves -- the parser doesn't know
+  // mod objects. Skipping is normal on modded saves -- the parser doesn't know
   // every mod's property layout -- and buildables still draw, from their
   // headers, so the note explains a real but narrow gap (their contents and
-  // details) rather than announcing a failure.
+  // details) rather than announcing a failure. A vanilla body that fails
+  // never reaches here: the load is refused.
   function loadedStatus(payload) {
     var text = "Loaded: " + payload.sessionName + " (" + payload.saveDatetime + ")";
     var skipped = payload.unreadableObjects;
     if (!skipped || !skipped.count) {
       return text;
     }
-    text += " — " + skipped.count + " object" + (skipped.count === 1 ? "" : "s") +
-      " could not be read (usually modded); shown on the map without contents";
+    text += " — " + skipped.count + " mod object" + (skipped.count === 1 ? "" : "s") +
+      " could not be read; shown on the map without contents";
     // The type paths and byte offsets are the useful half of a bug report,
     // but far too much for the status line -- console only.
     if (skipped.samples && skipped.samples.length) {
