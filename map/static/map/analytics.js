@@ -12,7 +12,7 @@ var Analytics = (function() {
   // Public (write-only) project key. It is meant to be readable in client
   // code -- it can send events and nothing else. Empty disables analytics
   // entirely, which is the state a fork or a self-hosted copy inherits.
-  var PROJECT_KEY = "phc_yiJoNLSnBrq7BApC5VfDmzeB7H6oXui49QsQUEHgBM8W";
+  var PROJECT_KEY = "";
   var API_HOST = "https://eu.i.posthog.com";
 
   // Build-version query of this script's own URL, so the vendored library is
