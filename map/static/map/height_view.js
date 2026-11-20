@@ -602,19 +602,48 @@ var HeightView = {};
   // (stories 6 / 34). Domain depends on strip CSS px (letterbox), so
   // clamping to it is only for a user band drag — panel↔flaps must not
   // permanently shrink the window.
+  // When the peel and the altitude filter are disjoint (changing floors),
+  // do not take the inverted midpoint — that lands outside the filter
+  // ([0, 20] vs [100, 120] used to become [60, 60]). Snap onto the
+  // filter, keep the peel span if it fits, otherwise fill the filter.
+  function clampIntervalToRail(src, cap) {
+    var lo = src.min;
+    var hi = src.max;
+    if (hi < lo) {
+      var swap = lo;
+      lo = hi;
+      hi = swap;
+    }
+    var capMin = (cap && isFinite(cap.min)) ? cap.min : -Infinity;
+    var capMax = (cap && isFinite(cap.max)) ? cap.max : Infinity;
+    if (capMin > capMax) {
+      var capSwap = capMin;
+      capMin = capMax;
+      capMax = capSwap;
+    }
+    var iLo = Math.max(lo, capMin);
+    var iHi = Math.min(hi, capMax);
+    if (iLo <= iHi) {
+      return { min: iLo, max: iHi };
+    }
+    var span = hi - lo;
+    var capSpan = capMax - capMin;
+    if (isFinite(capSpan) && span > capSpan) {
+      return { min: capMin, max: capMax };
+    }
+    if (hi < capMin) {
+      return { min: capMin, max: capMin + span };
+    }
+    if (lo > capMax) {
+      return { min: capMax - span, max: capMax };
+    }
+    return { min: capMin, max: capMax };
+  }
+
   function clampBandToRail() {
-    var cap = altitudeCap();
-    if (isFinite(cap.min) && band.min < cap.min) {
-      band.min = cap.min;
-    }
-    if (isFinite(cap.max) && band.max > cap.max) {
-      band.max = cap.max;
-    }
-    if (band.min > band.max) {
-      var mid = (band.min + band.max) / 2;
-      band.min = mid;
-      band.max = mid;
-    }
+    var next = clampIntervalToRail(band, altitudeCap());
+    band.min = next.min;
+    band.max = next.max;
   }
 
   function clampBandToDomain() {
