@@ -399,6 +399,49 @@ fn tables() -> &'static FootprintTables {
     })
 }
 
+/// Cut AABB height relative to the actor origin, in meters: clearance Z
+/// union when present, else `(0, dimensions.Height)`, else None (the
+/// client draws a 4 m dashed placeholder). Ticket 19 / Height view.
+/// Clearance boxes are origin-centered in XY (and often Z): a 4 m
+/// foundation is `z = -200 … 200` cm, a Packager `±600`. Sitting that
+/// union on actor `z` draws a phantom twin *below* the floor. Cut marks
+/// sit on the origin going up. Symmetric boxes keep their span (`±2` m
+/// → `0…4`); a junk underground leg (Fuel Generator `-13.5…11`) is
+/// dropped.
+fn floor_clearance_extent_m(min_z: f64, max_z: f64, height_m: Option<f64>) -> (f64, f64) {
+    let mut lo = min_z;
+    let mut hi = max_z;
+    if lo < 0.0 && hi > 0.0 {
+        let span = hi - lo;
+        let centered = (lo + hi).abs() <= 0.75_f64.max(0.1 * span);
+        lo = 0.0;
+        hi = if centered { span } else { hi };
+    }
+    if let Some(h) = height_m {
+        if h > hi {
+            hi = h;
+        }
+    }
+    (lo, hi)
+}
+
+pub fn height_extent_meters(type_path: &str) -> Option<(f64, f64)> {
+    let class_name = short_class_name(type_path);
+    let entry = gamedata::get().buildings.get(class_name)?;
+    let height_m = entry
+        .get("dimensions")
+        .and_then(|d| d.get("Height"))
+        .and_then(Value::as_f64)
+        .filter(|&h| h != 0.0)
+        .map(|h| h / WORLD_UNITS_PER_METER);
+    if let Some(boxes) = clearance_boxes(entry) {
+        let min_z = fold_min(box_axis(boxes, "min", "z")) / WORLD_UNITS_PER_METER;
+        let max_z = fold_max(box_axis(boxes, "max", "z")) / WORLD_UNITS_PER_METER;
+        return Some(floor_clearance_extent_m(min_z, max_z, height_m));
+    }
+    Some((0.0, height_m?))
+}
+
 /// sav_map_data.footprintPixels: bucket-level [halfWidthPx, halfDepthPx], or
 /// None to render as a plain point.
 pub fn footprint_pixels(type_path: &str) -> Option<[f64; 2]> {
@@ -510,5 +553,70 @@ mod tests {
         assert!(fp.is_some());
         // Beams have adaptive specs.
         assert!(tables().adaptive_beam_specs.keys().any(|k| k.contains("Beam")));
+    }
+
+    #[test]
+    fn height_extent_prefers_clearance_then_dimensions() {
+        // Smelter: four clearance boxes, tallest max.z = 450 cm → 0…4.5 m.
+        assert_eq!(
+            height_extent_meters(
+                "/Game/FactoryGame/Buildable/Factory/SmelterMk1/Build_SmelterMk1.Build_SmelterMk1_C"
+            ),
+            Some((0.0, 4.5))
+        );
+        // Conveyor pole: no clearance, dimensions.Height = 100 cm.
+        assert_eq!(
+            height_extent_meters(
+                "/Game/FactoryGame/Buildable/Factory/ConveyorPole/Build_ConveyorPole.Build_ConveyorPole_C"
+            ),
+            Some((0.0, 1.0))
+        );
+        // Lifts have neither clearance nor Height → client 4 m dashed.
+        assert_eq!(
+            height_extent_meters(
+                "/Game/FactoryGame/Buildable/Factory/ConveyorLiftMk1/Build_ConveyorLiftMk1.Build_ConveyorLiftMk1_C"
+            ),
+            None
+        );
+        // Origin-centered clearance (±2 m) + dimensions.Height 4 m →
+        // sit on the floor, not a phantom below the slab.
+        assert_eq!(
+            height_extent_meters("Build_Foundation_8x4_01_C"),
+            Some((0.0, 4.0))
+        );
+        // Constructor already starts at z=0 — unchanged.
+        assert_eq!(
+            height_extent_meters("Build_ConstructorMk1_C"),
+            Some((0.0, 6.0))
+        );
+        // Origin-centered industrial boxes used to paint a twin under the
+        // slab (same width as the mark above). Sit on the origin, keep span.
+        assert_eq!(
+            height_extent_meters("Build_StorageContainerMk2_C"),
+            Some((0.0, 8.0))
+        );
+        assert_eq!(
+            height_extent_meters("Build_Packager_C"),
+            Some((0.0, 12.0))
+        );
+        // Fuel Generator: underground pipe/leg junk (−13.5) is dropped;
+        // the chimney (11 m) stays. Not treated as centered.
+        assert_eq!(
+            height_extent_meters("Build_GeneratorFuel_C"),
+            Some((0.0, 11.0))
+        );
+        // Double ramp: clearance ±4 m is the physical 8 m AABB; Height is
+        // only 4 m and must not shrink the mark.
+        assert_eq!(
+            height_extent_meters("Build_RampDouble_Asphalt_8x4_C"),
+            Some((0.0, 8.0))
+        );
+        // Splitter: small centered box, still sits on the origin.
+        assert_eq!(
+            height_extent_meters("Build_ConveyorAttachmentSplitter_C"),
+            Some((0.0, 2.6))
+        );
+        // Unknown class, not a hole in the table lookup.
+        assert_eq!(height_extent_meters("Build_DoesNotExist_C"), None);
     }
 }
