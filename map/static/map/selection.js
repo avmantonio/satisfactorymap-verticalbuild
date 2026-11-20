@@ -166,6 +166,10 @@ var SelectionTool = {};
             }
           }
           var line = bucket.lines[li];
+          // Vertex-in-box is the drag-select contract (inventory, delete,
+          // move). A segment that only crosses the box between vertices is
+          // not selected here; Height-view adds those in appendCrossingLines
+          // so a long belt clipping a casual drag is not swept in.
           var hit = false;
           for (var vi = 0; vi < line.length; vi += lineStride) {
             var lx = line[vi], ly = line[vi + 1], lz = line[vi + lineZ];
@@ -993,6 +997,7 @@ var SelectionTool = {};
   };
 
   SelectionTool.collectInBox = collectInBox;
+  SelectionTool.isSelectableLineBucket = isSelectableLineBucket;
   SelectionTool.recordKey = recordKey;
   SelectionTool.recordZ = recordZ;
   SelectionTool.setRecords = function(records) {

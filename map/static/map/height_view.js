@@ -1,6 +1,8 @@
 // Height view: 2.5D Cuts on the current map tab after a committed XY
-// rectangle. Occupants are today's Selection (collectInBox ∩ altitude rail
-// ∩ Cut band). Chrome is a docked side panel (A–A′ top half, B–B′ bottom
+// rectangle. Occupants are the drag-select box plus any selectable line
+// whose chord or Hermite arc crosses that box between vertices, then the
+// altitude rail and the Cut band applied to the portion inside the box.
+// Chrome is a docked side panel (A–A′ top half, B–B′ bottom
 // half) with a session switch to flaps. L-frame overlay was dropped after
 // the walking skeleton: edge gutters stay too thin to read Z. Cut marks
 // are projected AABB with 19 bin-dedupe, rasterized on the map's WebGL
@@ -118,33 +120,13 @@ var HeightView = {};
     var stride = r.bucket.pointStride;
     var cap = altitudeCap();
     if (r.bucket.lines) {
-      var line = r.bucket.lines[r.index];
-      var z0 = Infinity;
-      var z1 = -Infinity;
-      if (line) {
-        for (var vi = 0; vi < line.length; vi += stride) {
-          var lx = line[vi];
-          var ly = line[vi + 1];
-          var z = line[vi + stride - 1];
-          if (!isFinite(z)) {
-            continue;
-          }
-          // Domain is the XY-occupant box, not the rest of a belt that
-          // merely clips the rectangle (19: min/max of XY-occupant boxes).
-          if (isolation && !inRect(lx, ly, isolation)) {
-            continue;
-          }
-          if (!inAltitude(z, cap)) {
-            continue;
-          }
-          if (z < z0) z0 = z;
-          if (z > z1) z1 = z;
-        }
-      }
-      if (z0 > z1) {
+      // Domain is the portion inside the rectangle, including a chord that
+      // only crosses between vertices (19: min/max of XY-occupant boxes).
+      var ext = lineInsideExtent(r.bucket.lines[r.index], stride, cap);
+      if (!ext) {
         return { min: 0, max: DEFAULT_HEIGHT_M };
       }
-      return { min: z0, max: z1 };
+      return ext;
     }
     var z = recordZ(r);
     if (typeof z !== "number" || !isFinite(z)) {
@@ -208,32 +190,199 @@ var HeightView = {};
     return zSpanHitsBand(za, zb, cap);
   }
 
-  // Same cubic as map.js _tracePolylinePath. Samples are short chords, so a
-  // curve that only crosses the rect away from its endpoints still counts.
-  function cubicHitsBand(x0, y0, z0, c1x, c1y, c2x, c2y, x1, y1, z1, cap) {
-    if (!zSpanHitsBand(z0, z1, cap)) {
-      return false;
+  // Shrink [t0, t1] to the parameters whose interpolated Z lies in the cap.
+  // Z is linear on the chord; a constant Z is all-or-nothing.
+  function clipSpanToCap(z0, z1, t0, t1, cap) {
+    var za = z0 + (z1 - z0) * t0;
+    var zb = z0 + (z1 - z0) * t1;
+    var zLo = za < zb ? za : zb;
+    var zHi = za > zb ? za : zb;
+    if (zHi < cap.min || zLo > cap.max) {
+      return null;
     }
-    var steps = 8;
-    var px = x0;
-    var py = y0;
-    var pz = z0;
-    for (var s = 1; s <= steps; s++) {
-      var t = s / steps;
-      var u = 1 - t;
-      var uu = u * u;
-      var tt = t * t;
-      var nx = uu * u * x0 + 3 * uu * t * c1x + 3 * u * tt * c2x + tt * t * x1;
-      var ny = uu * u * y0 + 3 * uu * t * c1y + 3 * u * tt * c2y + tt * t * y1;
-      var nz = z0 + (z1 - z0) * t;
-      if (chordHitsBand(px, py, pz, nx, ny, nz, cap)) {
-        return true;
+    if (zLo >= cap.min && zHi <= cap.max) {
+      return { t0: t0, t1: t1 };
+    }
+    if (z0 === z1) {
+      return { t0: t0, t1: t1 };
+    }
+    var dz = z1 - z0;
+    var a = t0;
+    var b = t1;
+    if (isFinite(cap.min)) {
+      var tAtMin = (cap.min - z0) / dz;
+      if (dz > 0) {
+        if (a < tAtMin) a = tAtMin;
+      } else if (b > tAtMin) {
+        b = tAtMin;
       }
-      px = nx;
-      py = ny;
-      pz = nz;
     }
-    return false;
+    if (isFinite(cap.max)) {
+      var tAtMax = (cap.max - z0) / dz;
+      if (dz > 0) {
+        if (b > tAtMax) b = tAtMax;
+      } else if (a < tAtMax) {
+        a = tAtMax;
+      }
+    }
+    if (a < t0) a = t0;
+    if (b > t1) b = t1;
+    if (a > b) {
+      return null;
+    }
+    return { t0: a, t1: b };
+  }
+
+  // t interval of the chord that is inside the isolation rect and the
+  // altitude cap. No isolation means the whole chord is in XY.
+  function chordInsideT(x0, y0, z0, x1, y1, z1, cap) {
+    var t0 = 0;
+    var t1 = 1;
+    if (isolation) {
+      var clip = clipChordT(x0, y0, x1, y1, isolation);
+      if (!clip) {
+        return null;
+      }
+      t0 = clip.t0;
+      t1 = clip.t1;
+    }
+    return clipSpanToCap(z0, z1, t0, t1, cap);
+  }
+
+  // Straight chords of a polyline. Stride >= 7 is the same cubic as
+  // map.js _tracePolylinePath, split into short chords so a curve that
+  // only enters the rect between its endpoints still counts.
+  function forEachChord(line, stride, fn) {
+    var prev = -1;
+    for (var vi = 0; vi < line.length; vi += stride) {
+      var x = line[vi];
+      var y = line[vi + 1];
+      var z = line[vi + stride - 1];
+      if (!isFinite(x) || !isFinite(y) || !isFinite(z)) {
+        prev = -1;
+        continue;
+      }
+      if (prev >= 0) {
+        var x0 = line[prev];
+        var y0 = line[prev + 1];
+        var z0 = line[prev + stride - 1];
+        if (stride >= 7) {
+          var c1x = x0 + line[prev + 4] / 3;
+          var c1y = y0 + line[prev + 5] / 3;
+          var c2x = x - line[vi + 2] / 3;
+          var c2y = y - line[vi + 3] / 3;
+          var steps = 8;
+          var px = x0;
+          var py = y0;
+          var pz = z0;
+          for (var s = 1; s <= steps; s++) {
+            var t = s / steps;
+            var u = 1 - t;
+            var uu = u * u;
+            var tt = t * t;
+            var nx = uu * u * x0 + 3 * uu * t * c1x + 3 * u * tt * c2x + tt * t * x;
+            var ny = uu * u * y0 + 3 * uu * t * c1y + 3 * u * tt * c2y + tt * t * y;
+            var nz = z0 + (z - z0) * t;
+            fn(px, py, pz, nx, ny, nz);
+            px = nx;
+            py = ny;
+            pz = nz;
+          }
+        } else {
+          fn(x0, y0, z0, x, y, z);
+        }
+      }
+      prev = vi;
+    }
+  }
+
+  // Z of the portion inside the rect and the altitude cap. Null when no
+  // sample qualifies. Vertices and clipped chord ends both count, so a
+  // belt with no vertex in the box still reports the Z where it crosses.
+  function lineInsideExtent(line, stride, cap) {
+    if (!line) {
+      return null;
+    }
+    var zMin = Infinity;
+    var zMax = -Infinity;
+    var any = false;
+    function take(z) {
+      any = true;
+      if (z < zMin) zMin = z;
+      if (z > zMax) zMax = z;
+    }
+    for (var vi = 0; vi < line.length; vi += stride) {
+      var lx = line[vi];
+      var ly = line[vi + 1];
+      var lz = line[vi + stride - 1];
+      if (!isFinite(lx) || !isFinite(ly) || !isFinite(lz)) {
+        continue;
+      }
+      if (isolation && !inRect(lx, ly, isolation)) {
+        continue;
+      }
+      if (!inAltitude(lz, cap)) {
+        continue;
+      }
+      take(lz);
+    }
+    forEachChord(line, stride, function(x0, y0, z0, x1, y1, z1) {
+      var span = chordInsideT(x0, y0, z0, x1, y1, z1, cap);
+      if (!span) {
+        return;
+      }
+      take(z0 + (z1 - z0) * span.t0);
+      take(z0 + (z1 - z0) * span.t1);
+    });
+    if (!any) {
+      return null;
+    }
+    return { min: zMin, max: zMax };
+  }
+
+  // Points of the polyline that lie inside the rect and the altitude cap,
+  // split into runs wherever the geometry leaves that volume.
+  function traceInside(line, stride, cap, emit, gap) {
+    var open = false;
+    var lx = 0;
+    var ly = 0;
+    var lz = 0;
+    function brk() {
+      if (open) {
+        gap();
+      }
+      open = false;
+    }
+    forEachChord(line, stride, function(x0, y0, z0, x1, y1, z1) {
+      var span = chordInsideT(x0, y0, z0, x1, y1, z1, cap);
+      if (!span) {
+        brk();
+        return;
+      }
+      var ax = x0 + (x1 - x0) * span.t0;
+      var ay = y0 + (y1 - y0) * span.t0;
+      var az = z0 + (z1 - z0) * span.t0;
+      var bx = x0 + (x1 - x0) * span.t1;
+      var by = y0 + (y1 - y0) * span.t1;
+      var bz = z0 + (z1 - z0) * span.t1;
+      if (open) {
+        var dx = ax - lx;
+        var dy = ay - ly;
+        var dz = az - lz;
+        if (dx * dx + dy * dy > 1e-4 || dz * dz > 1e-4) {
+          brk();
+        }
+      }
+      emit(ax, ay, az);
+      emit(bx, by, bz);
+      lx = bx;
+      ly = by;
+      lz = bz;
+      open = true;
+      if (span.t1 < 1 - 1e-8) {
+        brk();
+      }
+    });
   }
 
   function recordInBand(r) {
@@ -244,40 +393,25 @@ var HeightView = {};
         return false;
       }
       var stride = r.bucket.pointStride;
-      var prev = 0;
-      var hasPrev = false;
       for (var vi = 0; vi < line.length; vi += stride) {
         var lx = line[vi];
         var ly = line[vi + 1];
         var lz = line[vi + stride - 1];
         if (!isFinite(lx) || !isFinite(ly) || !isFinite(lz)) {
-          hasPrev = false;
           continue;
         }
         if (inRect(lx, ly, isolation) && inAltitude(lz, cap)
             && lz >= band.min && lz <= band.max) {
           return true;
         }
-        if (hasPrev) {
-          var x0 = line[prev];
-          var y0 = line[prev + 1];
-          var z0 = line[prev + stride - 1];
-          if (stride >= 7) {
-            var c1x = x0 + line[prev + 4] / 3;
-            var c1y = y0 + line[prev + 5] / 3;
-            var c2x = lx - line[vi + 2] / 3;
-            var c2y = ly - line[vi + 3] / 3;
-            if (cubicHitsBand(x0, y0, z0, c1x, c1y, c2x, c2y, lx, ly, lz, cap)) {
-              return true;
-            }
-          } else if (chordHitsBand(x0, y0, z0, lx, ly, lz, cap)) {
-            return true;
-          }
-        }
-        prev = vi;
-        hasPrev = true;
       }
-      return false;
+      var hit = false;
+      forEachChord(line, stride, function(x0, y0, z0, x1, y1, z1) {
+        if (!hit && chordHitsBand(x0, y0, z0, x1, y1, z1, cap)) {
+          hit = true;
+        }
+      });
+      return hit;
     }
     var z = recordZ(r);
     return typeof z === "number" && z >= band.min && z <= band.max;
@@ -374,8 +508,65 @@ var HeightView = {};
     if (!isolation) {
       return [];
     }
-    return SelectionTool.collectInBox(
+    var records = SelectionTool.collectInBox(
       isolation.minX, isolation.maxX, isolation.minY, isolation.maxY);
+    appendCrossingLines(records);
+    return records;
+  }
+
+  // collectInBox keeps the drag-select rule: a line counts only when a
+  // vertex sits in the box. A belt from (-1, 5) to (11, 5) crosses
+  // [0,10]×[0,10] with both ends outside, so it never reaches recordInBand.
+  // Height-view occupancy adds those crossings. Drag-select is unchanged.
+  function appendCrossingLines(records) {
+    if (!MapApp.layer || !isolation || !SelectionTool.isSelectableLineBucket) {
+      return;
+    }
+    var seen = new Set();
+    for (var i = 0; i < records.length; i++) {
+      if (records[i].bucket.lines) {
+        seen.add(SelectionTool.recordKey(records[i]));
+      }
+    }
+    var cap = altitudeCap();
+    MapApp.layer.buckets.forEach(function(bucket) {
+      if (!bucket.visible || bucket.excludeFromSelection || bucket.renderType !== "line" || !bucket.lines) {
+        return;
+      }
+      if (!SelectionTool.isSelectableLineBucket(bucket)) {
+        return;
+      }
+      var stride = bucket.pointStride;
+      var bounds = bucket._lineBounds;
+      for (var li = 0; li < bucket.lines.length; li++) {
+        var key = bucket.key + "#" + li;
+        if (seen.has(key)) {
+          continue;
+        }
+        var lb = bounds && bounds[li];
+        if (lb) {
+          if (lb.maxX < isolation.minX || lb.minX > isolation.maxX
+              || lb.maxY < isolation.minY || lb.minY > isolation.maxY) {
+            continue;
+          }
+          if (lb.maxZ < cap.min || lb.minZ > cap.max) {
+            continue;
+          }
+        }
+        var line = bucket.lines[li];
+        if (!lineInsideExtent(line, stride, cap)) {
+          continue;
+        }
+        seen.add(key);
+        records.push({
+          bucket: bucket,
+          index: li,
+          id: bucket.ids ? bucket.ids[li] : null,
+          x: line[0],
+          y: line[1],
+        });
+      }
+    });
   }
 
   function applyPeel() {
@@ -1030,11 +1221,35 @@ var HeightView = {};
         return 0;
       }
       var stride = r.bucket.pointStride;
+      var cap = altitudeCap();
       var sum = 0;
       var n = 0;
       for (var vi = 0; vi < line.length; vi += stride) {
-        sum += axis === "x" ? line[vi] : line[vi + 1];
+        var lx = line[vi];
+        var ly = line[vi + 1];
+        var lz = line[vi + stride - 1];
+        if (!isFinite(lx) || !isFinite(ly) || !isFinite(lz)) {
+          continue;
+        }
+        if (isolation && !inRect(lx, ly, isolation)) {
+          continue;
+        }
+        if (!inAltitude(lz, cap)) {
+          continue;
+        }
+        sum += axis === "x" ? lx : ly;
         n++;
+      }
+      if (!n) {
+        forEachChord(line, stride, function(x0, y0, z0, x1, y1, z1) {
+          var span = chordInsideT(x0, y0, z0, x1, y1, z1, cap);
+          if (!span) {
+            return;
+          }
+          var t = (span.t0 + span.t1) / 2;
+          sum += axis === "x" ? x0 + (x1 - x0) * t : y0 + (y1 - y0) * t;
+          n++;
+        });
       }
       return n ? sum / n : 0;
     }
@@ -1042,7 +1257,9 @@ var HeightView = {};
   }
 
   function depthT(r, axis) {
-    var perp = axis === "x" ? r.y : r.x;
+    var perp = r.bucket.lines
+      ? alongCenter(r, axis === "x" ? "y" : "x")
+      : (axis === "x" ? r.y : r.x);
     var min = axis === "x" ? isolation.minY : isolation.minX;
     var max = axis === "x" ? isolation.maxY : isolation.maxX;
     var span = Math.max(1e-6, max - min);
@@ -1270,21 +1487,12 @@ var HeightView = {};
       }
       run = [];
     }
-    for (var vi = 0; vi < line.length; vi += stride) {
-      var lx = line[vi];
-      var ly = line[vi + 1];
-      var lz = line[vi + stride - 1];
-      if (!inRect(lx, ly, isolation) || !inAltitude(lz, cap)) {
-        flushRun();
-        continue;
-      }
+    traceInside(line, stride, cap, function(lx, ly, lz) {
       var along = geom.axis === "x" ? lx : ly;
       var ax = alongToPx(geom, along);
       var zp = zToPx(geom, lz);
-      var px = geom.zIsVertical ? ax : zp;
-      var py = geom.zIsVertical ? zp : ax;
-      pushPt(px, py);
-    }
+      pushPt(geom.zIsVertical ? ax : zp, geom.zIsVertical ? zp : ax);
+    }, flushRun);
     flushRun();
     if (!isFinite(minX)) {
       return;
@@ -1443,16 +1651,8 @@ var HeightView = {};
       var minY = Infinity;
       var maxX = -Infinity;
       var maxY = -Infinity;
-      for (var vi = 0; vi < line.length; vi += stride) {
-        var lx = line[vi];
-        var ly = line[vi + 1];
-        var lz = line[vi + stride - 1];
-        if (!inRect(lx, ly, isolation) || !inAltitude(lz, cap)) {
-          if (parts.length) {
-            parts.push("M");
-          }
-          continue;
-        }
+      var pen = false;
+      traceInside(line, stride, cap, function(lx, ly, lz) {
         var along = axis === "x" ? lx : ly;
         var ax = alongToPx(geom, along);
         var zp = zToPx(geom, lz);
@@ -1463,11 +1663,14 @@ var HeightView = {};
         if (px > maxX) maxX = px;
         if (py > maxY) maxY = py;
         if (geom.zIsVertical) {
-          parts.push((parts.length && parts[parts.length - 1] !== "M" ? "L" : "M") + ax + "," + zp);
+          parts.push((pen ? "L" : "M") + ax + "," + zp);
         } else {
-          parts.push((parts.length && parts[parts.length - 1] !== "M" ? "L" : "M") + zp + "," + ax);
+          parts.push((pen ? "L" : "M") + zp + "," + ax);
         }
-      }
+        pen = true;
+      }, function() {
+        pen = false;
+      });
       var d = parts.filter(function(p) { return p !== "M"; }).join(" ");
       if (!d) {
         return;
