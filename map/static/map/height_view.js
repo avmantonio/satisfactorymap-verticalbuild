@@ -2127,7 +2127,11 @@ var HeightView = {};
     }
     var yaw = r.bucket.points[r.index * 4 + 2] || 0;
     var geom = stripGeom(isA ? svgA : svgB, isA);
-    var rel = geom.axis === "x" ? yaw : yaw - Math.PI / 2;
+    // A–A′ walks map X (same sign as world +X). B–B′ walks map Y, and
+    // projectXY flips Y vs the world, so the unflipped B cut is −world Y
+    // rather than +Y. Relative yaw is world yaw minus that along heading;
+    // flipB still adds π so a label reverse stays a 180° turn.
+    var rel = geom.axis === "x" ? yaw : yaw + Math.PI / 2;
     if (geom.flipped) {
       rel += Math.PI;
     }
