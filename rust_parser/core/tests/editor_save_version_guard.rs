@@ -46,8 +46,8 @@ fn move_op(name: String) -> EditOp {
 fn a_pre_1_0_save_is_refused_by_the_edit_engine() {
     let mut store = load("All_080726-163150.sav");
     let name = first_actor_name(&store);
-    // The real Update 8 value, and the only sub-1.0 version the header accept
-    // list takes today.
+    // Update 8. Save version 46 is also accepted and is still below the
+    // 1.0 record-layout boundary, so the same refusal applies.
     store.info.save_version = 42;
 
     // EditPlan isn't Debug, so unwrap the Result by hand rather than expect_err.
