@@ -91,11 +91,16 @@ impl AppSession {
     fn finish_edit(
         &mut self,
         new_store: SaveStore,
+        baseline: Option<mapdata::index::EditBaseline>,
         progress: &dyn Fn(u8, u64, u64),
     ) -> Result<Vec<u8>, String> {
         let mut build_progress = |current: u64, total: u64| progress(2, current, total);
         let (payload_json, index) =
             mapdata::build_all_json(&new_store, Some(&mut build_progress))?;
+        // `baseline` was taken before this rebuild freed the previous index.
+        // Reading `self.index` here would always be None, and the gate would
+        // accept an edit that broke an object the previous index could read.
+        index.reject_new_parse_failures(baseline.as_ref())?;
         self.store = Some(new_store);
         self.index = Some(index);
         Ok(payload_json)
@@ -128,11 +133,13 @@ impl AppSession {
             self.pristine_body = Some(body);
         }
 
-        self.index = None;
+        // Names + parse failures survive; the rest of the index does not.
+        // finish_edit diffs against this, because self.index is gone.
+        let baseline = self.index.take().map(MapIndex::into_edit_baseline);
         let store = self.store.take().ok_or_else(|| SESSION_LOST.to_string())?;
         let mut progress_cb = |current: u64, total: u64| progress(1, current, total);
         match editor::session::fold_ops(store, &new_ops, &tables, Some(&mut progress_cb)) {
-            Ok(store) => self.finish_edit(store, progress),
+            Ok(store) => self.finish_edit(store, baseline, progress),
             Err(e) => Err(e.msg),
         }
     }
@@ -153,7 +160,9 @@ impl AppSession {
             .clone()
             .ok_or_else(|| "No pristine baseline to undo/recover from".to_string())?;
 
-        self.index = None;
+        // Same baseline as apply_edits. None only when a failed edit already
+        // dropped the index.
+        let baseline = self.index.take().map(MapIndex::into_edit_baseline);
         self.store = None;
 
         let mut progress_cb = |current: u64, total: u64| progress(1, current, total);
@@ -166,7 +175,7 @@ impl AppSession {
             Some(&mut progress_cb),
         )
         .map_err(|e| e.msg)?;
-        self.finish_edit(store, progress)
+        self.finish_edit(store, baseline, progress)
     }
 
     pub fn describe_instance(&self, name: &str) -> Result<String, String> {

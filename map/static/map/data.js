@@ -17,6 +17,29 @@
     loadStatus.textContent = text;
   }
 
+  // "Loaded: <session> (<date>)", plus a note when the parser had to skip
+  // mod objects. Skipping is normal on modded saves -- the parser doesn't know
+  // every mod's property layout -- and buildables still draw, from their
+  // headers, so the note explains a real but narrow gap (their contents and
+  // details) rather than announcing a failure. A vanilla body that fails
+  // never reaches here: the load is refused.
+  function loadedStatus(payload) {
+    var text = "Loaded: " + payload.sessionName + " (" + payload.saveDatetime + ")";
+    var skipped = payload.unreadableObjects;
+    if (!skipped || !skipped.count) {
+      return text;
+    }
+    text += " — " + skipped.count + " mod object" + (skipped.count === 1 ? "" : "s") +
+      " could not be read; shown on the map without contents";
+    // The type paths and byte offsets are the useful half of a bug report,
+    // but far too much for the status line -- console only.
+    if (skipped.samples && skipped.samples.length) {
+      console.warn("Skipped " + skipped.count + " unreadable object(s):");
+      skipped.samples.forEach(function(sample) { console.warn("  " + sample); });
+    }
+    return text;
+  }
+
   function showProgress(phase, percent) {
     progressBar.style.display = "block";
     progressFill.style.width = Math.max(0, Math.min(100, percent)) + "%";
@@ -251,6 +274,9 @@
     uploadDropText.textContent = "Loading " + file.name + "…";
     var pinnedSelection = Tooltip.getPinnedSelection();
     showProgress("Reading file", 0);
+    // Measured across the whole visible wait (read + parse + build), which is
+    // what a user would call "how long it took".
+    var startedAt = performance.now();
 
     return file.arrayBuffer()
       .then(function(buffer) {
@@ -274,7 +300,8 @@
         if (pinnedSelection) {
           restorePinnedSelection(pinnedSelection);
         }
-        setStatus("Loaded: " + payload.sessionName + " (" + payload.saveDatetime + ")");
+        Analytics.saveLoaded("file", file.size, performance.now() - startedAt);
+        setStatus(loadedStatus(payload));
       })
       .catch(function(error) {
         hideProgress();
@@ -323,7 +350,7 @@
         if (pinnedSelection) {
           restorePinnedSelection(pinnedSelection);
         }
-        setStatus("Loaded: " + payload.sessionName + " (" + payload.saveDatetime + ")");
+        setStatus(loadedStatus(payload));
       })
       .catch(function(error) {
         hideProgress();
@@ -392,9 +419,12 @@
     uploadDropText.textContent = "Downloading " + name + "…";
     var pinnedSelection = Tooltip.getPinnedSelection();
     showProgress("Downloading", 0);
+    var startedAt = performance.now();
+    var bytes = 0;
 
     return downloadSave(url)
       .then(function(buffer) {
+        bytes = buffer.byteLength;
         return SaveClient.loadSave(buffer, function(phase, current, total) {
           var percent = total > 0 ? (current / total) * 100 : 0;
           showProgress(phase, percent);
@@ -413,7 +443,8 @@
         if (pinnedSelection) {
           restorePinnedSelection(pinnedSelection);
         }
-        setStatus("Loaded: " + payload.sessionName + " (" + payload.saveDatetime + ")");
+        Analytics.saveLoaded("url", bytes, performance.now() - startedAt);
+        setStatus(loadedStatus(payload));
       })
       .catch(function(error) {
         hideProgress();

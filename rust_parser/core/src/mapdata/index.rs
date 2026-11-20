@@ -12,11 +12,12 @@ use super::geometry::{project_xy, world_z_to_meters};
 use super::jsonval::jnum;
 use super::names::readable_label;
 use super::props;
-use super::scan::{SaveScan, Slot};
+use super::scan::{ParseFailures, SaveScan, Slot};
 use crate::extract::find_prop;
 use crate::store::*;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 /// sav_map_data.PIPE_CONNECTOR_SUFFIXES: every naming convention seen so far
 /// for the FGPipeConnectionComponent sub-objects that carry "mPipeNetworkID".
@@ -120,9 +121,73 @@ pub struct MapIndex {
     pub item_location_index: IndexMap<Vec<u8>, Vec<(Vec<u8>, i64)>>,
     pub dimensional_depot_by_item: IndexMap<String, i64>,
     pub static_item_locations: IndexMap<String, Vec<StaticItemLocation>>,
+    /// Objects the build could not re-parse and therefore skipped (modded
+    /// property shapes, overwhelmingly). Carried on the index so it survives
+    /// the CBOR handoff to the lean worker, which never runs a build of its
+    /// own yet still has to diff this set when an edit rebuilds (see
+    /// SaveSession::finish_edit). `default` keeps older blobs loadable.
+    #[serde(default)]
+    pub parse_failures: ParseFailures,
+}
+
+/// What [`MapIndex::reject_new_parse_failures`] needs after the index itself
+/// is gone. Shells drop the index before rebuilding -- a 600k-object save
+/// cannot hold two — so the instance names and the failure set move here
+/// first. Names only: the slot map and the rest of the index are not part of
+/// the check.
+pub struct EditBaseline {
+    failures: ParseFailures,
+    names: HashSet<Vec<u8>>,
 }
 
 impl MapIndex {
+    /// Move the edit-gate baseline out of an index that is about to be freed.
+    pub fn into_edit_baseline(self) -> EditBaseline {
+        EditBaseline {
+            failures: self.parse_failures,
+            names: self.by_instance_name.into_keys().collect(),
+        }
+    }
+
+    /// The edit-path gate, `self` being the index rebuilt after an edit.
+    ///
+    /// A build tolerates objects it cannot re-parse (modded property shapes
+    /// this parser has never seen), but an object that EXISTED and parsed
+    /// before an edit and stops parsing after it is this editor corrupting
+    /// the save -- a mis-computed splice damaging its neighbours looks
+    /// exactly like that -- so the rebuild stays that check and the edit is
+    /// refused.
+    ///
+    /// Deliberately scoped to objects present before the edit. Copy/paste
+    /// splices an object's bytes under a fresh instanceName, so pasting an
+    /// unreadable modded buildable legitimately produces a new unreadable
+    /// object; treating that as corruption would block a working operation.
+    /// Newly created objects are the editor's own output and are covered by
+    /// the editor round-trip tests instead.
+    ///
+    /// `before` is None only when the session had already lost its index (a
+    /// failed edit, not yet recovered). That must not read as "all new".
+    /// An edit that still had an index passes the baseline taken from it
+    /// *before* the index was freed.
+    pub fn reject_new_parse_failures(&self, before: Option<&EditBaseline>) -> Result<(), String> {
+        let Some(before) = before else { return Ok(()) };
+        let broken: Vec<&[u8]> = self
+            .parse_failures
+            .newly_failing(&before.failures)
+            .into_iter()
+            .filter(|name| before.names.contains(*name))
+            .collect();
+        if broken.is_empty() {
+            return Ok(());
+        }
+        Err(format!(
+            "edit aborted: {} object(s) that parsed before this edit no longer do \
+             (e.g. {}) -- the save was left unchanged",
+            broken.len(),
+            String::from_utf8_lossy(broken[0]),
+        ))
+    }
+
     /// scan.headersByInstanceName.get(name) -- the Header, or None.
     pub fn header_by_name<'a>(&self, store: &'a SaveStore, name: &[u8]) -> Option<&'a Header> {
         self.by_instance_name.get(name).map(|&(li, oi)| &store.levels[li].headers[oi])
@@ -417,6 +482,10 @@ impl MapIndex {
             item_location_index,
             dimensional_depot_by_item,
             static_item_locations,
+            // Last field for a reason: every collector above has run, so this
+            // snapshot covers the whole build (the payload build shares the
+            // scan and runs first -- see build_all_json).
+            parse_failures: scan.parse_failures(),
         }
     }
 }

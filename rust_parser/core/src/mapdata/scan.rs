@@ -6,7 +6,7 @@
 use super::consts::{GAME_STATE_TYPE_PATH_SUBSTRING, LIGHTWEIGHT_BUILDABLE_SUBSYSTEM_TYPE_PATH};
 use crate::extract::InstanceSlots;
 use crate::store::*;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use std::cell::{OnceCell, RefCell};
 use std::collections::HashMap;
 
@@ -44,11 +44,70 @@ pub struct SaveScan<'a> {
     hard_drives: OnceCell<serde_json::Value>,
     depot_contents: OnceCell<serde_json::Value>,
     catalog_drops: OnceCell<Vec<(&'static str, i64, [f64; 3], &'static str)>>,
-    /// First on-demand re-parse failure seen during a build. Re-parsing bytes
-    /// that already parsed cannot fail, but once the pipeline is lean the
-    /// build IS the deep validation of an edited body -- so build_all_json
-    /// turns a latched error into Err instead of emitting a wrong payload.
-    parse_error: RefCell<Option<String>>,
+    /// Objects whose body failed to re-parse during a build. A mod class is
+    /// skipped and reported: its property layout is not ours. A vanilla class
+    /// is not -- that is damaged game data or a hole in this parser, and
+    /// `build_all_json` fails the load. The edit paths still refuse an object
+    /// that parsed before an edit and stopped after it (see finish_edit).
+    parse_failures: RefCell<ParseFailures>,
+}
+
+/// Objects a build could not re-parse, identified by instanceName so the set
+/// survives an edit that shifts slot indices.
+#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ParseFailures {
+    /// instanceName of each unparsable object, deduplicated, in first-seen
+    /// order (one object is re-parsed by several collectors).
+    pub names: IndexSet<Vec<u8>>,
+    /// The first few *mod* failures verbatim, for the user-facing report.
+    /// Capped: a save where everything fails must not build a 600k-string list.
+    /// Vanilla failures are not mixed in here; they fail the load instead.
+    pub samples: Vec<String>,
+    /// instanceNames whose class is original game content. Non-empty means
+    /// the load must fail. `default` keeps older index blobs loadable.
+    #[serde(default)]
+    pub vanilla_names: IndexSet<Vec<u8>>,
+    /// The first few vanilla failures, named in the load error.
+    #[serde(default)]
+    pub vanilla_samples: Vec<String>,
+}
+
+/// How many failure messages `ParseFailures::samples` keeps.
+const MAX_FAILURE_SAMPLES: usize = 5;
+
+impl ParseFailures {
+    pub fn is_empty(&self) -> bool {
+        self.names.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.names.len()
+    }
+
+    /// Original game content that failed to parse. `None` when every failure
+    /// is a mod class (or there are none). The example is a class path plus
+    /// the parser error, so a report names the object rather than a count.
+    pub fn vanilla_integrity_error(&self) -> Option<String> {
+        let count = self.vanilla_names.len();
+        if count == 0 {
+            return None;
+        }
+        let example = self.vanilla_samples.first().map(String::as_str).unwrap_or("unknown");
+        Some(format!(
+            "save integrity: {count} original object(s) could not be read (e.g. {example}). \
+             Damaged game content stops the load; unreadable mod data is skipped instead"
+        ))
+    }
+
+    /// Failures present in `self` but not in `baseline` -- an edit's new
+    /// breakage, as opposed to mod content that never parsed to begin with.
+    pub fn newly_failing<'s>(&'s self, baseline: &ParseFailures) -> Vec<&'s [u8]> {
+        self.names
+            .iter()
+            .filter(|n| !baseline.names.contains(*n))
+            .map(|n| n.as_slice())
+            .collect()
+    }
 }
 
 impl<'a> SaveScan<'a> {
@@ -86,7 +145,7 @@ impl<'a> SaveScan<'a> {
             hard_drives: OnceCell::new(),
             depot_contents: OnceCell::new(),
             catalog_drops: OnceCell::new(),
-            parse_error: RefCell::new(None),
+            parse_failures: RefCell::new(ParseFailures::default()),
         }
     }
 
@@ -144,19 +203,40 @@ impl<'a> SaveScan<'a> {
     }
 
     /// Re-parse the object at `slot` from its byte span (owned; identical to
-    /// the eager parse). Returns None on failure, latching the first error so
-    /// the build can fail cleanly. Replaces the old `object()` borrow into the
-    /// resident model, so the builder never needs `parsed_objects()`.
+    /// the eager parse). Returns None on failure, recording the object so the
+    /// build can report what it skipped. Replaces the old `object()` borrow
+    /// into the resident model, so the builder never needs `parsed_objects()`.
     pub fn parse_object(&self, slot: Slot) -> Option<Object> {
         match self.store.parse_object_at(slot.0, slot.1) {
             Ok(object) => Some(object),
             Err(e) => {
-                let mut latched = self.parse_error.borrow_mut();
-                if latched.is_none() {
-                    *latched = Some(format!("object at {slot:?}: {e}"));
-                }
+                self.record_parse_failure(slot, &e.msg);
                 None
             }
+        }
+    }
+
+    /// Identity is the instanceName, not the slot: an edit that splices bytes
+    /// renumbers slots, and the edit paths diff these sets across that.
+    fn record_parse_failure(&self, slot: Slot, msg: &str) {
+        let (name_ref, class_ref) = match self.header(slot) {
+            Header::Actor(a) => (a.instance_name, a.type_path),
+            Header::Component(c) => (c.instance_name, c.class_name),
+        };
+        let name = name_ref.bytes(self.data()).to_vec();
+        let class = class_ref.to_string(self.data());
+        let mut failures = self.parse_failures.borrow_mut();
+        if !failures.names.insert(name.clone()) {
+            return; // already recorded -- several collectors parse one object
+        }
+        let line = format!("{class} at {slot:?}: {msg}");
+        if crate::object::vanilla_body_failure_is_fatal(&class) {
+            failures.vanilla_names.insert(name);
+            if failures.vanilla_samples.len() < MAX_FAILURE_SAMPLES {
+                failures.vanilla_samples.push(line);
+            }
+        } else if failures.samples.len() < MAX_FAILURE_SAMPLES {
+            failures.samples.push(line);
         }
     }
 
@@ -181,9 +261,9 @@ impl<'a> SaveScan<'a> {
             .as_ref()
     }
 
-    /// The first on-demand re-parse error latched during the build, if any.
-    pub fn parse_error(&self) -> Option<String> {
-        self.parse_error.borrow().clone()
+    /// Objects this build could not re-parse (empty on a clean save).
+    pub fn parse_failures(&self) -> ParseFailures {
+        self.parse_failures.borrow().clone()
     }
 
     pub fn header_by_name(&self, name: &[u8]) -> Option<&'a Header> {
