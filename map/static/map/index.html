@@ -437,6 +437,20 @@
        isolation rectangle. Hidden until SelectionTool hands over a box. -->
   <div id="heightView" style="display:none" hidden></div>
 
+  <!-- Committed-region actions while 2D is showing. Enter stays disabled
+       until a delimiter exists and the save is idle. -->
+  <div id="regionalRegionBar" hidden>
+    <button id="regionalEnterBtn" class="btn btn-primary" type="button" disabled>View in 3D</button>
+    <button id="regionalReopenBtn" class="btn" type="button" disabled>Reopen Height View</button>
+    <button id="regionalClearBtn" class="btn" type="button" disabled>Clear region</button>
+    <span id="regionalEnterReason" class="kicker"></span>
+  </div>
+
+  <div id="regionalViewerProgress" hidden>
+    <span id="regionalViewerProgressLabel">Preparing 3D view…</span>
+    <button id="regionalViewerCancelBtn" class="btn btn-sm" type="button">Cancel</button>
+  </div>
+
   <!-- Shown after a rectangle selection: the count plus what can be done with
        it. Bottom-centre of the map, clear of the app bar and of the rectangle
        just drawn. -->
@@ -637,6 +651,33 @@
   </div>
 </dialog>
 
+<div id="regionalViewer" hidden>
+  <div id="regionalViewerToolbar">
+    <button id="regionalBackBtn" class="btn btn-primary" type="button">Back to 2D</button>
+    <button id="regionalResetBtn" class="btn" type="button">Reset camera</button>
+    <span id="regionalViewerLiveStatus" class="kicker" aria-live="polite"></span>
+  </div>
+  <div id="regionalViewerHost"></div>
+</div>
+
+<dialog id="regionalViewerDialog" class="dlg dlg-sm" aria-labelledby="regionalViewerDialogTitle">
+  <div class="dlg-inner">
+    <div class="dlg-head">
+      <span id="regionalViewerDialogTitle" class="dlg-title">3D view</span>
+      <button class="btn btn-ghost btn-icon dlg-close" type="button" aria-label="Close">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div id="regionalViewerDialogBody" class="dlg-body"></div>
+    <div class="dlg-foot">
+      <button id="regionalViewerDialogRetry" class="btn btn-primary" type="button">Retry</button>
+      <button class="btn dlg-close" type="button">Back to 2D</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="selectionModal" class="dlg" aria-labelledby="selectionModalTitle">
   <div class="dlg-inner">
     <div class="dlg-head">
@@ -674,5 +715,6 @@
 <script src="network.js"></script>
 <script src="data.js"></script>
 <script src="height_region.js"></script>
+<script src="regional_viewer.js"></script>
 </body>
 </html>

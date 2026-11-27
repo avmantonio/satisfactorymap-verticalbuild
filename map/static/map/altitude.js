@@ -394,6 +394,13 @@ var Altitude = {};
     };
   };
 
+  Altitude.setRailFrozen = function(frozen, reason) {
+    if (visitMode && !visitEnded) {
+      return;
+    }
+    setVisitDisabled(!!frozen, reason || "3D view is preparing");
+  };
+
   Altitude.beginRegionalWindow = function(loadedZ) {
     if (!visitEnded && visitMode) {
       return visitMode.end;
