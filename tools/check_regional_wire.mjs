@@ -377,6 +377,53 @@ check(
   check("smelter has envelope and chimney", parts.some((p) => p.name === "envelope") && parts.some((p) => p.name === "chimney"));
   const env = parts.find((p) => p.name === "envelope");
   const cue = parts.find((p) => p.name === "chimney");
+  function partBox(positions) {
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i + 2 < positions.length; i += 3) {
+      for (let k = 0; k < 3; k++) {
+        min[k] = Math.min(min[k], positions[i + k]);
+        max[k] = Math.max(max[k], positions[i + k]);
+      }
+    }
+    return {
+      min,
+      max,
+      size: [max[0] - min[0], max[1] - min[1], max[2] - min[2]],
+      mid: [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2],
+    };
+  }
+  const namesOf = (id) => forms.recipeParts(id).map((p) => p.name).sort().join(",");
+  check("smelter cue names", namesOf("smelter-cue") === "body,chimney,envelope");
+  check("constructor cue names", namesOf("constructor-cue") === "arm,base,envelope,gantry");
+  check("storage cue names", namesOf("storage-cue") === "body,envelope,ribs");
+  check("power pole cue names", namesOf("power-pole-cue") === "crossbar,envelope,mast");
+  const bodyBox = partBox(parts.find((p) => p.name === "body").positions);
+  const chimneyBox = partBox(cue.positions);
+  const gantryBox = partBox(forms.recipeParts("constructor-cue").find((p) => p.name === "gantry").positions);
+  check(
+    "smelter chimney is a tall offset stack",
+    chimneyBox.size[2] > 0.85
+      && chimneyBox.size[2] > chimneyBox.size[0]
+      && chimneyBox.size[2] > chimneyBox.size[1]
+      && chimneyBox.size[2] > bodyBox.size[2]
+      && chimneyBox.mid[0] > 0.1
+      && chimneyBox.mid[1] > 0.1,
+    JSON.stringify({ chimneyBox, bodyBox }),
+  );
+  check(
+    "constructor gantry is a Y-span bar, not a chimney",
+    gantryBox.size[1] > gantryBox.size[0] * 3
+      && gantryBox.size[1] > gantryBox.size[2]
+      && Math.abs(gantryBox.mid[0]) < 0.05,
+    JSON.stringify(gantryBox),
+  );
+  check(
+    "smelter chimney is not constructor gantry",
+    chimneyBox.size[2] > gantryBox.size[1] * 0.5
+      && chimneyBox.mid[0] > 0
+      && Math.abs(gantryBox.mid[0]) < chimneyBox.mid[0],
+  );
   const envPt = forms.occupantWorldPoint(flipped, [env.positions[0], env.positions[1], env.positions[2]]);
   const cuePt = forms.occupantWorldPoint(flipped, [cue.positions[0], cue.positions[1], cue.positions[2]]);
   const envPos = forms.occupantWorldPoint(pose, [env.positions[0], env.positions[1], env.positions[2]]);
