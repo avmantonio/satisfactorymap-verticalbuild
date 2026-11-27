@@ -182,8 +182,8 @@ export const RECIPES = Object.freeze({
     "clearance-reserve",
     [
       part("envelope", "wire", boxWire(UNIT_MIN, UNIT_MAX), "smelter-cue"),
-      part("body", "solid", boxTriangles([-0.42, -0.42, -0.5], [0.42, 0.28, 0.18]), "smelter-cue"),
-      part("chimney", "solid", boxTriangles([0.12, 0.18, 0.05], [0.32, 0.38, 0.48]), "smelter-cue"),
+      part("body", "solid", boxTriangles([-0.46, -0.46, -0.5], [0.46, 0.18, 0.05]), "smelter-cue"),
+      part("chimney", "solid", boxTriangles([0.04, 0.14, -0.42], [0.46, 0.48, 0.5]), "smelter-cue"),
     ],
   ),
   "constructor-cue": recipe(

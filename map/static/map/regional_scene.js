@@ -260,6 +260,16 @@ function originInZ(pose, zRange) {
   return pose[2] >= zRange.min && pose[2] <= zRange.max;
 }
 
+// Altitude visual Z is a world-metre closed interval. Poses, AABBs and
+// clipped path vertices are origin-relative. Convert once before masking.
+function worldZToScene(originM, worldRange) {
+  if (!worldRange) {
+    return null;
+  }
+  const originZ = originM && Number.isFinite(originM[2]) ? originM[2] : 0;
+  return { min: worldRange.min - originZ, max: worldRange.max - originZ };
+}
+
 function allocDynamicAttr(capacityFloats, itemSize) {
   const attr = new THREE.Float32BufferAttribute(
     new Float32Array(Math.max(capacityFloats, itemSize)),
@@ -752,15 +762,16 @@ export async function createRegionalScene(options) {
     }
 
     function rebuildDrawing() {
+      const zClip = worldZToScene(model.originM, visualZ);
       records.forEach((record) => {
         const maskVisible = visibilityMask[record.occupant.id] !== false;
         let zVisible = true;
         if (record.classification.visual === "uncertain-marker") {
-          zVisible = originInZ(record.pose, visualZ);
+          zVisible = originInZ(record.pose, zClip);
         } else if (record.classification.visual === "static-path") {
-          zVisible = visualZ == null;
+          zVisible = zClip == null;
         } else if (record.aabb) {
-          zVisible = aabbIntersectsZ(record.aabb, visualZ);
+          zVisible = aabbIntersectsZ(record.aabb, zClip);
         }
         record.maskVisible = maskVisible;
         record.zVisible = zVisible;
@@ -834,7 +845,7 @@ export async function createRegionalScene(options) {
         }
         if (count === 1) {
           const p = verts[0];
-          if (!visualZ || (p[2] >= visualZ.min && p[2] <= visualZ.max)) {
+          if (!zClip || (p[2] >= zClip.min && p[2] <= zClip.max)) {
             pathInZ.add(record.occupant.id);
             if (record.maskVisible) {
               contactPos.push(p[0], p[1], p[2]);
@@ -842,7 +853,7 @@ export async function createRegionalScene(options) {
           }
         } else {
           for (let i = 0; i < verts.length - 1; i++) {
-            const clipped = clipSegmentZ(verts[i], verts[i + 1], visualZ);
+            const clipped = clipSegmentZ(verts[i], verts[i + 1], zClip);
             if (!clipped) {
               continue;
             }
@@ -862,7 +873,7 @@ export async function createRegionalScene(options) {
         if (record.classification.visual !== "static-path") {
           return;
         }
-        if (visualZ) {
+        if (zClip) {
           record.zVisible = pathInZ.has(record.occupant.id);
         }
         record.drawn = record.maskVisible && record.zVisible;

@@ -630,6 +630,15 @@ def run(page, save):
         handle.setVisualZ({ min: -8, max: 16 });
         handle.setVisibility({ F1: false, S1: true, U1: true, P1: true });
         const afterDraw = handle.inspect();
+        const smelterDrawn = afterDraw.occupants.find((row) => row.id === 'S1');
+        if (!smelterDrawn || !smelterDrawn.drawn || !smelterDrawn.cue || smelterDrawn.recipeId !== 'smelter-cue') {
+          fail('hec09-smelter-drawn', JSON.stringify(smelterDrawn));
+        }
+        const chimneyBatch = (afterDraw.batches || []).find((row) => row.key && row.key.indexOf('smelter-cue|chimney') === 0);
+        const bodyBatch = (afterDraw.batches || []).find((row) => row.key && row.key.indexOf('smelter-cue|body') === 0);
+        if (!chimneyBatch || chimneyBatch.count !== 1 || !bodyBatch || bodyBatch.count !== 1) {
+          fail('hec09-smelter-batches', JSON.stringify(afterDraw.batches));
+        }
         const drawing1 = afterDraw.drawing;
         if (afterDraw.attrAllocs !== allocs0) {
           fail('hec08-attr-allocs', JSON.stringify({ allocs0, allocs1: afterDraw.attrAllocs }));
@@ -660,6 +669,68 @@ def run(page, save):
         handle.dispose();
         liveZero(regionalSceneLiveResources(), 'hec08-after-dispose');
         if (host.querySelector('canvas')) fail('hec08-canvas-left');
+
+        // World visual Z vs origin-relative poses (All pole stack / Mk5 belt).
+        const oz = 70;
+        const poseLow = new Float32Array([-4, -4, -4, 0, 0, 0, 1, 1, 1, 1, 8, 8, 1, 0, 0, 0]);
+        const poseHigh = new Float32Array([4, 4, 4, 0, 0, 0, 1, 1, 1, 1, 8, 8, 4, 0, 0, 0]);
+        const posePole = new Float32Array([0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0]);
+        const poseSlope = new Float32Array([0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0]);
+        const shiftedPoses = new Float32Array(16 * 4);
+        shiftedPoses.set(poseLow, 0);
+        shiftedPoses.set(poseHigh, 16);
+        shiftedPoses.set(posePole, 32);
+        shiftedPoses.set(poseSlope, 48);
+        const shifted = {
+          schemaVersion: 1, requestId: 'regional:world-z', originM: [100, 200, oz],
+          effectiveBoundsM: { min: [90, 190, 40], max: [110, 210, 100] },
+          emptyReason: null,
+          types: [
+            { typePath: '/Game/FactoryGame/Buildable/Building/Foundation.Build_Foundation_8x4_01_C', label: 'Foundation', category: 'Foundation', subcategory: 'Floors' },
+            { typePath: '/Game/FactoryGame/Buildable/Building/Foundation.Build_Foundation_8x2_01_C', label: 'Foundation', category: 'Foundation', subcategory: 'Floors' },
+            { typePath: '/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable.Build_ConveyorPoleStackable_C', label: 'Pole', category: 'Logistics', subcategory: null },
+            { typePath: '/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk5.Build_ConveyorBeltMk5_C', label: 'Belt', category: 'Logistics', subcategory: null }
+          ],
+          occupants: [
+            { id: 'LOW', typeIndex: 0, sourceKind: 'lightweight', recordKind: 'occupant', sizeKind: 'named-box', poseFlags: 15, pathState: 'not-path', uncertainty: [] },
+            { id: 'HIGH', typeIndex: 1, sourceKind: 'lightweight', recordKind: 'occupant', sizeKind: 'named-box', poseFlags: 15, pathState: 'not-path', uncertainty: [] },
+            { id: 'POLE', typeIndex: 2, sourceKind: 'actor', recordKind: 'occupant', sizeKind: 'unknown', poseFlags: 3, pathState: 'not-path', uncertainty: ['size-unknown'] },
+            { id: 'BELT', typeIndex: 3, sourceKind: 'actor', recordKind: 'path', sizeKind: 'unknown', poseFlags: 3, pathState: 'linear', uncertainty: [] }
+          ],
+          poses: shiftedPoses,
+          fragments: new Uint32Array([3, 0, 2, 0]),
+          vertices: new Float32Array([0, -6, -14, 0, 0, 0, 0, 0, 0, 0, 6, 14, 0, 0, 0, 0, 0, 0]),
+          vertexFlags: new Uint32Array([4, 4]),
+          bytes: new Uint8Array(0),
+          counts: { occupants: 4, fragments: 1, vertices: 2 }
+        };
+        const zHandle = await createRegionalScene({
+          host, model: shifted,
+          visibility: { LOW: true, HIGH: true, POLE: true, BELT: true }
+        });
+        zHandle.attach();
+        zHandle.setVisualZ({ min: 40, max: 100 });
+        const zShown = zHandle.inspect();
+        const byId = (id) => zShown.occupants.find((row) => row.id === id);
+        const low = byId('LOW');
+        const high = byId('HIGH');
+        const pole = byId('POLE');
+        const belt = byId('BELT');
+        if (!low || !low.drawn || !high || !high.drawn) fail('hec08-stack-floors-drawn', JSON.stringify({ low, high }));
+        if (!pole || !pole.drawn) fail('hec08-stack-pole-drawn', JSON.stringify(pole));
+        if (!belt || !belt.drawn || !belt.zVisible) fail('hec08-slope-path-drawn', JSON.stringify(belt));
+        const zLow = low && low.matrix ? low.matrix[14] : null;
+        const zHigh = high && high.matrix ? high.matrix[14] : null;
+        if (!(Number.isFinite(zLow) && Number.isFinite(zHigh) && Math.abs(zHigh - zLow) > 7)) {
+          fail('hec08-stack-floors-separable', JSON.stringify({ zLow, zHigh }));
+        }
+        const floorBatch = (zShown.batches || []).find((row) => row.key && row.key.indexOf('grid-floor') === 0);
+        if (!floorBatch || floorBatch.count !== 2) fail('hec08-stack-floor-batch', JSON.stringify(zShown.batches));
+        zHandle.setVisualZ({ min: 200, max: 210 });
+        const zHidden = zHandle.inspect();
+        if (zHidden.occupants.some((row) => row.drawn)) fail('hec08-world-z-hides', JSON.stringify(zHidden.occupants));
+        zHandle.dispose();
+        liveZero(regionalSceneLiveResources(), 'hec08-after-world-z');
 
         const aborted = new AbortController();
         aborted.abort();
