@@ -923,6 +923,26 @@ def run(page, save):
         if (sampleBucket && hiddenInspect.occupants.some((row) => row.id === sampleBucket.ids[0] && row.drawn)) {
           fail('c015-hidden-index-drawn');
         }
+        const visitOccupants = RegionalViewer.visitOccupants();
+        const resolved = Filters.resolveRegionalVisibility(visitOccupants);
+        const hiddenFromFilters = visitOccupants.filter((occupant) => {
+          const row = resolved[occupant.id];
+          return row && row.visible === false;
+        });
+        if (!hiddenFromFilters.length) fail('c015-resolved-no-hidden');
+        hiddenFromFilters.forEach((occupant) => {
+          const row = resolved[occupant.id];
+          if (row === false) fail('c015-resolved-already-boolean', occupant.id);
+          if (!row || typeof row.visible !== 'boolean' || !row.typePath) {
+            fail('c015-resolved-shape', JSON.stringify(row));
+          }
+        });
+        const adapterMask = RegionalViewer.adapterVisibilityMask(resolved, visitOccupants);
+        hiddenFromFilters.forEach((occupant) => {
+          if (adapterMask[occupant.id] !== false) fail('c015-adapter-mask-not-false', occupant.id);
+          const drawn = hiddenInspect.occupants.find((row) => row.id === occupant.id);
+          if (drawn && drawn.drawn) fail('c015-resolved-hidden-drawn', occupant.id);
+        });
         const cutBeforeZ = HeightRegion.getCommitted().cutZM;
         const admittedDuring = hiddenInspect.occupants.length;
         const loaded = Altitude.getRange();

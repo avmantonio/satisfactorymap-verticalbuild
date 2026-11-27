@@ -313,14 +313,23 @@ var RegionalViewer = (function() {
     return true;
   }
 
-  function booleanMask(model) {
-    var resolved = Filters.resolveRegionalVisibility(model.occupants);
+  // PR 9 Filters.resolveRegionalVisibility returns mask[id] = { visible, typePath }.
+  // PR 10 regional_scene.js draws unless visibilityMask[id] !== false, so that
+  // object would paint. Convert to a boolean adapter mask before the renderer.
+  function adapterVisibilityMask(resolved, occupantList) {
     var mask = {};
-    model.occupants.forEach(function(occupant) {
-      var row = resolved[occupant.id];
-      mask[occupant.id] = !!(row && row.visible);
+    (occupantList || []).forEach(function(occupant) {
+      var row = resolved && resolved[occupant.id];
+      mask[occupant.id] = !!(row && row.visible === true);
     });
     return mask;
+  }
+
+  function booleanMask(model) {
+    return adapterVisibilityMask(
+      Filters.resolveRegionalVisibility(model.occupants),
+      model.occupants
+    );
   }
 
   function loadedZFromModel(model) {
@@ -935,6 +944,10 @@ var RegionalViewer = (function() {
     testHooks: testHooks,
     inspect: function() {
       return handle && typeof handle.inspect === "function" ? handle.inspect() : null;
+    },
+    adapterVisibilityMask: adapterVisibilityMask,
+    visitOccupants: function() {
+      return occupants ? occupants.slice() : [];
     },
     snapshotSelection: function() {
       return snapshot && snapshot.selectionKeys ? snapshot.selectionKeys.slice() : null;
