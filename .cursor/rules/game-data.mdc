@@ -1,0 +1,22 @@
+---
+description: Curated vs generated game data; extractors never commit output
+globs: game_data/**/*
+alwaysApply: false
+---
+
+# game_data
+
+If a script wrote it, it is not in git.
+
+| Path | Git | Who writes it |
+| --- | --- | --- |
+| `curated/` | yes | a person |
+| `generated/docs/` | no | `extract_docs_json.py` from Docs.json |
+| `generated/world/` | no | FModel level export |
+| `generated/map_highres.png` + tiles | no | `extract_map_image.py` |
+| `map/static/map/icons/` | no | `copy_icons.py` |
+
+- `curated/typePaths.json` is what the parser keys behavior off (belts, miners, wires). `pickupItems.json` cannot be recovered from FModel; learn new entries with `extract_collectables.py --items-from-save`.
+- Shapes: `SCHEMA.md` for docs tables; each extractor header for world tables. Do not invent a parallel schema in Rust — `gamedata/mod.rs` deserializes these files.
+- CI / production archive is **game-data-v3** (v2 has no `world/` split). Unpack with `py game_data/package_game_data.py unpack game_data.zip`.
+- `sav_core` will not compile without generated JSON. That is intentional.
