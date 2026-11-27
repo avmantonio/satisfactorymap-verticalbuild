@@ -3466,3 +3466,48 @@ body.height-view-side #selectionPanel {
   margin-left: var(--dock-left-inset);
   margin-right: calc(var(--dock-right-inset) + var(--height-side-width));
 }
+
+/* Regional scene adapter host (ticket 60 phase 3). Detached construction
+   fills this root; product enter/exit chrome stays Phase 4. Tokens only. */
+.regionalSceneRoot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 64px;
+  background: var(--surface-0);
+  color: var(--text);
+}
+.regionalSceneCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+.regionalSceneCanvas:focus {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.regionalSceneHud {
+  position: absolute;
+  left: var(--sp-2);
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  max-width: 42rem;
+  padding: var(--sp-2);
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  pointer-events: none;
+}
+.regionalSceneLegendList {
+  margin: var(--sp-1) 0 0;
+  padding-left: var(--sp-4);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+.regionalSceneSummary,
+.regionalSceneStatus,
+.regionalSceneHelp {
+  margin: var(--sp-1) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
