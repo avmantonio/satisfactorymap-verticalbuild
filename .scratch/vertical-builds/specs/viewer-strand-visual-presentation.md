@@ -1,7 +1,7 @@
 # Visual presentation — first regional 3D viewer
 
 Date: 2026-11-25
-Status: consolidated strand spec for settled viewer decisions; integration details and implementation remain pending.
+Status: consolidated settled decisions; integration is bound by the [global contract](viewer-integration-spec.md); implementation/runtime evidence remain pending.
 Strand: visual-presentation
 Scope: the viewer-related portion of this strand, not closure of the entire campaign strand.
 Package: [Main spec index](viewer-spec-index.md) · [Readiness review](viewer-readiness-review.md).
@@ -14,7 +14,7 @@ A useful 3D observation must be recognizable and readable without presenting cle
 
 During a visit, 3D replaces the main 2D map. Two simultaneous maps are not the base experience. Entry builds from the current applied save; exit destroys the scene; a later entry rebuilds including intervening edits. Keep no historical scene cache. Admission must succeed before buffers or view replacement.
 
-This document consolidates the settled ticket decisions for this strand into one contract for the future global viewer spec. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
+This document consolidates the settled ticket decisions for this strand as decision-level input to the global integration contract. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
 
 ## User Stories
 
@@ -32,7 +32,7 @@ This document consolidates the settled ticket decisions for this strand into one
 
 During a visit, 3D replaces the main 2D map. Two simultaneous maps are not the base experience. Entry builds from the current applied save; exit destroys the scene; a later entry rebuilds including intervening edits. Keep no historical scene cache. Admission must succeed before buffers or view replacement.
 
-Ticket 33's explicit return check includes restored map width, bucket count/visible flags and HeightView.isOpen() false. Retained rectangle/band/selection state is settled by the approved clarification below; affordance design remains open.
+Ticket 33's explicit return check includes restored map width, bucket count/visible flags and HeightView.isOpen() false. Retained rectangle/band/selection state is settled by the approved clarification below; entry/Back/reopen/clear affordances are now fixed in the global integration contract.
 
 ### Size honesty and form supply
 
@@ -42,7 +42,7 @@ Ticket 33's explicit return check includes restored map width, bucket count/visi
 | clearance-reserve | Neutral labeled reserve, not a physical shell |
 | unknown / no complete size | Location plus uncertainty, no invented box, no silent 4 m, no dropped actor |
 
-Buildings and structures use recognizable simplified silhouettes. Recognizable does not mean the game mesh. A distinctive original silhouette is not a precision certificate and cannot turn clearance metadata into an exact shell. The global spec must make the relation between decorative recognition and neutral reserve display explicit.
+Buildings and structures use recognizable simplified silhouettes. Recognizable does not mean the game mesh. A distinctive original silhouette is not a precision certificate and cannot turn clearance metadata into an exact shell. The global integration spec and initial kit now require a visible neutral reserve alongside any original recognition cue; decorative detail cannot establish measured geometry.
 
 The catalog's surveyed 227 complete boxes / 274 clearance-only / 45 incomplete classes explains data coverage, not a completed family asset kit or permanent counts. Plan-only footprints, repeating segment MeshLength/MeshHeight and incomplete axes must not be promoted into complete volumes. Preserve source-native quaternion/scale and unfloored offset semantics; the old 2D lookup/flooring recipes are not the 3D contract.
 
@@ -80,9 +80,9 @@ Test records, visual relations and state transitions at the highest existing cor
 
 Implementation 60 must exist before integrated trials 54–56 can credit their results; stable delivery remains on gate 58.
 
-## Definitions Still Needed in the Global Spec
+## Global Integration Binding
 
-Initial family-to-form coverage and recognizable asset kit are not delivered by the resolved short Answer. Entry/exit widgets, orbit chrome, line styling/sampling, hidden-index mapping, Z widget design, labels/empty messages and readability criteria remain integration details. Retained editor state and the limits of live Z filtering are settled below. Terrain, wall-transparency effects and later editor-bar chrome remain outside this cut.
+The [global contract](viewer-integration-spec.md), [initial exact-class kit](viewer-initial-coverage.md) and [integration map](viewer-integration-map.md) now define entry/exit/camera controls, source-chord rendering, shared identity/hidden-index mapping, scoped rail/numeric Z controls, empty/unknown/refusal messages and visual acceptance. The kit is a required implementation target, not delivered assets or closed research 61. Approved retained-state/Z rules below remain unchanged. Terrain, wall-transparency effects and later editor-bar chrome remain outside this cut.
 
 ## Out of Scope and Later Work
 

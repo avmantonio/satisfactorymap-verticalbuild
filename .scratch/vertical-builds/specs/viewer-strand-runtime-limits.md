@@ -1,7 +1,7 @@
 # Runtime limits — first regional 3D viewer
 
 Date: 2026-11-25
-Status: consolidated strand spec for settled viewer decisions; integration details and implementation remain pending.
+Status: consolidated settled decisions; integration is bound by the [global contract](viewer-integration-spec.md); implementation/runtime evidence remain pending.
 Strand: runtime-limits
 Scope: the viewer-related portion of this strand, not closure of the entire campaign strand.
 Package: [Main spec index](viewer-spec-index.md) · [Readiness review](viewer-readiness-review.md).
@@ -14,7 +14,7 @@ A regional scene needs a predictable admission rule and bounded lifetime while a
 
 Count unique occupants the Volume selection predicate would admit. Each building or path actor counts **once**, independent of vertices, length or clipped fragment count. hiddenClasses stay out; category filters, Selection and hiddenIndices cannot lower the count.
 
-This document consolidates the settled ticket decisions for this strand into one contract for the future global viewer spec. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
+This document consolidates the settled ticket decisions for this strand as decision-level input to the global integration contract. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
 
 ## User Stories
 
@@ -73,9 +73,9 @@ Test records, visual relations and state transitions at the highest existing cor
 
 Implementation 60 must exist before integrated trials 54–56 can credit their results; stable delivery remains on gate 58.
 
-## Definitions Still Needed in the Global Spec
+## Global Integration Binding
 
-The global spec needs resource ownership, cancellation/late-result handling after exit or save changes, partial-failure cleanup and a measurable repeated-visit procedure. No quantitative leak tolerance or universal FPS claim is already decided. Any change to the settled limit after trials must be recorded rather than inferred from desktop headroom.
+The [global lifecycle contract](viewer-integration-spec.md), [event/ownership map](viewer-integration-map.md) and [exit criteria](viewer-exit-criteria.md) now fix resource ownership, logical cancellation and stale guards, partial-build cleanup, handoff lease and a 3-warm-up/20-measured-visit procedure. Zero owned live resources/RAF after exit is required; allocator high-water need not immediately shrink. No universal heap/FPS threshold is invented. Any change to the settled limit after actual trials must still be recorded.
 
 ## Out of Scope and Later Work
 

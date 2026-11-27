@@ -1,7 +1,7 @@
 # Volume selection — first regional 3D viewer
 
 Date: 2026-11-25
-Status: consolidated strand spec for settled viewer decisions; integration details and implementation remain pending.
+Status: consolidated settled decisions; integration is bound by the [global contract](viewer-integration-spec.md); implementation/runtime evidence remain pending.
 Strand: volume-selection
 Scope: the viewer-related portion of this strand, not closure of the entire campaign strand.
 Package: [Main spec index](viewer-spec-index.md) · [Readiness review](viewer-readiness-review.md).
@@ -14,7 +14,7 @@ The editor Selection is not a trustworthy visual inventory of a region: deselect
 
 The entered region is the committed Height-view **XY rectangle ∩ Cut Z band ∩ global altitude rail cap**. It is not the map viewport or current Selection. Once entered, the loaded membership does not grow; expanding XY or Z requires a new enter.
 
-This document consolidates the settled ticket decisions for this strand into one contract for the future global viewer spec. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
+This document consolidates the settled ticket decisions for this strand as decision-level input to the global integration contract. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
 
 ## User Stories
 
@@ -69,9 +69,9 @@ Test records, visual relations and state transitions at the highest existing cor
 
 Implementation 60 must exist before integrated trials 54–56 can credit their results; stable delivery remains on gate 58.
 
-## Definitions Still Needed in the Global Spec
+## Global Integration Binding
 
-The global spec must define boundary touching, degenerate/empty intersections consistently for count and extract. The unreadable-scale policy is settled below. Curve approximation/sampling must agree with clipping. Visual Z bounds and retained delimitation are settled below; exact widgets remain to be designed.
+The [global contract](viewer-integration-spec.md) and [wire v1](viewer-regional-wire-v1.md) now fix closed boundary contacts, invalid zero-XY/inverted regions, valid zero-Z slabs, success-empty disjoint Z, source-sample chord clipping and shared count/extract semantics. The global spec and integration map fix persistent delimitation and scoped existing altitude controls. The approved scale/Z rules below remain unchanged; no design gap in this section blocks implementation.
 
 ## Out of Scope and Later Work
 

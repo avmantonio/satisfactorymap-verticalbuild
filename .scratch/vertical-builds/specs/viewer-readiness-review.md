@@ -3,6 +3,21 @@
 Date: 2026-11-25
 Scope: inspect the existing tickets, specifications, prototypes, relevant code and test seams; create specs for resolved 3D nodes. No application behavior was changed.
 
+## Integration closure addendum — current handoff
+
+The review below is the preserved historical diagnosis. Its integration-design gaps are now closed by the [global integration contract](viewer-integration-spec.md), without implementing the viewer or crediting new runtime evidence.
+
+| Historical gap | Closed definition |
+| --- | --- |
+| Global executable integration / module responsibilities | [Global spec](viewer-integration-spec.md) and [event/API/file map](viewer-integration-map.md) |
+| Exact binary extract / boundaries / degeneracy | [Wire v1](viewer-regional-wire-v1.md) and [canonical reference vectors](../validation/regional-scene-v1-vectors.json) |
+| Retained 2D delimiter and coherent entry state | Global spec section 4: persistent HeightRegion, non-peeling suspend/reopen, synchronous snapshot |
+| Async lifetime / stale results / partial resources | Global spec sections 4/6/7 and integration map: session stamp + visitId, drain/lease, cleanup ownership |
+| Initial verifiable visual coverage | [Minimum exact-class kit](viewer-initial-coverage.md), reserve/cue separation and uncertainty overrides |
+| Camera, Z/category controls, empty/unknown messages | Global spec section 6 and integration map: fixed initial/reset/input behavior and scoped shared altitude mode |
+
+Next: [implementation Phase 1](../plans/regional-viewer/PLAN_PHASE_1_core-extract.md), then remaining phases and [exit criteria](viewer-exit-criteria.md). Tickets 60, 54–56, 58, 59 and 61 remain OPEN. Historical phrases below such as “still needed” or “global spec pending” describe the review date, not the current next action. See the [documentation validation report](../validation/viewer-integration-validation.md) for checks actually run for the closure.
+
 ## 1. Verification of sufficiency for creating the 3D viewer
 
 **Verdict: enough settled decisions to author the global spec and proceed toward implementation 60; no integrated viewer or delivery evidence yet.** The global spec still has to bind the contracts to exact interfaces, interaction/lifecycle rules and acceptance procedures. This review does not reopen baseline, feasibility, the renderer choice, membership or the 8,000 limit.

@@ -1,13 +1,29 @@
 # Regional 3D viewer — strand specifications
 
 Date: 2026-11-25
-Status: settled viewer decisions consolidated by strand; global viewer spec pending.
+Status: settled strand decisions plus implementation-ready global integration contract; implementation and runtime acceptance pending.
+
+## Global implementation contract — integration closure
+
+The [global integration contract](viewer-integration-spec.md) closes the five integration prerequisites identified by the historical readiness review. It composes, rather than replaces, the six strand decisions and their approved clarifications.
+
+| Integration artifact | Authority |
+| --- | --- |
+| [Global spec](viewer-integration-spec.md) | Scope, persistent delimitation, coherent snapshot, session/visit lifecycle, camera, controls, errors and ownership |
+| [Regional wire v1](viewer-regional-wire-v1.md) | Exact binary/header/strides/metadata/validity/identity/path/error and boundary rules |
+| [Integration map](viewer-integration-map.md) | APIs, event receivers, ordering, secondary paths, file/module supply |
+| [Initial coverage](viewer-initial-coverage.md) | Exact minimum original kit and reserve/uncertainty fallbacks; 61 remains open |
+| [Execution phases](../plans/regional-viewer/PLAN_PHASE_1_core-extract.md) | Core → state/transports → renderer/kit → actual product integration → final smoke |
+| [Exit criteria](viewer-exit-criteria.md) | HEC commands, trial procedures and evidence rules; runtime criteria all OPEN |
+| [Reference vectors and validator](../validation/check_viewer_integration.py) | Executable documentation/format consistency, not a production runtime pass |
+
+Next action is product implementation 60 against these interfaces. No further integration-design round is a prerequisite.
 
 ## Purpose and readiness
 
-The primary composition unit is **one consolidated spec per main strand involved in the first viewer**, bringing together **28 previously resolved tickets** in the existing Vertical Build Transfer map. The previously created per-ticket documents are all preserved below as supporting traceability. The six strand specs prepare the later global spec; they are not that global spec, an implementation plan, a shipped viewer or passed trials.
+The primary composition unit is **one consolidated spec per main strand involved in the first viewer**, bringing together **28 previously resolved tickets** in the existing Vertical Build Transfer map. The previously created per-ticket documents are all preserved below as supporting traceability. The six strand specs remain the decision-level inputs. The global package above supplies the previously missing integration spec and implementation plan; neither package is a shipped viewer or passed trial.
 
-**There is enough settled product and feasibility input to write the global spec and then implement ticket 60.** Before calling that global spec implementation-ready, it must make the integration definitions in the [readiness review](viewer-readiness-review.md#integration-definitions-for-the-global-spec) concrete. There is not yet enough integrated/runtime evidence to call the viewer complete or stable.
+**The integration definitions are now concrete and ticket 60 is ready to implement.** The [readiness review](viewer-readiness-review.md#integration-definitions-for-the-global-spec) records why the glue was needed; its closure addendum links each gap to the new contract. Integrated/runtime evidence is still required before calling the viewer complete or stable.
 
 ## Main strand specifications
 
@@ -65,16 +81,16 @@ Preserved per-ticket supporting documents. Read the consolidated strand spec as 
 | [57](../issues/57-controlled-release.md) | [Controlled publication contract](viewer-57-controlled-release.md) | First regional viewer |
 | [59](../issues/59-modded-save.md) | [Explicit modded-save coverage gap](viewer-59-modded-corpus-gap.md) | Supporting constraint / evidence / decision |
 
-## How to compose the later global spec
+## Composition traceability
 
-Start with the six strand specs above: Regional viewer defines purpose and source data; Volume selection fixes inventory; Runtime limits gates admission and owns resource lifetime; Visual presentation defines the visit and honest drawing; Browser and desktop supplies shared integration/release constraints; Save integrity preserves the editor. Bind the interfaces between them and resolve the integration definitions from the readiness review.
+The global integration contract composes the six strand specs above: Regional viewer defines purpose and source data; Volume selection fixes inventory; Runtime limits gates admission and owns resource lifetime; Visual presentation defines the visit and honest drawing; Browser and desktop supplies shared integration/release constraints; Save integrity preserves the editor. Its exact interfaces and integration definitions now govern independent producer/consumer implementation.
 
 The ticket-level cross-check remains useful as supporting detail:
 
 1. Use 24 for the first viewer's purpose: a regional read-only view of **already applied** save contents. Keep the later editor bar 08 outside this cut.
 2. Compose data 42, membership 43, admission 44 and lifecycle 45; 46 records their decision closure. Read their full acceptance clauses, not just the one-line Answers.
 3. Add adapter 18, camera 21, representation 48–50, shared visibility 51, readout 52 and teardown 53. Use supply 40 and the fidelity/corpus evidence as constraints.
-4. Resolve the integration definitions identified in the readiness review. These are explicit missing glue/design details, not permission to reopen settled product choices.
+4. Implement the exact integration definitions in the global package above. The historical readiness gaps are closed by specification, not permission to reopen settled product choices.
 5. Carry the required evidence into implementation 60 and the still-open acceptance checks 54–56, followed by delivery 58. Controlled release 57 does not substitute for those checks.
 
 ## Precedence and scope
@@ -82,13 +98,13 @@ The ticket-level cross-check remains useful as supporting detail:
 - **First-viewer contracts govern the first viewer.** Node 08's whole-save entry, selection pivot, nav cube, gizmos, interior opacity, rest-of-save and different shell ceilings describe the later editor bar. They do not override regional membership, one shared 8,000 admission cap or read-only observation.
 - **Source-native extract over 2D reconstruction.** Older research describes current map pixels/yaw, Height-view floored clearances, a 4 m Cut fallback and dropped tangents. Contract 42 requires the separate save-native extract, honest sizeKind and volumeOffsetM. Never copy those 2D shortcuts into physical 3D geometry.
 - **Settled budget over draft measurements.** Research retains 14,000 as a draft alternative and selection-based wording. Tickets 25/43/44 settle a limit of 8,000 *unique regional occupants*, independently of Selection, category filters and hiddenIndices; hiddenClasses remain excluded. 8,000 enters; 8,001 refuses before scene buffers or replacing 2D.
-- **Silhouette is not evidence of a true shell.** An original recognizable form cannot turn a clearance reserve into measured machine geometry. Unknown-size actors remain locations plus uncertainty. The global spec must make the relationship between forms and reserves explicit.
+- **Silhouette is not evidence of a true shell.** An original recognizable form cannot turn a clearance reserve into measured machine geometry. Unknown-size actors remain locations plus uncertainty. The global spec and initial kit now make the relationship between forms and reserves explicit.
 - **Decision closure is not validation.** “Specced” on these nodes only associates a document with a resolved decision. Root/strands and open nodes 60, 54–56, 58 remain open. Node 59 is open for real modded-save validation. Node 61 is open for missing/free-form geometry investigation and tracked model refinement. Neither is completed by a spec association.
 - **Historical evidence is dated.** Source research and probes were not rerun by this documentation task. Current generated tables and fixture files are available locally, although older notes say the generated tree had not been unpacked at their survey date.
 
 ## Existing and pending work
 
-The [2.5D first-cut spec](2-5d-first-cut.md) remains separate and unchanged. Its leftover implementation/ship obligations are not silently folded into the regional viewer. Terrain study 29 is optional and nonblocking. Picking 26, scene Z/edit controls 22–23 and edits 27 remain after delivery 58. This package creates no new phase plan and no external issues.
+The [2.5D first-cut spec](2-5d-first-cut.md) remains separate and unchanged. Its leftover implementation/ship obligations are not silently folded into the regional viewer. Terrain study 29 is optional and nonblocking. Picking 26, scene Z/edit controls 22–23 and edits 27 remain after delivery 58. The integration closure adds a four-phase implementation plan plus mandatory final smoke; it creates no external issues.
 
 See the [readiness review](viewer-readiness-review.md) for owning code, concrete integration gaps and the distinction between documentation checks and unrun runtime acceptance.
 

@@ -1,7 +1,7 @@
 # Browser and desktop — first regional 3D viewer
 
 Date: 2026-11-25
-Status: consolidated strand spec for settled viewer decisions; integration details and implementation remain pending.
+Status: consolidated settled decisions; integration is bound by the [global contract](viewer-integration-spec.md); implementation/runtime evidence remain pending.
 Strand: browser-and-desktop
 Scope: the viewer-related portion of this strand, not closure of the entire campaign strand.
 Package: [Main spec index](viewer-spec-index.md) · [Readiness review](viewer-readiness-review.md).
@@ -14,7 +14,7 @@ Separate shell-specific viewers or assumptions based on a tiny browser probe wou
 
 Keep sav_core as the shared engine. WASM and native sessions expose the same regional record/buffer shape through the existing SaveClient facade. Transport-specific mechanics remain thin shells; adding a WASM binding requires its Tauri parallel.
 
-This document consolidates the settled ticket decisions for this strand into one contract for the future global viewer spec. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
+This document consolidates the settled ticket decisions for this strand as decision-level input to the global integration contract. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
 
 ## User Stories
 
@@ -66,9 +66,9 @@ Test records, visual relations and state transitions at the highest existing cor
 
 Implementation 60 must exist before integrated trials 54–56 can credit their results; stable delivery remains on gate 58.
 
-## Definitions Still Needed in the Global Spec
+## Global Integration Binding
 
-Exact API/command names, WASM transfer versus native serialization, errors, module attachment, addon supply and asynchronous lifetime integration need a common global definition. Any release switch needs actual UI behavior if chosen. Hosted and rebuilt Tauri runtime evidence remains uncredited.
+The [wire contract](viewer-regional-wire-v1.md) and [integration map](viewer-integration-map.md) now fix `regional_scene`/`queryRegionalScene` names, raw worker/native bytes, normalized errors, appended controller/lazy module attachment, r170 addon supply/cache identity and async lifetime. No new release switch is required by the MVP contract. Hosted and rebuilt Tauri runtime evidence remains uncredited until actual S-03/56 execution.
 
 ## Out of Scope and Later Work
 

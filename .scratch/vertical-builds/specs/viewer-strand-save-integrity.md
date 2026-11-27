@@ -1,7 +1,7 @@
 # Save integrity — first regional 3D viewer
 
 Date: 2026-11-25
-Status: consolidated strand spec for settled viewer decisions; integration details and implementation remain pending.
+Status: consolidated settled decisions; integration is bound by the [global contract](viewer-integration-spec.md); implementation/runtime evidence remain pending.
 Strand: save-integrity
 Scope: the viewer-related portion of this strand, not closure of the entire campaign strand.
 Package: [Main spec index](viewer-spec-index.md) · [Readiness review](viewer-readiness-review.md).
@@ -14,7 +14,7 @@ A read-only observation can still regress the existing editor through session lo
 
 The first viewer reads current **applied** session state. It emits no pick/edit operation and performs no byte-splice, geometric belt split, reconnect or conveyor-chain reconstruction. Visual path clipping is only scene geometry; existing whole-actor copy and power-owner rules remain unchanged.
 
-This document consolidates the settled ticket decisions for this strand into one contract for the future global viewer spec. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
+This document consolidates the settled ticket decisions for this strand as decision-level input to the global integration contract. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
 
 ## User Stories
 
@@ -40,7 +40,7 @@ The explicit regression requirement from ticket 33 belongs in the existing UI be
 2. Enter hides Leaflet and displays the scene only.
 3. Exit restores map width within 1 px, the same buckets and visibility flags, HeightView.isOpen() false and no pageerror.
 
-This requirement must compose with exclusive mode 45 and resource release 53. It does not decide all retained rectangle, Selection or map-position details; those need a consistent global lifecycle definition. It does require a usable editor session on return.
+This requirement must compose with exclusive mode 45 and resource release 53. The approved clarification below and the global integration lifecycle now fix retained rectangle, Selection and map-position details. It does require a usable editor session on return.
 
 ### Existing evidence and remaining obligations
 
@@ -72,9 +72,9 @@ Test records, visual relations and state transitions at the highest existing cor
 
 Implementation 60 must exist before integrated trials 54–56 can credit their results; stable delivery remains on gate 58.
 
-## Definitions Still Needed in the Global Spec
+## Global Integration Binding
 
-The actual handoff assertion, extraction non-mutation proof and shell-integrated regression checks remain implementation work. Global integration must define retained editor state and failure/late-result recovery while preserving the explicit width/bucket/flag/HeightView requirement. No new in-game smoke or full-suite result is credited here.
+The [global contract](viewer-integration-spec.md) and [integration map](viewer-integration-map.md) now define persistent region/snapshot, same-save return state, failure/stale-result recovery and matching payload readiness. [Exit criteria](viewer-exit-criteria.md) fix the future nonmutation/handoff/shell assertions and preserve the width/bucket/shared-visibility/HeightView requirement. Those assertions still need implementation and execution; no in-game smoke or full-suite pass is credited here.
 
 ## Out of Scope and Later Work
 

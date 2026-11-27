@@ -1,7 +1,7 @@
 # Regional viewer — first regional 3D viewer
 
 Date: 2026-11-25
-Status: consolidated strand spec for settled viewer decisions; integration details and implementation remain pending.
+Status: consolidated settled decisions; integration is bound by the [global contract](viewer-integration-spec.md); implementation/runtime evidence remain pending.
 Strand: regional-viewer
 Scope: the viewer-related portion of this strand, not closure of the entire campaign strand.
 Package: [Main spec index](viewer-spec-index.md) · [Readiness review](viewer-readiness-review.md).
@@ -14,7 +14,7 @@ The top-down map and Cuts cannot alone provide an orbitable reading of stacked f
 
 The first delivery is a **temporary regional read-only observation** of applied save contents. It is useful for height, stacks and spatial relations after a copy or import. Selection/picking, moves, gizmos, fine adjustment, move previews and tentative paste are after delivery 58. Terrain is optional and not required.
 
-This document consolidates the settled ticket decisions for this strand into one contract for the future global viewer spec. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
+This document consolidates the settled ticket decisions for this strand as decision-level input to the global integration contract. Per-ticket specs are preserved as supporting traceability; they are not the primary composition unit.
 
 ## User Stories
 
@@ -79,9 +79,9 @@ Test records, visual relations and state transitions at the highest existing cor
 
 Implementation 60 must exist before integrated trials 54–56 can credit their results; stable delivery remains on gate 58.
 
-## Definitions Still Needed in the Global Spec
+## Global Integration Binding
 
-Exact request/response layout, strides/validity/origin metadata, type/category identity mapping and error shape need global integration definitions. Camera initial focus/framing, input mapping and recovery/reset remain to be designed. Unknown-scale membership is settled by the approved clarification below; exact wire encoding remains an integration detail.
+The [global integration spec](viewer-integration-spec.md), [wire v1](viewer-regional-wire-v1.md) and [API/event map](viewer-integration-map.md) now fix request/response layout, origin/strides/validity, identity/category mapping, errors and initial/reset camera/input behavior. This section's former design gaps are closed by those definitions; implementation and actual checks remain pending. Unknown-scale precedence below is unchanged.
 
 ## Out of Scope and Later Work
 

@@ -3,7 +3,7 @@
   "feature": "vertical-builds",
   "mapPath": ".scratch/vertical-builds/map.md",
   "destination": "A shipped save editor that isolates a volume and edits/transfers it with real Z. The first 3D cut is a temporary read-only regional viewer of what is already applied; edits in that view come after it ships. Browser and desktop share one frontend. The `.sav` stays on device.",
-  "updatedAt": "2026-11-27T00:09:13.971Z",
+  "updatedAt": "2026-11-27T14:47:38.353Z",
   "hasFog": true,
   "fog": [
     {
@@ -36,7 +36,7 @@
     },
     {
       "id": "fog-08",
-      "text": "Object inspection, wall transparency, label detail, and the exact shape of the orbit controls. Product design after the viewer contract, not architecture."
+      "text": "Later object inspection, wall transparency and richer in-world label detail. MVP orbit/input/reset controls and honest readout are now fixed by the global integration contract; richer navigation remains later scope."
     },
     {
       "id": "fog-09",
