@@ -55,6 +55,14 @@ Script order is a silent perf cliff — do not reorder without measuring.
 Dock-open map-anchor attempts were tried and reverted; leave
 `panels.js` on `invalidateSize()` ([docs/dock-map-anchoring.md](docs/dock-map-anchoring.md)).
 
+## Cursor Cloud specific instructions
+
+Cloud Builds clone this repo on the default branch (`main`). `.cursor/install.sh`
+also checks out `scratch/vertical-builds` as a sibling git worktree at
+`../satisfactorymap-scratch` (maps, tickets, specs, glossary). Refresh happens
+again at agent start. Do not merge that branch into `main`. See
+`.cursor/rules/wayfinder-scratch.mdc`.
+
 ## Verify
 
 ```

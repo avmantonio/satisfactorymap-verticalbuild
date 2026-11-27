@@ -1,6 +1,10 @@
 {
   "name": "Satisfactory Save Map",
+  "clone": {
+    "singleBranch": false
+  },
   "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/install.sh --scratch-worktree",
   "terminals": [
     {
       "name": "serve-site",
