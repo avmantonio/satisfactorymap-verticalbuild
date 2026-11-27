@@ -332,11 +332,11 @@ def run(page, save):
     hec = page.evaluate("""async () => {
       const fails = [];
       const fail = (name, detail) => { fails.push(name + (detail ? ': ' + detail : '')); };
-      let cancel = null, stale = null, healthy = null;
+      let cancel = null, stale = null, cancelAfter = null, staleAfter = null, healthy = null;
       try {
         if (!window.HeightRegion || !window.HeightView || !window.SaveClient || !window.Altitude || !window.Filters) {
           fail('phase2-globals', 'HeightRegion/HeightView/SaveClient/Altitude/Filters missing');
-          return { fails, cancel, stale, healthy };
+          return { fails, cancel, stale, cancelAfter, staleAfter, healthy };
         }
         const stamp = SaveClient.getSessionStamp();
         if (!SaveClient.isReady() || !stamp) fail('session-ready', JSON.stringify(stamp));
@@ -387,26 +387,74 @@ def run(page, save):
         if (SaveClient.markPayloadInstalled(staleStamp)) fail('hec06-stale-install');
         if (!SaveClient.isReady()) fail('hec06-ready-after-stale-install');
 
-        const controller = new AbortController();
-        controller.abort();
-        cancel = await SaveClient.queryRegionalScene({
+        const tinyRegion = {
           schemaVersion: 1, requestId: 'regional:ui-cancel',
           xyM: { minX: 0, maxX: 16, minY: 0, maxY: 16 },
           cutZM: { min: 0, max: 1 }, altitudeCapM: null
-        }, { stamp: SaveClient.getSessionStamp(), signal: controller.signal })
-          .then(() => 'resolved')
-          .catch((error) => error && error.code);
+        };
+        const tooLarge = new Error('REGIONAL_ERROR:' + JSON.stringify({
+          name: 'RegionalError', code: 'REGION_TOO_LARGE',
+          message: 'Region exceeds 8000 occupants',
+          requestId: 'regional:ui-inflight', sessionLost: false,
+          details: { limit: 8000, count: 8001, countKind: 'minimum' }
+        }));
+        const deferRegionalFailure = () => {
+          let rejectFn;
+          let markDispatched;
+          const dispatched = new Promise((resolve) => { markDispatched = resolve; });
+          const pending = new Promise((_, reject) => { rejectFn = reject; });
+          SaveClient.installRegionalQueryTransport(() => {
+            markDispatched();
+            return pending;
+          });
+          return { dispatched, fail: (error) => rejectFn(error) };
+        };
+
+        const controller = new AbortController();
+        controller.abort();
+        cancel = await SaveClient.queryRegionalScene(tinyRegion, {
+          stamp: SaveClient.getSessionStamp(), signal: controller.signal
+        }).then(() => 'resolved').catch((error) => error && error.code);
+
+        if (typeof SaveClient.installRegionalQueryTransport !== 'function') {
+          fail('hec06-inflight-seam');
+        } else {
+          const afterCancel = deferRegionalFailure();
+          const inflightAbort = new AbortController();
+          const cancelPending = SaveClient.queryRegionalScene(
+            Object.assign({}, tinyRegion, { requestId: 'regional:ui-cancel-after' }),
+            { stamp: SaveClient.getSessionStamp(), signal: inflightAbort.signal }
+          );
+          await afterCancel.dispatched;
+          inflightAbort.abort();
+          afterCancel.fail(tooLarge);
+          cancelAfter = await cancelPending.then(() => 'resolved').catch((error) => error && error.code);
+        }
 
         const lease = SaveClient.acquireRegionalVisit(SaveClient.getSessionStamp());
         lease.release();
         lease.release();
         if (lease.isLive()) fail('hec06-lease-idempotent');
 
-        stale = await SaveClient.queryRegionalScene({
-          schemaVersion: 1, requestId: 'regional:ui-stale',
-          xyM: { minX: 0, maxX: 16, minY: 0, maxY: 16 },
-          cutZM: { min: 0, max: 1 }, altitudeCapM: null
-        }, { stamp: staleStamp }).then(() => 'resolved').catch((error) => error && error.code);
+        stale = await SaveClient.queryRegionalScene(
+          Object.assign({}, tinyRegion, { requestId: 'regional:ui-stale' }),
+          { stamp: staleStamp }
+        ).then(() => 'resolved').catch((error) => error && error.code);
+
+        if (typeof SaveClient.installRegionalQueryTransport === 'function') {
+          const afterStale = deferRegionalFailure();
+          const stalePending = SaveClient.queryRegionalScene(
+            Object.assign({}, tinyRegion, { requestId: 'regional:ui-stale-after' }),
+            { stamp: SaveClient.getSessionStamp() }
+          );
+          await afterStale.dispatched;
+          const bump = SaveClient.applyEdits([{ op: 'notARealEditOp' }], false);
+          afterStale.fail(tooLarge);
+          staleAfter = await stalePending.then(() => 'resolved').catch((error) => error && error.code);
+          await bump.then(() => {}, (error) => {
+            SaveClient.acknowledgeHealthyRefusal(bump.sessionStamp);
+          });
+        }
 
         const editOp = SaveClient.applyEdits([{ op: 'notARealEditOp' }], false);
         healthy = await editOp.then(() => ({ refused: false, ack: false, ready: SaveClient.isReady(), code: 'resolved' }), (error) => {
@@ -459,14 +507,16 @@ def run(page, save):
       } catch (error) {
         fail('phase2-exception', String(error && error.stack || error));
       }
-      return { fails, cancel, stale, healthy };
+      return { fails, cancel, stale, cancelAfter, staleAfter, healthy };
     }""")
     for item in hec.get("fails") or []:
         check("HEC hook " + item.split(":")[0], False, item)
     if not (hec.get("fails") or []):
         check("HEC-05 region/chrome/selection retained", True)
     check("HEC-06 cancelled query", hec.get("cancel") == "CANCELLED", hec.get("cancel"))
+    check("HEC-06 cancelled in-flight failure", hec.get("cancelAfter") == "CANCELLED", hec.get("cancelAfter"))
     check("HEC-06 stale query", hec.get("stale") == "STALE_SESSION", hec.get("stale"))
+    check("HEC-06 stale in-flight failure", hec.get("staleAfter") == "STALE_SESSION", hec.get("staleAfter"))
     healthy = hec.get("healthy") or {}
     check("HEC-06 healthy refusal re-ready",
           isinstance(healthy, dict) and healthy.get("refused") and healthy.get("ack") and healthy.get("ready"),

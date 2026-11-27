@@ -58,6 +58,7 @@ const SaveClient = (() => {
    let visitLive = false;
    let visitGeneration = 0;
    let queryDrain = Promise.resolve();
+   let regionalQueryTransport = null;
    const invalidatedListeners = new Set();
    let handoffWorker = null; // lean worker being prepared in the background
 
@@ -654,28 +655,48 @@ const SaveClient = (() => {
          const signal = opts.signal;
          const run = queryDrain.then(function() {
             assertQueryTokens(stamp, signal);
-            return request({ op: "queryRegionalScene", request: regionalRequest }).then(function(bytes) {
+            return dispatchRegionalQuery(regionalRequest).then(function(bytes) {
                assertQueryTokens(stamp, signal);
                if (bytes instanceof Uint8Array) {
                   return bytes.slice();
                }
                return new Uint8Array(bytes);
+            }, function(error) {
+               if (!(error && error.sessionLost)) {
+                  assertQueryTokens(stamp, signal);
+               }
+               throw error;
             });
          });
          queryDrain = run.then(function() {}, function() {});
          return run.catch(normalizeRegionalError);
       },
+      // Test seam: next regional dispatch uses `fn(request)` instead of the
+      // WASM/native transport, then restores the real transport. Lets HEC-06
+      // abort or invalidate after dispatch and then fail the in-flight query.
+      installRegionalQueryTransport(fn) {
+         regionalQueryTransport = typeof fn === "function" ? fn : null;
+      },
    };
+
+   function dispatchRegionalQuery(regionalRequest) {
+      const hook = regionalQueryTransport;
+      regionalQueryTransport = null;
+      if (typeof hook === "function") {
+         return hook(regionalRequest);
+      }
+      return request({ op: "queryRegionalScene", request: regionalRequest });
+   }
 
    function assertQueryTokens(stamp, signal) {
       if (signal && signal.aborted) {
          throw makeRegionalError("CANCELLED", "Regional query was cancelled", stamp);
       }
-      if (!sessionReady) {
-         throw makeRegionalError("NO_SESSION", "No save is loaded for a regional query", stamp);
-      }
       if (!stampsEqual(stamp, copyStamp())) {
          throw makeRegionalError("STALE_SESSION", "Regional query stamp is no longer current", stamp);
+      }
+      if (!sessionReady) {
+         throw makeRegionalError("NO_SESSION", "No save is loaded for a regional query", stamp);
       }
    }
 
