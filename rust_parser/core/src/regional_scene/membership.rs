@@ -188,6 +188,11 @@ fn clip_polyline(chain: &[PathVertex], region: Aabb, out: &mut Vec<ClippedFragme
         match clip_segment(&pair[0], &pair[1], region) {
             None => flush_fragment(&mut current, out),
             Some(points) => {
+                if let (Some(last), Some(first)) = (current.last(), points.first()) {
+                    if !same_point(last.world_m, first.world_m) {
+                        flush_fragment(&mut current, out);
+                    }
+                }
                 for p in points {
                     push_coalesced(&mut current, p);
                 }

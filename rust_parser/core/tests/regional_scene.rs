@@ -432,6 +432,47 @@ fn a002_closed_contacts_slab_and_path_fragments() {
 }
 
 #[test]
+fn a002_leave_reenter_without_outside_chord_is_two_fragments() {
+    // Shared source vertex (20,5,5) is outside [0,10]³; both chords still clip.
+    // Bridging the two boundary intersections would invent a segment across
+    // the outside section.
+    let cube = Aabb::from_bounds([0.0, 0.0, 0.0], [10.0, 10.0, 10.0]);
+    let reenter = SourceRecord {
+        id: "reenter".into(),
+        type_path: "/Fixture/Build_Path.Build_Path_C".into(),
+        source_kind: SourceKind::Actor,
+        position_m: [0.0, 0.0, 0.0],
+        quaternion: Some(identity_quat()),
+        scale: Some([1.0, 1.0, 1.0]),
+        volume: None,
+        path: PathGeom::Linear(vec![vec![
+            PathVertex { world_m: [1.0, 1.0, 5.0], arrive_m: None, leave_m: None },
+            PathVertex { world_m: [20.0, 5.0, 5.0], arrive_m: None, leave_m: None },
+            PathVertex { world_m: [1.0, 9.0, 5.0], arrive_m: None, leave_m: None },
+        ]]),
+    };
+    let admitted = admit(&reenter, cube).unwrap().unwrap();
+    assert_eq!(
+        admitted.fragments.len(),
+        2,
+        "leave/re-enter without a wholly-outside chord must yield two fragments, got {}",
+        admitted.fragments.len()
+    );
+    let first_end = admitted.fragments[0].vertices.last().unwrap().world_m;
+    let second_start = admitted.fragments[1].vertices.first().unwrap().world_m;
+    assert_ne!(
+        first_end, second_start,
+        "must not invent a connector between disjoint boundary intersections"
+    );
+    for frag in &admitted.fragments {
+        assert!(!frag.vertices.is_empty());
+        for vertex in &frag.vertices {
+            assert!(cube.contains_point(vertex.world_m));
+        }
+    }
+}
+
+#[test]
 fn a002_negative_scale_and_unavailable_path() {
     let rec = SourceRecord {
         id: "mirror".into(),
@@ -549,6 +590,56 @@ fn a003_frame_guard_rejects_pathological_size_without_truncation() {
     assert_eq!(err.details["maxFrameBytes"], MAX_FRAME_BYTES);
     let ok = encoded_frame_size(126, 0, 0, 0, Some("regional:empty")).unwrap();
     assert!(ok[4] <= MAX_FRAME_BYTES);
+}
+
+fn first_vertex_count_over_frame_bound() -> u32 {
+    let mut lo = 0u32;
+    let mut hi = 3_000_000u32;
+    assert!(encoded_frame_size(0, 1, 1, hi, Some("regional:path-bound")).is_err());
+    while lo + 1 < hi {
+        let mid = lo + (hi - lo) / 2;
+        if encoded_frame_size(0, 1, 1, mid, Some("regional:path-bound")).is_err() {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    hi
+}
+
+#[test]
+fn a003_path_under_occupant_cap_rejects_before_vertex_buffers() {
+    let request = RegionalRequest::from_json(
+        r#"{"schemaVersion":1,"requestId":"regional:path-bound","xyM":{"minX":0,"maxX":16,"minY":0,"maxY":16},"cutZM":{"min":0,"max":20},"altitudeCapM":null}"#,
+    )
+    .unwrap();
+    let vertex_count = first_vertex_count_over_frame_bound() as usize;
+    let mut chain = Vec::with_capacity(vertex_count);
+    for i in 0..vertex_count {
+        chain.push(PathVertex {
+            world_m: [1.0, 1.0, 1.0 + i as f64 * 1e-8],
+            arrive_m: None,
+            leave_m: None,
+        });
+    }
+    let records = vec![SourceRecord {
+        id: "long-path".into(),
+        type_path: "/Fixture/Build_Path.Build_Path_C".into(),
+        source_kind: SourceKind::Actor,
+        position_m: [1.0, 1.0, 1.0],
+        quaternion: Some(identity_quat()),
+        scale: Some([1.0, 1.0, 1.0]),
+        volume: None,
+        path: PathGeom::Linear(vec![chain]),
+    }];
+    let (result, trace) = extract_from_records(&records, &request);
+    let err = result.expect_err("oversized path must refuse");
+    assert_eq!(err.code, RegionalErrorCode::ResourceExhausted);
+    assert_eq!(err.details["maxFrameBytes"], MAX_FRAME_BYTES);
+    assert_eq!(trace.admitted, 1);
+    assert_eq!(trace.pose_rows_reserved, 0);
+    assert_eq!(trace.fragment_rows_reserved, 0);
+    assert_eq!(trace.vertex_rows_reserved, 0);
 }
 
 #[test]

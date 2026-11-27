@@ -276,9 +276,11 @@ pub fn extract_from_records(
     }
     let aabb = Aabb::from_bounds(region.min_m, region.max_m);
     let mut count = 0u32;
+    let mut fragments = 0u32;
+    let mut vertices = 0u32;
     for record in records {
         match admit(record, aabb) {
-            Ok(Some(_)) => {
+            Ok(Some(row)) => {
                 count = count.saturating_add(1);
                 if count > ADMISSION_LIMIT {
                     trace.admitted = count;
@@ -287,13 +289,26 @@ pub fn extract_from_records(
                         trace,
                     );
                 }
+                match add_path_counts(&row, &mut fragments, &mut vertices, &request.request_id) {
+                    Ok(()) => {}
+                    Err(err) => return (Err(err), trace),
+                }
             }
             Ok(None) => {}
             Err(err) => return (Err(err), trace),
         }
     }
     trace.admitted = count;
+    if let Err(err) = encoded_frame_size(0, count, fragments, vertices, Some(&request.request_id)) {
+        return (Err(err), trace);
+    }
     let mut admitted = Vec::new();
+    if let Err(_) = admitted.try_reserve(count as usize) {
+        return (
+            Err(RegionalError::resource_exhausted(Some(request.request_id.clone()), false)),
+            trace,
+        );
+    }
     for record in records {
         match admit(record, aabb) {
             Ok(Some(row)) => admitted.push(row),
@@ -325,17 +340,24 @@ fn extract_store(
     let aabb = Aabb::from_bounds(region.min_m, region.max_m);
     let mut trace = ExtractTrace::default();
     let mut count = 0u32;
+    let mut fragments = 0u32;
+    let mut vertices = 0u32;
     visit_source_records(store, &request.request_id, |record| {
-        if admit(&record, aabb)?.is_some() {
+        if let Some(row) = admit(&record, aabb)? {
             count = count.saturating_add(1);
             if count > ADMISSION_LIMIT {
                 return Err(RegionalError::region_too_large(Some(request.request_id.clone())));
             }
+            add_path_counts(&row, &mut fragments, &mut vertices, &request.request_id)?;
         }
         Ok(())
     })?;
     trace.admitted = count;
+    encoded_frame_size(0, count, fragments, vertices, Some(&request.request_id))?;
     let mut admitted = Vec::new();
+    admitted
+        .try_reserve(count as usize)
+        .map_err(|_| RegionalError::resource_exhausted(Some(request.request_id.clone()), false))?;
     visit_source_records(store, &request.request_id, |record| {
         if let Some(row) = admit(&record, aabb)? {
             admitted.push(row);
@@ -374,6 +396,37 @@ fn encode_empty(
     })
 }
 
+fn add_path_counts(
+    row: &Admitted,
+    fragments: &mut u32,
+    vertices: &mut u32,
+    request_id: &str,
+) -> Result<(), RegionalError> {
+    if row.path_state != PathState::Linear {
+        return Ok(());
+    }
+    for frag in &row.fragments {
+        *fragments = fragments
+            .checked_add(1)
+            .ok_or_else(|| RegionalError::resource_exhausted(Some(request_id.to_string()), false))?;
+        let count = u32::try_from(frag.vertices.len())
+            .map_err(|_| RegionalError::resource_exhausted(Some(request_id.to_string()), false))?;
+        *vertices = vertices
+            .checked_add(count)
+            .ok_or_else(|| RegionalError::resource_exhausted(Some(request_id.to_string()), false))?;
+    }
+    Ok(())
+}
+
+fn try_reserve<T>(
+    vec: &mut Vec<T>,
+    additional: usize,
+    request_id: &str,
+) -> Result<(), RegionalError> {
+    vec.try_reserve(additional)
+        .map_err(|_| RegionalError::resource_exhausted(Some(request_id.to_string()), false))
+}
+
 fn encode_admitted(
     request: &RegionalRequest,
     region: &EffectiveRegion,
@@ -383,12 +436,18 @@ fn encode_admitted(
         let frame = encode_empty(request, region, "NO_OCCUPANTS")?;
         return Ok((frame, (0, 0, 0)));
     }
+    let rid = request.request_id.as_str();
+    let n = u32::try_from(admitted.len())
+        .map_err(|_| RegionalError::resource_exhausted(Some(rid.to_string()), false))?;
+    let mut fragment_count = 0u32;
+    let mut vertex_count = 0u32;
+    for row in admitted {
+        add_path_counts(row, &mut fragment_count, &mut vertex_count, rid)?;
+    }
+
     let mut types: Vec<TypeRow> = Vec::new();
     let mut occupants = Vec::new();
-    let mut poses = Vec::new();
-    let mut fragments = Vec::new();
-    let mut vertices = Vec::new();
-    let mut vertex_flags = Vec::new();
+    try_reserve(&mut occupants, admitted.len(), rid)?;
     for row in admitted {
         let type_index = match types.iter().position(|t| t.type_path == row.record.type_path) {
             Some(i) => i as u32,
@@ -403,7 +462,7 @@ fn encode_admitted(
                 (types.len() - 1) as u32
             }
         };
-        let (pose, flags) = encode_pose(row, region.origin_m, &request.request_id)?;
+        let (_pose, flags) = encode_pose(row, region.origin_m, rid)?;
         occupants.push(OccupantRow {
             id: row.record.id.clone(),
             type_index,
@@ -414,27 +473,54 @@ fn encode_admitted(
             path_state: row.path_state,
             uncertainty: row.uncertainty.iter().map(|u| u.as_str().to_string()).collect(),
         });
-        poses.push(pose);
-        if row.path_state == PathState::Linear {
-            for frag in &row.fragments {
-                let first = u32::try_from(vertices.len()).map_err(|_| {
-                    RegionalError::resource_exhausted(Some(request.request_id.clone()), false)
-                })?;
-                let count = u32::try_from(frag.vertices.len()).map_err(|_| {
-                    RegionalError::resource_exhausted(Some(request.request_id.clone()), false)
-                })?;
-                fragments.push([occupants.len() as u32 - 1, first, count, 0]);
-                for vertex in &frag.vertices {
-                    let (encoded, vflags) = encode_vertex(vertex, region.origin_m, &request.request_id)?;
-                    vertices.push(encoded);
-                    vertex_flags.push(vflags);
-                }
+    }
+
+    let skeleton = SceneFrameInput {
+        request_id: request.request_id.clone(),
+        origin_m: region.origin_m,
+        effective_min: Some(region.min_m),
+        effective_max: Some(region.max_m),
+        empty_reason: None,
+        types: types.clone(),
+        occupants: occupants.clone(),
+        poses: Vec::new(),
+        fragments: Vec::new(),
+        vertices: Vec::new(),
+        vertex_flags: Vec::new(),
+    };
+    let metadata = compact_metadata(&skeleton)?;
+    let metadata_bytes = u32::try_from(metadata.len())
+        .map_err(|_| RegionalError::resource_exhausted(Some(rid.to_string()), false))?;
+    encoded_frame_size(metadata_bytes, n, fragment_count, vertex_count, Some(rid))?;
+
+    let mut poses = Vec::new();
+    let mut fragments = Vec::new();
+    let mut vertices = Vec::new();
+    let mut vertex_flags = Vec::new();
+    try_reserve(&mut poses, admitted.len(), rid)?;
+    try_reserve(&mut fragments, fragment_count as usize, rid)?;
+    try_reserve(&mut vertices, vertex_count as usize, rid)?;
+    try_reserve(&mut vertex_flags, vertex_count as usize, rid)?;
+    for row in admitted {
+        poses.push(encode_pose(row, region.origin_m, rid)?.0);
+    }
+    for (occupant_index, row) in admitted.iter().enumerate() {
+        if row.path_state != PathState::Linear {
+            continue;
+        }
+        for frag in &row.fragments {
+            let first = u32::try_from(vertices.len())
+                .map_err(|_| RegionalError::resource_exhausted(Some(rid.to_string()), false))?;
+            let count = u32::try_from(frag.vertices.len())
+                .map_err(|_| RegionalError::resource_exhausted(Some(rid.to_string()), false))?;
+            fragments.push([occupant_index as u32, first, count, 0]);
+            for vertex in &frag.vertices {
+                let (encoded, vflags) = encode_vertex(vertex, region.origin_m, rid)?;
+                vertices.push(encoded);
+                vertex_flags.push(vflags);
             }
         }
     }
-    let n = occupants.len() as u32;
-    let f = fragments.len() as u32;
-    let v = vertices.len() as u32;
     let frame = encode_scene_frame(&SceneFrameInput {
         request_id: request.request_id.clone(),
         origin_m: region.origin_m,
@@ -448,7 +534,7 @@ fn encode_admitted(
         vertices,
         vertex_flags,
     })?;
-    Ok((frame, (n, f, v)))
+    Ok((frame, (n, fragment_count, vertex_count)))
 }
 
 fn encode_pose(
