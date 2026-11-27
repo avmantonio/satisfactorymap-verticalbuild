@@ -2494,7 +2494,6 @@ var HeightView = {};
     if (!region) {
       return;
     }
-    viewerSuspended = false;
     isolation = {
       minX: region.rectMapPx.minX,
       maxX: region.rectMapPx.maxX,
@@ -2512,6 +2511,11 @@ var HeightView = {};
     domain = computeDomain(xyOccupants);
     band = { min: region.cutZM.min, max: region.cutZM.max };
     clampBandToRail();
+    // Dismiss does not leave viewerSuspended set. Keep it true so applyPeel
+    // rebuilds _inBand/cubeKeys without SelectionTool.setRecords.
+    viewerSuspended = true;
+    applyPeel();
+    viewerSuspended = false;
     openChrome();
     positionChrome();
     positionEdgeHandles();

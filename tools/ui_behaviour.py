@@ -342,7 +342,9 @@ def run(page, save):
         if (!SaveClient.isReady() || !stamp) fail('session-ready', JSON.stringify(stamp));
 
         const rect = { minX: 720, maxX: 740, minY: 5349, maxY: 5369 };
-        const band = { min: -20, max: 40 };
+        // Solo constructors at this XY sit near 57–69 m; the band must overlap
+        // them so reopen can prove cubeKeys/_inBand were rebuilt.
+        const band = { min: 40, max: 80 };
         const centreBefore = [MapApp.map.getCenter().lat, MapApp.map.getCenter().lng, MapApp.map.getZoom()];
         const bucketsBefore = MapApp.layer.buckets.length;
         const selectedBefore = SelectionTool.selectedCount ? SelectionTool.selectedCount() : 0;
@@ -360,6 +362,10 @@ def run(page, save):
         if (!afterDismiss || afterDismiss.revision !== revision) fail('hec05-dismiss-cleared');
         HeightView.reopenCommitted();
         if (!HeightView.isOpen()) fail('hec05-reopen-closed');
+        const inBox = SelectionTool.collectInBox(rect.minX, rect.maxX, rect.minY, rect.maxY) || [];
+        if (inBox.length && !inBox.some((record) => HeightView.allowToggle(record))) {
+          fail('hec05-reopen-toggle');
+        }
         const afterReopen = HeightRegion.getCommitted();
         if (!afterReopen || afterReopen.rectMapPx.maxX !== rect.maxX || afterReopen.cutZM.max !== band.max) {
           fail('hec05-reopen-coords');
