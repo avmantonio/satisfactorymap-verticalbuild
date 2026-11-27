@@ -141,6 +141,48 @@ def stampAssetVersion():
                   rf"\g<1>\g<2>?v={version}\g<3>", html)
     with open(indexPath, "w", encoding="utf-8", newline="\n") as f:
         f.write(html)
+    stampRegionalModuleGraph(version)
+    return version
+
+
+REGIONAL_MODULE_GRAPH = (
+    "regional_scene.js",
+    "regional_codec.js",
+    "regional_forms.js",
+    os.path.join("vendor", "OrbitControls.js"),
+)
+
+# Stamp literal relative ESM imports in dist only. Source files stay unstamped.
+_RELATIVE_JS_IMPORT = re.compile(
+    r"""((?:from|import)\s*\(?\s*)(['"])(\./[^'"]+\.js)(\2)"""
+)
+
+
+def stampRegionalModuleGraph(version):
+    """Rewrite same-origin relative imports in the regional module graph.
+
+    Core and addon must share one resolved Three URL, including the stamp, so
+    a stamped/unstamped pair cannot load as duplicate modules.
+    """
+    for rel in REGIONAL_MODULE_GRAPH:
+        path = os.path.join(DIST, rel)
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+
+        def repl(match):
+            url = match.group(3)
+            if "?v=" in url:
+                return match.group(0)
+            return "%s%s%s?v=%s%s" % (
+                match.group(1), match.group(2), url, version, match.group(4),
+            )
+
+        stamped = _RELATIVE_JS_IMPORT.sub(repl, text)
+        if stamped != text:
+            with open(path, "w", encoding="utf-8", newline="\n") as f:
+                f.write(stamped)
 
 
 def main():
