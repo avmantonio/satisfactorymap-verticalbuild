@@ -607,6 +607,55 @@ def run(page, save):
         canvas.focus();
         if (document.activeElement !== canvas) fail('hec08-focus');
 
+        const drawing0 = inspected.drawing;
+        const allocs0 = inspected.attrAllocs;
+        handle.setVisibility({ F1: true, S1: false, U1: true, P1: true });
+        handle.setVisualZ({ min: -3, max: 2 });
+        const mixed = handle.inspect();
+        const pathMixed = mixed.occupants.find((row) => row.id === 'P1');
+        if (!pathMixed || pathMixed.zVisible || pathMixed.drawn) fail('hec08-path-zclip', JSON.stringify(pathMixed));
+        const floorMixed = mixed.occupants.find((row) => row.id === 'F1');
+        if (!floorMixed || !floorMixed.drawn) fail('hec08-floor-zkeep');
+        if (mixed.status && mixed.status.indexOf('No loaded occupants are visible') >= 0) fail('hec08-mixed-empty-msg');
+
+        handle.setVisualZ({ min: 40, max: 50 });
+        const emptyVis = handle.inspect();
+        if (!emptyVis.status || emptyVis.status.indexOf('No loaded occupants are visible') < 0) {
+          fail('hec08-empty-z-status', emptyVis.status);
+        }
+        if (emptyVis.occupants.some((row) => row.drawn)) fail('hec08-empty-z-drawn');
+        const pathEmpty = emptyVis.occupants.find((row) => row.id === 'P1');
+        if (!pathEmpty || pathEmpty.zVisible) fail('hec08-path-still-zvisible');
+
+        handle.setVisualZ({ min: -8, max: 16 });
+        handle.setVisibility({ F1: false, S1: true, U1: true, P1: true });
+        const afterDraw = handle.inspect();
+        const drawing1 = afterDraw.drawing;
+        if (afterDraw.attrAllocs !== allocs0) {
+          fail('hec08-attr-allocs', JSON.stringify({ allocs0, allocs1: afterDraw.attrAllocs }));
+        }
+        ['form', 'marker', 'path', 'contact'].forEach((key) => {
+          if (!drawing0 || !drawing1 || !drawing0[key] || drawing0[key] !== drawing1[key]) {
+            fail('hec08-attr-reuse-' + key, JSON.stringify({ a: drawing0, b: drawing1 }));
+          }
+        });
+
+        const cam0 = handle.inspect().camera;
+        canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
+        const cam1 = handle.inspect().camera;
+        if (!cam0 || !cam1) fail('hec08-orbit-inspect');
+        else {
+          if (Math.abs(cam1.position[2] - cam0.position[2]) > 1e-5) {
+            fail('hec08-orbit-azimuth-z', JSON.stringify({ cam0, cam1 }));
+          }
+          if (cam1.up[0] !== 0 || cam1.up[1] !== 0 || Math.abs(cam1.up[2] - 1) > 1e-6) {
+            fail('hec08-orbit-up', JSON.stringify(cam1.up));
+          }
+          const moved = Math.abs(cam1.position[0] - cam0.position[0]) > 1e-5
+            || Math.abs(cam1.position[1] - cam0.position[1]) > 1e-5;
+          if (!moved) fail('hec08-orbit-azimuth-xy', JSON.stringify({ cam0, cam1 }));
+        }
+
         handle.dispose();
         handle.dispose();
         liveZero(regionalSceneLiveResources(), 'hec08-after-dispose');

@@ -23,6 +23,7 @@ const LIVE = {
   materials: 0,
   renderers: 0,
   decodedRefs: 0,
+  attrAllocs: 0,
 };
 
 let injectedFailure = null;
@@ -42,6 +43,7 @@ export function regionalSceneLiveResources() {
     materials: LIVE.materials,
     renderers: LIVE.renderers,
     decodedRefs: LIVE.decodedRefs,
+    attrAllocs: LIVE.attrAllocs,
   };
 }
 
@@ -251,6 +253,50 @@ function originInZ(pose, zRange) {
     return true;
   }
   return pose[2] >= zRange.min && pose[2] <= zRange.max;
+}
+
+function allocDynamicAttr(capacityFloats, itemSize) {
+  const attr = new THREE.Float32BufferAttribute(
+    new Float32Array(Math.max(capacityFloats, itemSize)),
+    itemSize,
+  );
+  attr.setUsage(THREE.DynamicDrawUsage);
+  LIVE.attrAllocs++;
+  attr._regionalStamp = "a" + LIVE.attrAllocs;
+  return attr;
+}
+
+function writeDynamicBuffers(geom, positions, colors) {
+  const needPos = Math.max(positions.length, 3);
+  const needCol = colors ? Math.max(colors.length, 3) : 0;
+  const pos = geom.getAttribute("position");
+  const col = colors ? geom.getAttribute("color") : null;
+  const fits = pos && pos.array.length >= needPos && (!colors || (col && col.array.length >= needCol));
+  if (!fits) {
+    geom.dispose();
+    geom.setAttribute("position", allocDynamicAttr(needPos, 3));
+    if (colors) {
+      geom.setAttribute("color", allocDynamicAttr(needCol, 3));
+    }
+  }
+  const posAttr = geom.getAttribute("position");
+  posAttr.array.set(positions);
+  if (positions.length < posAttr.array.length) {
+    posAttr.array.fill(0, positions.length);
+  }
+  posAttr.needsUpdate = true;
+  if (colors) {
+    const colAttr = geom.getAttribute("color");
+    colAttr.array.set(colors);
+    if (colors.length < colAttr.array.length) {
+      colAttr.array.fill(0, colors.length);
+    }
+    colAttr.needsUpdate = true;
+  }
+  geom.setDrawRange(0, Math.floor(positions.length / 3));
+  if (positions.length >= 3) {
+    geom.computeBoundingSphere();
+  }
 }
 
 function clipSegmentZ(a, b, zRange) {
@@ -561,10 +607,25 @@ export async function createRegionalScene(options) {
       });
     });
 
+    const formCap = Math.max(3, lineParts.reduce((n, part) => n + part.positions.length, 0));
+    const markerCap = Math.max(3, records.length * 3);
+    const pathCap = Math.max(3, model.counts.vertices * 6);
+    const contactCap = Math.max(3, model.counts.vertices * 3);
+
+    function bindDynamicGeometry(capacity, withColor) {
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute("position", allocDynamicAttr(capacity, 3));
+      if (withColor) {
+        geom.setAttribute("color", allocDynamicAttr(capacity, 3));
+      }
+      geom.setDrawRange(0, 0);
+      ledger.add("geometries", geom, (item) => item.dispose());
+      return geom;
+    }
+
     const formLineMat = new THREE.LineBasicMaterial({ vertexColors: true });
     ledger.add("materials", formLineMat, (item) => item.dispose());
-    const formLineGeom = new THREE.BufferGeometry();
-    ledger.add("geometries", formLineGeom, (item) => item.dispose());
+    const formLineGeom = bindDynamicGeometry(formCap, true);
     const formLines = new THREE.LineSegments(formLineGeom, formLineMat);
     formLines.frustumCulled = false;
     scene.add(formLines);
@@ -580,8 +641,7 @@ export async function createRegionalScene(options) {
       color: 0xffffff,
     });
     ledger.add("materials", markerMat, (item) => item.dispose());
-    const markerGeom = new THREE.BufferGeometry();
-    ledger.add("geometries", markerGeom, (item) => item.dispose());
+    const markerGeom = bindDynamicGeometry(markerCap, false);
     const markers = new THREE.Points(markerGeom, markerMat);
     markers.frustumCulled = false;
     scene.add(markers);
@@ -593,8 +653,7 @@ export async function createRegionalScene(options) {
       depthTest: false,
     });
     ledger.add("materials", contactMat, (item) => item.dispose());
-    const contactGeom = new THREE.BufferGeometry();
-    ledger.add("geometries", contactGeom, (item) => item.dispose());
+    const contactGeom = bindDynamicGeometry(contactCap, false);
     const contacts = new THREE.Points(contactGeom, contactMat);
     contacts.frustumCulled = false;
     scene.add(contacts);
@@ -604,8 +663,7 @@ export async function createRegionalScene(options) {
       linewidth: 1,
     });
     ledger.add("materials", pathMat, (item) => item.dispose());
-    const pathGeom = new THREE.BufferGeometry();
-    ledger.add("geometries", pathGeom, (item) => item.dispose());
+    const pathGeom = bindDynamicGeometry(pathCap, true);
     const pathLines = new THREE.LineSegments(pathGeom, pathMat);
     pathLines.frustumCulled = false;
     scene.add(pathLines);
@@ -690,6 +748,8 @@ export async function createRegionalScene(options) {
         let zVisible = true;
         if (record.classification.visual === "uncertain-marker") {
           zVisible = originInZ(record.pose, visualZ);
+        } else if (record.classification.visual === "static-path") {
+          zVisible = visualZ == null;
         } else if (record.aabb) {
           zVisible = aabbIntersectsZ(record.aabb, visualZ);
         }
@@ -732,9 +792,7 @@ export async function createRegionalScene(options) {
           );
         }
       });
-      formLineGeom.setAttribute("position", new THREE.Float32BufferAttribute(formPos, 3));
-      formLineGeom.setAttribute("color", new THREE.Float32BufferAttribute(formCol, 3));
-      formLineGeom.computeBoundingSphere();
+      writeDynamicBuffers(formLineGeom, formPos, formCol);
       formLines.visible = formPos.length > 0;
 
       const markerPos = [];
@@ -743,23 +801,20 @@ export async function createRegionalScene(options) {
           markerPos.push(record.pose[0], record.pose[1], record.pose[2]);
         }
       });
-      markerGeom.setAttribute("position", new THREE.Float32BufferAttribute(markerPos, 3));
-      markerGeom.computeBoundingSphere();
+      writeDynamicBuffers(markerGeom, markerPos, null);
       markers.visible = markerPos.length > 0;
 
       const linePos = [];
       const lineCol = [];
       const contactPos = [];
+      const pathInZ = new Set();
       const color = new THREE.Color();
-      let cursor = 0;
       for (let f = 0; f < model.counts.fragments; f++) {
         const owner = model.fragments[f * 4];
         const first = model.fragments[f * 4 + 1];
         const count = model.fragments[f * 4 + 2];
         const record = records[owner];
-        if (!record || !record.drawn || record.classification.visual !== "static-path") {
-          cursor += count;
-          void cursor;
+        if (!record || record.classification.visual !== "static-path") {
           continue;
         }
         color.set(record.classification.color);
@@ -771,12 +826,19 @@ export async function createRegionalScene(options) {
         if (count === 1) {
           const p = verts[0];
           if (!visualZ || (p[2] >= visualZ.min && p[2] <= visualZ.max)) {
-            contactPos.push(p[0], p[1], p[2]);
+            pathInZ.add(record.occupant.id);
+            if (record.maskVisible) {
+              contactPos.push(p[0], p[1], p[2]);
+            }
           }
         } else {
           for (let i = 0; i < verts.length - 1; i++) {
             const clipped = clipSegmentZ(verts[i], verts[i + 1], visualZ);
             if (!clipped) {
+              continue;
+            }
+            pathInZ.add(record.occupant.id);
+            if (!record.maskVisible) {
               continue;
             }
             linePos.push(
@@ -787,12 +849,18 @@ export async function createRegionalScene(options) {
           }
         }
       }
-      pathGeom.setAttribute("position", new THREE.Float32BufferAttribute(linePos, 3));
-      pathGeom.setAttribute("color", new THREE.Float32BufferAttribute(lineCol, 3));
-      pathGeom.computeBoundingSphere();
+      records.forEach((record) => {
+        if (record.classification.visual !== "static-path") {
+          return;
+        }
+        if (visualZ) {
+          record.zVisible = pathInZ.has(record.occupant.id);
+        }
+        record.drawn = record.maskVisible && record.zVisible;
+      });
+      writeDynamicBuffers(pathGeom, linePos, lineCol);
       pathLines.visible = linePos.length > 0;
-      contactGeom.setAttribute("position", new THREE.Float32BufferAttribute(contactPos, 3));
-      contactGeom.computeBoundingSphere();
+      writeDynamicBuffers(contactGeom, contactPos, null);
       contacts.visible = contactPos.length > 0;
 
       const readout = statusFor(model, records, visibilityMask, visualZ);
@@ -841,12 +909,18 @@ export async function createRegionalScene(options) {
       }
     });
 
+    const yUp = new THREE.Vector3(0, 1, 0);
     function rotateBy(az, pol) {
+      const quat = new THREE.Quaternion().setFromUnitVectors(camera.up, yUp);
+      const quatInverse = quat.clone().invert();
       const offset = camera.position.clone().sub(controls.target);
+      offset.applyQuaternion(quat);
       const spherical = new THREE.Spherical().setFromVector3(offset);
       spherical.theta += az;
       spherical.phi = THREE.MathUtils.clamp(spherical.phi - pol, 0.05, Math.PI - 0.05);
+      spherical.makeSafe();
       offset.setFromSpherical(spherical);
+      offset.applyQuaternion(quatInverse);
       camera.position.copy(controls.target).add(offset);
       camera.lookAt(controls.target);
       controls.update();
@@ -938,12 +1012,28 @@ export async function createRegionalScene(options) {
         attached = false;
       },
       inspect() {
+        const attrId = (geom) => {
+          const attr = geom && geom.getAttribute("position");
+          return attr && attr._regionalStamp ? attr._regionalStamp : null;
+        };
         return {
           attached,
           live: regionalSceneLiveResources(),
           legend: legend.textContent,
           summary: summary.textContent,
           status: status.textContent,
+          attrAllocs: LIVE.attrAllocs,
+          drawing: {
+            form: attrId(formLineGeom),
+            marker: attrId(markerGeom),
+            path: attrId(pathGeom),
+            contact: attrId(contactGeom),
+          },
+          camera: {
+            up: [camera.up.x, camera.up.y, camera.up.z],
+            position: [camera.position.x, camera.position.y, camera.position.z],
+            target: [controls.target.x, controls.target.y, controls.target.z],
+          },
           occupants: records.map((record) => ({
             id: record.occupant.id,
             visual: record.classification.visual,
@@ -953,6 +1043,7 @@ export async function createRegionalScene(options) {
             cue: record.classification.cue,
             sizeKind: record.classification.sizeKind,
             drawn: record.drawn,
+            zVisible: record.zVisible,
             matrix: Array.from(record.matrix.elements),
           })),
           batches: Array.from(solidBatches.values()).map((batch) => ({
