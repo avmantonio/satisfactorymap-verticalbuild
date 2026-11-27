@@ -615,6 +615,9 @@ def run(page, save):
         handle.setVisibility({ F1: true, S1: false, U1: true, P1: true });
         handle.setVisualZ({ min: -8, max: 16 });
         const inspected = handle.inspect();
+        if (!inspected.outline || inspected.outline.max[2] - inspected.outline.min[2] < 20) {
+          fail('hec08-outline-full-z', JSON.stringify(inspected.outline));
+        }
         if (!inspected.legend || inspected.legend.indexOf('not collision') < 0) fail('hec09-legend');
         if (!inspected.summary || inspected.summary.indexOf('Admitted') < 0) fail('hec09-summary');
         const smelter = inspected.occupants.find((row) => row.id === 'S1');
@@ -633,6 +636,10 @@ def run(page, save):
         handle.setVisibility({ F1: true, S1: false, U1: true, P1: true });
         handle.setVisualZ({ min: -3, max: 2 });
         const mixed = handle.inspect();
+        const zSpan = mixed.outline && (mixed.outline.max[2] - mixed.outline.min[2]);
+        if (!(zSpan > 4.5 && zSpan < 6.5)) {
+          fail('hec08-outline-visual-z', JSON.stringify(mixed.outline));
+        }
         const pathMixed = mixed.occupants.find((row) => row.id === 'P1');
         if (!pathMixed || pathMixed.zVisible || pathMixed.drawn) fail('hec08-path-zclip', JSON.stringify(pathMixed));
         const floorMixed = mixed.occupants.find((row) => row.id === 'F1');
@@ -684,6 +691,28 @@ def run(page, save):
           const moved = Math.abs(cam1.position[0] - cam0.position[0]) > 1e-5
             || Math.abs(cam1.position[1] - cam0.position[1]) > 1e-5;
           if (!moved) fail('hec08-orbit-azimuth-xy', JSON.stringify({ cam0, cam1 }));
+        }
+
+        const distOf = (cam) => Math.hypot(
+          cam.position[0] - cam.target[0],
+          cam.position[1] - cam.target[1],
+          cam.position[2] - cam.target[2],
+        );
+        const camHome = handle.inspect().camera;
+        const distHome = distOf(camHome);
+        if (!(camHome.minDistance > 0) || camHome.minDistance >= distHome) {
+          fail('hec08-min-distance', JSON.stringify(camHome));
+        }
+        for (let i = 0; i < 40; i++) {
+          canvas.dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true, cancelable: true }));
+        }
+        const camClose = handle.inspect().camera;
+        const distClose = distOf(camClose);
+        if (distClose + 1e-3 < camClose.minDistance) {
+          fail('hec08-dolly-clamp', JSON.stringify({ distClose, camClose }));
+        }
+        if (distClose < 1) {
+          fail('hec08-dolly-inside', JSON.stringify({ distClose, distHome, camClose }));
         }
 
         handle.dispose();
@@ -887,6 +916,12 @@ def run(page, save):
         if (HeightView.isOpen()) fail('c015-hv-open-during-visit');
         const first = RegionalViewer.inspect();
         if (!first || !first.occupants || !first.occupants.length) fail('c015-empty-constructors');
+        if (!first.outline) {
+          fail('c015-outline-missing');
+        } else {
+          const span = first.outline.max[2] - first.outline.min[2];
+          if (!(span > 8 && span < 120)) fail('c015-outline-z-margins', String(span));
+        }
         const admitted0 = first.occupants.length;
         const ids0 = first.occupants.map((row) => row.id).sort();
         if (EditorTool.opCount() !== ops0) fail('c015-visit-mutated-undo');
