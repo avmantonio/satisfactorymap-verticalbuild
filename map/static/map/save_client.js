@@ -51,7 +51,58 @@ const SaveClient = (() => {
    // Bumped by every state-changing request (load, edits); an in-flight
    // lean handoff refuses to swap if it changed under it.
    let stateVersion = 0;
+   // saveEpoch changes on load/unload/reset/crash/dispose. stateVersion
+   // also changes before every mutation attempt, including refused edits.
+   let saveEpoch = 0;
+   let sessionReady = false;
+   let visitLive = false;
+   let visitGeneration = 0;
+   let queryDrain = Promise.resolve();
+   const invalidatedListeners = new Set();
    let handoffWorker = null; // lean worker being prepared in the background
+
+   function copyStamp() {
+      return { saveEpoch: saveEpoch, stateVersion: stateVersion };
+   }
+
+   function freezeStamp(stamp) {
+      return Object.freeze({ saveEpoch: stamp.saveEpoch, stateVersion: stamp.stateVersion });
+   }
+
+   function stampsEqual(a, b) {
+      return !!(a && b && a.saveEpoch === b.saveEpoch && a.stateVersion === b.stateVersion);
+   }
+
+   function attachSessionStamp(promise, stamp) {
+      Object.defineProperty(promise, "sessionStamp", {
+         value: freezeStamp(stamp),
+         enumerable: true,
+         configurable: false,
+         writable: false,
+      });
+      return promise;
+   }
+
+   function notifyInvalidated() {
+      invalidatedListeners.forEach(function(listener) {
+         try {
+            listener(copyStamp());
+         } catch (e) { /* listener errors must not break SaveClient */ }
+      });
+   }
+
+   function invalidateSession(opts) {
+      opts = opts || {};
+      if (opts.epoch) {
+         saveEpoch++;
+      }
+      stateVersion++;
+      sessionReady = false;
+      visitLive = false;
+      visitGeneration++;
+      notifyInvalidated();
+      abortHandoff();
+   }
 
    function attachHandlers(w) {
       w.onmessage = (event) => {
@@ -87,6 +138,7 @@ const SaveClient = (() => {
       w.onerror = (event) => {
          const error = new Error("Save worker crashed: " + (event.message || "unknown error"));
          error.sessionLost = true;
+         invalidateSession({ epoch: true });
          for (const entry of pending.values()) {
             entry.reject(error);
          }
@@ -115,6 +167,9 @@ const SaveClient = (() => {
    // Kick off a lean-worker swap unless the debug valve disables it or there's
    // little memory to reclaim (see HANDOFF_MIN_MEM_BYTES).
    function scheduleLeanHandoff() {
+      if (visitLive) {
+         return; // regional visit lease defers start/swap
+      }
       if (IS_TAURI) {
          return; // native memory frees on its own; nothing to hand off
       }
@@ -184,6 +239,10 @@ const SaveClient = (() => {
                   }
                   return;
                }
+               if (visitLive) {
+                  setTimeout(trySwap, 100); // lease defers swap; serving worker stays
+                  return;
+               }
                if (pending.size > 0) {
                   setTimeout(trySwap, 100); // don't strand in-flight replies
                   return;
@@ -244,6 +303,9 @@ const SaveClient = (() => {
          }
          case "exportSave":
             return invoke("export_save").then((bytes) => new Uint8Array(bytes));
+         case "queryRegionalScene":
+            return invoke("regional_scene", { requestJson: JSON.stringify(msg.request) })
+               .then((bytes) => new Uint8Array(bytes));
          case "exportSaveDialog":
             return invoke("export_save_dialog", { defaultName: msg.defaultName });
          case "writeClipboardText":
@@ -392,10 +454,10 @@ const SaveClient = (() => {
       // onProgress(phaseLabel, current, total) mirrors /api/load-progress.
       loadSave(buffer, onProgress) {
          activeProgress = onProgress || null;
-         stateVersion++;
-         abortHandoff();
+         invalidateSession({ epoch: true });
+         const stamp = copyStamp();
          // ?noLean=1 skips the lean-worker handoff (debug/A-B).
-         return request({ op: "load", buffer }, [buffer]).then((payloadBytes) => {
+         const op = request({ op: "load", buffer }, [buffer]).then((payloadBytes) => {
             activeProgress = null;
             scheduleLeanHandoff();
             return parsePayloadBytes(payloadBytes);
@@ -403,20 +465,23 @@ const SaveClient = (() => {
             activeProgress = null;
             throw error;
          });
+         return attachSessionStamp(op, stamp);
       },
       // loadSavePath(path, onProgress) -> Promise<payload object>. Desktop
       // (Tauri) only: sav_core reads the .sav natively from the path, so a
       // 200MB file is never marshaled through the IPC boundary as a buffer.
       loadSavePath(path, onProgress) {
          activeProgress = onProgress || null;
-         stateVersion++;
-         return request({ op: "load", path }).then((payloadBytes) => {
+         invalidateSession({ epoch: true });
+         const stamp = copyStamp();
+         const op = request({ op: "load", path }).then((payloadBytes) => {
             activeProgress = null;
             return parsePayloadBytes(payloadBytes);
          }, (error) => {
             activeProgress = null;
             throw error;
          });
+         return attachSessionStamp(op, stamp);
       },
       // True when running inside the native desktop shell (path-based load,
       // native file dialog) rather than the browser (File/ArrayBuffer).
@@ -453,9 +518,9 @@ const SaveClient = (() => {
       // worker already).
       applyEdits(ops, fromPristine, onProgress, force) {
          activeProgress = onProgress || null;
-         stateVersion++;
-         abortHandoff();
-         return request({ op: "applyEdits", ops, fromPristine, force: !!force }).then((payloadBytes) => {
+         invalidateSession({ epoch: false });
+         const stamp = copyStamp();
+         const op = request({ op: "applyEdits", ops, fromPristine, force: !!force }).then((payloadBytes) => {
             activeProgress = null;
             // Every edit cycle grows and fragments the wasm heap a little;
             // swapping to a fresh lean worker after each one keeps repeated
@@ -466,6 +531,7 @@ const SaveClient = (() => {
             activeProgress = null;
             throw error;
          });
+         return attachSessionStamp(op, stamp);
       },
       // exportSave() -> Promise<Uint8Array of .sav bytes> (the current,
       // possibly edited, save re-serialized; the uploaded file is untouched).
@@ -493,7 +559,7 @@ const SaveClient = (() => {
          return request({ op: "extractClipboard", names, lightweight });
       },
       dispose() {
-         abortHandoff();
+         invalidateSession({ epoch: true });
          if (IS_TAURI) {
             return; // session lives for the app's lifetime; nothing to free
          }
@@ -505,8 +571,7 @@ const SaveClient = (() => {
       // used to recover from a lost session (wasm memory never shrinks and
       // can't be trusted after a trap). Pending requests are rejected.
       reset() {
-         stateVersion++;
-         abortHandoff();
+         invalidateSession({ epoch: true });
          if (IS_TAURI) {
             request({ op: "reset" }).catch(function() {});
             return;
@@ -523,5 +588,143 @@ const SaveClient = (() => {
          worker.terminate();
          worker = null;
       },
+      getSessionStamp() {
+         return freezeStamp(copyStamp());
+      },
+      isReady() {
+         return sessionReady;
+      },
+      stampIsCurrent(stamp) {
+         return stampsEqual(stamp, copyStamp());
+      },
+      markPayloadInstalled(stamp) {
+         if (!stampsEqual(stamp, copyStamp())) {
+            return false;
+         }
+         sessionReady = true;
+         return true;
+      },
+      acknowledgeHealthyRefusal(stamp) {
+         if (!stampsEqual(stamp, copyStamp())) {
+            return false;
+         }
+         sessionReady = true;
+         return true;
+      },
+      onSessionInvalidated(listener) {
+         if (typeof listener !== "function") {
+            return function() {};
+         }
+         invalidatedListeners.add(listener);
+         return function() {
+            invalidatedListeners.delete(listener);
+         };
+      },
+      acquireRegionalVisit(stamp) {
+         if (!sessionReady) {
+            throw makeRegionalError("NO_SESSION", "No save is loaded for a regional query", stamp);
+         }
+         if (!stampsEqual(stamp, copyStamp())) {
+            throw makeRegionalError("STALE_SESSION", "Regional query stamp is no longer current", stamp);
+         }
+         visitGeneration++;
+         const generation = visitGeneration;
+         visitLive = true;
+         abortHandoff();
+         return {
+            isLive: function() {
+               return visitLive && generation === visitGeneration && sessionReady
+                  && stampsEqual(stamp, copyStamp());
+            },
+            release: function() {
+               if (generation !== visitGeneration) {
+                  return;
+               }
+               visitLive = false;
+               visitGeneration++;
+               if (sessionReady) {
+                  scheduleLeanHandoff();
+               }
+            },
+         };
+      },
+      queryRegionalScene(regionalRequest, opts) {
+         opts = opts || {};
+         const stamp = opts.stamp || copyStamp();
+         const signal = opts.signal;
+         const run = queryDrain.then(function() {
+            assertQueryTokens(stamp, signal);
+            return request({ op: "queryRegionalScene", request: regionalRequest }).then(function(bytes) {
+               assertQueryTokens(stamp, signal);
+               if (bytes instanceof Uint8Array) {
+                  return bytes.slice();
+               }
+               return new Uint8Array(bytes);
+            });
+         });
+         queryDrain = run.then(function() {}, function() {});
+         return run.catch(normalizeRegionalError);
+      },
    };
+
+   function assertQueryTokens(stamp, signal) {
+      if (signal && signal.aborted) {
+         throw makeRegionalError("CANCELLED", "Regional query was cancelled", stamp);
+      }
+      if (!sessionReady) {
+         throw makeRegionalError("NO_SESSION", "No save is loaded for a regional query", stamp);
+      }
+      if (!stampsEqual(stamp, copyStamp())) {
+         throw makeRegionalError("STALE_SESSION", "Regional query stamp is no longer current", stamp);
+      }
+   }
+
+   function makeRegionalError(code, message, stamp) {
+      const error = new Error(message);
+      error.name = "RegionalError";
+      error.code = code;
+      error.requestId = null;
+      error.sessionLost = code === "SESSION_LOST";
+      error.details = {};
+      error.sessionStamp = stamp ? freezeStamp(stamp) : null;
+      return error;
+   }
+
+   function normalizeRegionalError(error) {
+      if (error && error.name === "RegionalError" && typeof error.code === "string") {
+         throw error;
+      }
+      const message = String((error && error.message) || error);
+      if (message.indexOf("REGIONAL_ERROR:") === 0) {
+         let body;
+         try {
+            body = JSON.parse(message.slice("REGIONAL_ERROR:".length));
+         } catch (parseError) {
+            const fallback = makeRegionalError("SOURCE_DATA_INVALID", "Regional error serialization failed", null);
+            fallback.details = { id: null };
+            throw fallback;
+         }
+         if (!body || body.name !== "RegionalError" || typeof body.code !== "string") {
+            const fallback = makeRegionalError("SOURCE_DATA_INVALID", "Regional error serialization failed", null);
+            fallback.details = { id: null };
+            throw fallback;
+         }
+         const normalized = makeRegionalError(body.code, body.message || message, null);
+         normalized.requestId = body.requestId == null ? null : body.requestId;
+         normalized.sessionLost = !!body.sessionLost;
+         normalized.details = body.details && typeof body.details === "object" ? body.details : {};
+         if (normalized.sessionLost) {
+            error.sessionLost = true;
+         }
+         throw normalized;
+      }
+      if (error && error.sessionLost) {
+         const lost = makeRegionalError("SESSION_LOST", message, null);
+         lost.sessionLost = true;
+         throw lost;
+      }
+      const unexpected = makeRegionalError("SOURCE_DATA_INVALID", message, null);
+      unexpected.details = { id: null };
+      throw unexpected;
+   }
 })();

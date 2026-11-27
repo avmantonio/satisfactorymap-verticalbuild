@@ -313,6 +313,14 @@
     <input type="range" id="altitudeMinSlider" class="altitudeRangeInput" title="Minimum altitude">
   </div>
   <div id="altitudeMinLabel" class="altitudeValue"></div>
+  <label id="altitudeMaxMetreLabel" class="altitudeMetreLabel" hidden>
+    Max (m)
+    <input id="altitudeMaxMetre" class="altitudeMetreInput" type="number" step="any" inputmode="decimal" aria-label="Maximum altitude in metres">
+  </label>
+  <label id="altitudeMinMetreLabel" class="altitudeMetreLabel" hidden>
+    Min (m)
+    <input id="altitudeMinMetre" class="altitudeMetreInput" type="number" step="any" inputmode="decimal" aria-label="Minimum altitude in metres">
+  </label>
   <button id="altitudeResetButton" class="btn btn-icon btn-sm" type="button" title="Reset altitude filter" aria-label="Reset altitude filter">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
       <path d="M3 12a9 9 0 1 1 2.6 6.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -665,5 +673,6 @@
 <script src="emst.js"></script>
 <script src="network.js"></script>
 <script src="data.js"></script>
+<script src="height_region.js"></script>
 </body>
 </html>

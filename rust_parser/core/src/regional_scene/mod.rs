@@ -151,6 +151,44 @@ impl RegionalError {
         )
     }
 
+    pub fn no_session(request_id: Option<String>) -> Self {
+        Self::new(
+            RegionalErrorCode::NoSession,
+            "No save is loaded for a regional query",
+            request_id,
+            Map::new(),
+        )
+    }
+
+    pub fn stale_session(request_id: Option<String>) -> Self {
+        Self::new(
+            RegionalErrorCode::StaleSession,
+            "Regional query stamp is no longer current",
+            request_id,
+            Map::new(),
+        )
+    }
+
+    pub fn cancelled(request_id: Option<String>) -> Self {
+        Self::new(
+            RegionalErrorCode::Cancelled,
+            "Regional query was cancelled",
+            request_id,
+            Map::new(),
+        )
+    }
+
+    pub fn session_lost(request_id: Option<String>) -> Self {
+        let mut err = Self::new(
+            RegionalErrorCode::SessionLost,
+            "Save session was lost",
+            request_id,
+            Map::new(),
+        );
+        err.session_lost = true;
+        err
+    }
+
     pub fn to_prefixed_json(&self) -> String {
         let body = serde_json::to_string(self).unwrap_or_else(|_| {
             r#"{"name":"RegionalError","code":"SOURCE_DATA_INVALID","message":"Regional error serialization failed","requestId":null,"sessionLost":false,"details":{"id":null}}"#.to_string()

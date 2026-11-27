@@ -108,6 +108,36 @@ var HeightView = {};
     return isolation !== null;
   };
 
+  var viewerSuspended = false;
+
+  function currentSaveEpoch() {
+    if (window.SaveClient && SaveClient.getSessionStamp) {
+      return SaveClient.getSessionStamp().saveEpoch;
+    }
+    return 0;
+  }
+
+  function persistRectangle() {
+    if (!isolation || !window.HeightRegion) {
+      return;
+    }
+    HeightRegion.commitRectangle(isolation, { min: band.min, max: band.max }, currentSaveEpoch());
+  }
+
+  function persistBand() {
+    if (!isolation || !window.HeightRegion) {
+      return;
+    }
+    HeightRegion.commitBand({ min: band.min, max: band.max });
+  }
+
+  function persistEdge() {
+    if (!isolation || !window.HeightRegion) {
+      return;
+    }
+    HeightRegion.commitEdge(isolation);
+  }
+
   function actorId(r) {
     return r.id || SelectionTool.recordKey(r);
   }
@@ -753,6 +783,9 @@ var HeightView = {};
         subtractIds.delete(id);
       }
     });
+    if (viewerSuspended) {
+      return;
+    }
     var next = [];
     cubeOccupants.forEach(function(r) {
       if (!subtractIds.has(actorId(r))) {
@@ -763,6 +796,9 @@ var HeightView = {};
   }
 
   HeightView.allowToggle = function(r) {
+    if (viewerSuspended) {
+      return false;
+    }
     if (!isolation) {
       return true;
     }
@@ -1351,6 +1387,7 @@ var HeightView = {};
     band.max = prevBand.max;
     clampBandToRail();
     applyPeel();
+    persistEdge();
     syncIsolationRect();
     positionChrome();
     requestDrawCuts();
@@ -2376,6 +2413,7 @@ var HeightView = {};
         return;
       }
       applyPeel();
+      persistBand();
       requestDrawCuts();
     }
     bandEl.addEventListener("pointerup", endDrag);
@@ -2433,8 +2471,10 @@ var HeightView = {};
     var span = occupantSpan(xyOccupants);
     band = { min: span.min, max: span.max };
     clampBandToCap();
+    viewerSuspended = false;
     openChrome();
     applyPeel();
+    persistRectangle();
     positionChrome();
     positionEdgeHandles();
     requestDrawCuts();
@@ -2442,6 +2482,40 @@ var HeightView = {};
 
   HeightView.dismiss = function() {
     closeChrome();
+  };
+
+  HeightView.suspendForViewer = function() {
+    viewerSuspended = true;
+    closeChrome();
+  };
+
+  HeightView.reopenCommitted = function() {
+    var region = window.HeightRegion && HeightRegion.getCommitted();
+    if (!region) {
+      return;
+    }
+    viewerSuspended = false;
+    isolation = {
+      minX: region.rectMapPx.minX,
+      maxX: region.rectMapPx.maxX,
+      minY: region.rectMapPx.minY,
+      maxY: region.rectMapPx.maxY,
+    };
+    flipA = false;
+    flipB = false;
+    xyCacheValid = false;
+    xyOccupants = collectXyOccupants();
+    cacheExtents(xyOccupants);
+    xyCacheValid = true;
+    excludedOverlap = collectExcludedOverlap();
+    cacheExtents(excludedOverlap);
+    domain = computeDomain(xyOccupants);
+    band = { min: region.cutZM.min, max: region.cutZM.max };
+    clampBandToRail();
+    openChrome();
+    positionChrome();
+    positionEdgeHandles();
+    requestDrawCuts();
   };
 
   HeightView.onAltitudeChanged = function() {

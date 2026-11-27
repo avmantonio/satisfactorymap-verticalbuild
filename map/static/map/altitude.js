@@ -17,6 +17,13 @@ var Altitude = {};
   var minSlider = document.getElementById("altitudeMinSlider");
   var maxSlider = document.getElementById("altitudeMaxSlider");
   var resetButton = document.getElementById("altitudeResetButton");
+  var minMetre = document.getElementById("altitudeMinMetre");
+  var maxMetre = document.getElementById("altitudeMaxMetre");
+  var minMetreLabel = document.getElementById("altitudeMinMetreLabel");
+  var maxMetreLabel = document.getElementById("altitudeMaxMetreLabel");
+
+  var visitMode = null;
+  var visitEnded = true;
 
   // Native <input type="range"> + writing-mode:vertical-lr doesn't reliably
   // stretch to fill a flex parent's height across browsers (it caused the
@@ -24,7 +31,13 @@ var Altitude = {};
   // low end of the track). Measuring the actually-available space and
   // setting an explicit pixel height sidesteps that entirely.
   function layoutSliders() {
-    var available = panel.clientHeight - title.offsetHeight - maxLabel.offsetHeight - minLabel.offsetHeight - resetButton.offsetHeight;
+    var extra = 0;
+    [minMetreLabel, maxMetreLabel].forEach(function(el) {
+      if (el && !el.hidden) {
+        extra += el.offsetHeight;
+      }
+    });
+    var available = panel.clientHeight - title.offsetHeight - maxLabel.offsetHeight - minLabel.offsetHeight - resetButton.offsetHeight - extra;
     available -= 16; // panel padding/margins between elements
     available = Math.max(40, available);
     trackWrap.style.height = available + "px";
@@ -116,11 +129,26 @@ var Altitude = {};
   // thumbs redraw in the right spot), the labels, the visual fill, the
   // persisted savedRange, and the live map filter.
   function setRange(min, max) {
+    if (visitMode && visitMode.loadedZ) {
+      min = Math.max(visitMode.loadedZ.min, Math.min(min, visitMode.loadedZ.max));
+      max = Math.max(visitMode.loadedZ.min, Math.min(max, visitMode.loadedZ.max));
+      if (min > max) {
+        min = max;
+      }
+    }
     minSlider.value = min;
     maxSlider.value = max;
     updateLabel(min, max);
     updateTrackFill(min, max, parseFloat(minSlider.min), parseFloat(maxSlider.max));
-    savedRange = { min: min, max: max };
+    if (minMetre) {
+      minMetre.value = min;
+    }
+    if (maxMetre) {
+      maxMetre.value = max;
+    }
+    if (!visitMode) {
+      savedRange = { min: min, max: max };
+    }
     MapApp.setAltitudeRange(min, max);
   }
 
@@ -229,6 +257,9 @@ var Altitude = {};
   };
 
   Altitude.build = function(payload) {
+    if (visitMode) {
+      return;
+    }
     var range = computeAltitudeRange(payload);
     var lo = Math.floor(range.min) - 1;
     var hi = Math.ceil(range.max) + 1;
@@ -270,6 +301,9 @@ var Altitude = {};
   // filter. savedRange is dropped too -- an explicit unload is a fresh
   // start, unlike the save-to-save reloads build() preserves it across.
   Altitude.clear = function() {
+    if (visitMode) {
+      Altitude.endRegionalWindow();
+    }
     panel.style.display = "none";
     document.body.classList.remove("has-rail");
     savedRange = null;
@@ -279,6 +313,13 @@ var Altitude = {};
   minSlider.addEventListener("input", applyRange);
   maxSlider.addEventListener("input", applyRange);
   resetButton.addEventListener("click", function() {
+    if (visitMode) {
+      if (!visitMode.loadedZ) {
+        return;
+      }
+      setRange(visitMode.loadedZ.min, visitMode.loadedZ.max);
+      return;
+    }
     var lo = parseFloat(minSlider.min);
     var hi = parseFloat(maxSlider.max);
     minSlider.value = lo;
@@ -292,4 +333,128 @@ var Altitude = {};
     savedRange = null;
     MapApp.setAltitudeRange(-Infinity, Infinity);
   });
+
+  function setMetreInputsVisible(on) {
+    [minMetreLabel, maxMetreLabel].forEach(function(el) {
+      if (!el) {
+        return;
+      }
+      if (on) {
+        el.removeAttribute("hidden");
+      } else {
+        el.setAttribute("hidden", "");
+      }
+    });
+  }
+
+  function setVisitDisabled(disabled, reason) {
+    [minSlider, maxSlider, minMetre, maxMetre, resetButton].forEach(function(el) {
+      if (el) {
+        el.disabled = !!disabled;
+      }
+    });
+    if (resetButton) {
+      resetButton.title = disabled
+        ? (reason || "Loaded Z interval is empty")
+        : (visitMode ? "Reset to loaded Z range" : "Reset altitude filter");
+      resetButton.setAttribute("aria-label", resetButton.title);
+    }
+  }
+
+  function applyMetreInput() {
+    if (!visitMode) {
+      return;
+    }
+    var min = parseFloat(minMetre.value);
+    var max = parseFloat(maxMetre.value);
+    if (!isFinite(min) || !isFinite(max)) {
+      return;
+    }
+    if (min > max) {
+      if (this === minMetre) {
+        max = min;
+      } else {
+        min = max;
+      }
+    }
+    setRange(min, max);
+  }
+
+  if (minMetre) {
+    minMetre.addEventListener("change", applyMetreInput);
+  }
+  if (maxMetre) {
+    maxMetre.addEventListener("change", applyMetreInput);
+  }
+
+  Altitude.getRange = function() {
+    return {
+      min: parseFloat(minSlider.value),
+      max: parseFloat(maxSlider.value),
+    };
+  };
+
+  Altitude.beginRegionalWindow = function(loadedZ) {
+    if (!visitEnded && visitMode) {
+      return visitMode.end;
+    }
+    visitEnded = false;
+    visitMode = {
+      loadedZ: loadedZ && isFinite(loadedZ.min) && isFinite(loadedZ.max) && loadedZ.max >= loadedZ.min
+        ? { min: loadedZ.min, max: loadedZ.max }
+        : null,
+      previous: {
+        min: MapApp.altitudeRange.min,
+        max: MapApp.altitudeRange.max,
+        sliderMin: parseFloat(minSlider.min),
+        sliderMax: parseFloat(maxSlider.max),
+        saved: savedRange ? { min: savedRange.min, max: savedRange.max } : null,
+      },
+    };
+    setMetreInputsVisible(true);
+    if (!visitMode.loadedZ) {
+      setVisitDisabled(true, "Loaded Z interval is empty");
+    } else {
+      setVisitDisabled(false);
+      minSlider.min = visitMode.loadedZ.min;
+      maxSlider.max = visitMode.loadedZ.max;
+      minSlider.max = visitMode.loadedZ.max;
+      maxSlider.min = visitMode.loadedZ.min;
+      setRange(visitMode.loadedZ.min, visitMode.loadedZ.max);
+    }
+    layoutSliders();
+    visitMode.end = Altitude.endRegionalWindow;
+    return Altitude.endRegionalWindow;
+  };
+
+  Altitude.endRegionalWindow = function() {
+    if (visitEnded) {
+      return;
+    }
+    visitEnded = true;
+    var previous = visitMode && visitMode.previous;
+    visitMode = null;
+    setMetreInputsVisible(false);
+    setVisitDisabled(false);
+    if (previous) {
+      minSlider.min = previous.sliderMin;
+      maxSlider.min = previous.sliderMin;
+      minSlider.max = previous.sliderMax;
+      maxSlider.max = previous.sliderMax;
+      savedRange = previous.saved;
+      MapApp.setAltitudeRange(previous.min, previous.max);
+      if (isFinite(previous.min) && isFinite(previous.max)) {
+        minSlider.value = previous.min;
+        maxSlider.value = previous.max;
+        updateLabel(previous.min, previous.max);
+        updateTrackFill(previous.min, previous.max, previous.sliderMin, previous.sliderMax);
+      } else {
+        minSlider.value = previous.sliderMin;
+        maxSlider.value = previous.sliderMax;
+        updateLabel(previous.sliderMin, previous.sliderMax);
+        updateTrackFill(previous.sliderMin, previous.sliderMax, previous.sliderMin, previous.sliderMax);
+      }
+    }
+    layoutSliders();
+  };
 })();

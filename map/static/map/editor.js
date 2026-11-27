@@ -228,13 +228,13 @@ var EditorTool = (function() {
     }
     applyInFlight = true;
     SaveLoadFlow.showBusy(describeOps(ops));
-    SaveClient.applyEdits(ops, false, editProgress)
-      .then(function(payload) {
+    var op = SaveClient.applyEdits(ops, false, editProgress);
+    op.then(function(payload) {
         actions.push(ops);
         redoStack = [];
-        finishApply(payload, "Edit applied.");
+        finishApply(payload, "Edit applied.", op.sessionStamp);
       })
-      .catch(failApply);
+      .catch(function(error) { failApply(error, op.sessionStamp); });
   }
 
   // Replace the whole edit list (undo replay from pristine).
@@ -246,24 +246,26 @@ var EditorTool = (function() {
     SaveLoadFlow.showBusy("Undoing…");
     var flat = [];
     newActions.forEach(function(a) { flat.push.apply(flat, a); });
-    SaveClient.applyEdits(flat, true, editProgress)
-      .then(function(payload) {
+    var op = SaveClient.applyEdits(flat, true, editProgress);
+    op.then(function(payload) {
         onSuccess();
-        finishApply(payload, "Edit undone.");
+        finishApply(payload, "Edit undone.", op.sessionStamp);
       })
-      .catch(failApply);
+      .catch(function(error) { failApply(error, op.sessionStamp); });
   }
 
-  function finishApply(payload, statusText) {
+  function finishApply(payload, statusText, stamp) {
     applyInFlight = false;
     SaveLoadFlow.hideProgress();
     SaveLoadFlow.hideBusy();
-    SaveLoadFlow.applyPayload(payload);
+    if (!SaveLoadFlow.applyPayload(payload, stamp)) {
+      return;
+    }
     SaveLoadFlow.setStatus(statusText + " (" + actions.length + " edit" + (actions.length === 1 ? "" : "s") + " pending)");
     updateToolbar();
   }
 
-  function failApply(error) {
+  function failApply(error, stamp) {
     var text = (error && error.message) || String(error);
     // A wasm memory death reads as a cryptic trap ("unreachable", "memory
     // access out of bounds"); translate it into the actionable truth.
@@ -281,6 +283,9 @@ var EditorTool = (function() {
       SaveLoadFlow.hideBusy();
       SaveLoadFlow.setStatus(message);
       updateToolbar();
+      if (stamp && window.SaveClient && SaveClient.acknowledgeHealthyRefusal) {
+        SaveClient.acknowledgeHealthyRefusal(stamp);
+      }
       return;
     }
     // The wasm session died with the failed edit. The edit itself is
@@ -361,9 +366,12 @@ var EditorTool = (function() {
       + " edit" + (backup.length === 1 ? "" : "s") + "…");
     var flat = [];
     backup.forEach(function(a) { flat.push.apply(flat, a); });
-    return SaveClient.applyEdits(flat, false, editProgress, true).then(function(payload) {
+    var op = SaveClient.applyEdits(flat, false, editProgress, true);
+    return op.then(function(payload) {
       SaveLoadFlow.hideProgress();
-      SaveLoadFlow.applyPayload(payload);
+      if (!SaveLoadFlow.applyPayload(payload, op.sessionStamp)) {
+        return;
+      }
       Array.prototype.push.apply(actions, backup);
       updateToolbar();
     }, function(batchError) {
@@ -384,9 +392,12 @@ var EditorTool = (function() {
     SaveLoadFlow.showBusy("Recovering — re-applying edit " + (i + 1) + " of " + backup.length + "…");
     // force: exact-history replay skips the growth dry-run -- these ops
     // already applied once.
-    return SaveClient.applyEdits(backup[i], false, editProgress, true).then(function(payload) {
+    var op = SaveClient.applyEdits(backup[i], false, editProgress, true);
+    return op.then(function(payload) {
       SaveLoadFlow.hideProgress();
-      SaveLoadFlow.applyPayload(payload);
+      if (!SaveLoadFlow.applyPayload(payload, op.sessionStamp)) {
+        return;
+      }
       actions.push(backup[i]);
       updateToolbar();
       return replaySequentially(backup, i + 1);
@@ -431,13 +442,13 @@ var EditorTool = (function() {
     var ops = redoStack[redoStack.length - 1];
     applyInFlight = true;
     SaveLoadFlow.showBusy("Redoing…");
-    SaveClient.applyEdits(ops, false, editProgress)
-      .then(function(payload) {
+    var op = SaveClient.applyEdits(ops, false, editProgress);
+    op.then(function(payload) {
         redoStack.pop();
         actions.push(ops);
-        finishApply(payload, "Edit redone.");
+        finishApply(payload, "Edit redone.", op.sessionStamp);
       })
-      .catch(failApply);
+      .catch(function(error) { failApply(error, op.sessionStamp); });
   }
 
   // ---- Ghost placement ------------------------------------------------------------
