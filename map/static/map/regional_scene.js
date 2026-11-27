@@ -190,6 +190,127 @@ function regionFrame(model) {
   return { target: mid, frameMin, frameMax, rawMin, rawMax, empty: false };
 }
 
+// Same pad as Height View (spec 19 / story 32): occupant Z + 20%,
+// clamped 4–50 m. Never the ±500 m map rail.
+const Z_PAD_RATIO = 0.2;
+const Z_PAD_MIN_M = 4;
+const Z_PAD_MAX_M = 50;
+const Z_DOMAIN_OCCUPANT_SPAN_MAX_M = 80;
+const Z_DOMAIN_SLICE_M = 4;
+
+function parseVisualZ(range) {
+  if (!range || !Number.isFinite(range.min) || !Number.isFinite(range.max)) {
+    return null;
+  }
+  return {
+    min: Math.min(range.min, range.max),
+    max: Math.max(range.min, range.max),
+  };
+}
+
+function padAxis(min, max, mid) {
+  if (max - min >= 1) {
+    return [min, max];
+  }
+  return [mid - 0.5, mid + 0.5];
+}
+
+export function occupantPaddedZ(model) {
+  if (!model || !model.occupants || !model.poses) {
+    return null;
+  }
+  let zMin = Infinity;
+  let zMax = -Infinity;
+  model.occupants.forEach((occupant, index) => {
+    const pose = model.poses.subarray(index * 16, index * 16 + 16);
+    const typeRow = model.types && model.types[occupant.typeIndex];
+    const classification = classifyOccupant(occupant, typeRow);
+    if (classification.visual === "static-path") {
+      return;
+    }
+    if (classification.visual === "uncertain-marker") {
+      const z = pose[2];
+      if (Number.isFinite(z)) {
+        zMin = Math.min(zMin, z);
+        zMax = Math.max(zMax, z);
+      }
+      return;
+    }
+    const aabb = occupantAabb(pose);
+    if (!aabb) {
+      return;
+    }
+    let lo = aabb.min[2];
+    let hi = aabb.max[2];
+    if (hi - lo > Z_DOMAIN_OCCUPANT_SPAN_MAX_M) {
+      const z = Number.isFinite(pose[2]) ? pose[2] : lo;
+      lo = z;
+      hi = z + Z_DOMAIN_SLICE_M;
+    }
+    if (Number.isFinite(lo) && Number.isFinite(hi)) {
+      zMin = Math.min(zMin, lo);
+      zMax = Math.max(zMax, hi);
+    }
+  });
+  if (!(zMin <= zMax)) {
+    return null;
+  }
+  const pad = Math.min(Z_PAD_MAX_M, Math.max(Z_PAD_MIN_M, (zMax - zMin) * Z_PAD_RATIO));
+  return { min: zMin - pad, max: zMax + pad };
+}
+
+function visibleFrame(frame, visualZ) {
+  const min = frame.rawMin.slice();
+  const max = frame.rawMax.slice();
+  if (visualZ) {
+    min[2] = Math.max(min[2], visualZ.min);
+    max[2] = Math.min(max[2], visualZ.max);
+  }
+  const mid = [
+    (min[0] + max[0]) / 2,
+    (min[1] + max[1]) / 2,
+    (min[2] + max[2]) / 2,
+  ];
+  if (!(max[2] >= min[2])) {
+    min[2] = mid[2] - 0.5;
+    max[2] = mid[2] + 0.5;
+  }
+  const frameMin = min.slice();
+  const frameMax = max.slice();
+  for (let i = 0; i < 3; i++) {
+    const padded = padAxis(frameMin[i], frameMax[i], mid[i]);
+    frameMin[i] = padded[0];
+    frameMax[i] = padded[1];
+  }
+  return {
+    target: [
+      (frameMin[0] + frameMax[0]) / 2,
+      (frameMin[1] + frameMax[1]) / 2,
+      (frameMin[2] + frameMax[2]) / 2,
+    ],
+    frameMin,
+    frameMax,
+    rawMin: min,
+    rawMax: max,
+    empty: frame.empty,
+  };
+}
+
+function outlinePositions(min, max) {
+  const oc = [
+    [min[0], min[1], min[2]], [max[0], min[1], min[2]],
+    [max[0], max[1], min[2]], [min[0], max[1], min[2]],
+    [min[0], min[1], max[2]], [max[0], min[1], max[2]],
+    [max[0], max[1], max[2]], [min[0], max[1], max[2]],
+  ];
+  const pos = [];
+  [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]]
+    .forEach(([a, b]) => {
+      pos.push(oc[a][0], oc[a][1], oc[a][2], oc[b][0], oc[b][1], oc[b][2]);
+    });
+  return pos;
+}
+
 function frameCornerRadius(frame) {
   const target = new THREE.Vector3(frame.target[0], frame.target[1], frame.target[2]);
   let radius = 0.5;
@@ -695,28 +816,31 @@ export async function createRegionalScene(options) {
     pathLines.frustumCulled = false;
     scene.add(pathLines);
 
-    const outlinePositions = [];
-    const omin = frame.rawMin;
-    const omax = frame.rawMax;
-    const oc = [
-      [omin[0], omin[1], omin[2]], [omax[0], omin[1], omin[2]],
-      [omax[0], omax[1], omin[2]], [omin[0], omax[1], omin[2]],
-      [omin[0], omin[1], omax[2]], [omax[0], omin[1], omax[2]],
-      [omax[0], omax[1], omax[2]], [omin[0], omax[1], omax[2]],
-    ];
-    [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]]
-      .forEach(([a, b]) => {
-        outlinePositions.push(oc[a][0], oc[a][1], oc[a][2], oc[b][0], oc[b][1], oc[b][2]);
-      });
+    let visibilityMask = opts.visibility || {};
+    let visualZ = parseVisualZ(opts.visualZ);
+
+    function currentFrame() {
+      return visibleFrame(frame, visualZ);
+    }
+
+    function writeOutline(vis) {
+      const pos = outlinePositions(vis.frameMin, vis.frameMax);
+      const attr = outlineGeom.getAttribute("position");
+      attr.array.set(pos);
+      attr.needsUpdate = true;
+      outlineGeom.computeBoundingSphere();
+    }
+
     const outlineGeom = new THREE.BufferGeometry();
-    outlineGeom.setAttribute("position", new THREE.Float32BufferAttribute(outlinePositions, 3));
+    const initialOutline = currentFrame();
+    outlineGeom.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(outlinePositions(initialOutline.frameMin, initialOutline.frameMax), 3),
+    );
     ledger.add("geometries", outlineGeom, (item) => item.dispose());
     const outlineMat = new THREE.LineBasicMaterial({ color: 0x5ba3e0, transparent: true, opacity: 0.45 });
     ledger.add("materials", outlineMat, (item) => item.dispose());
     scene.add(new THREE.LineSegments(outlineGeom, outlineMat));
-
-    let visibilityMask = opts.visibility || {};
-    let visualZ = null;
     let raf = 0;
     let attached = false;
     let observer = null;
@@ -765,8 +889,27 @@ export async function createRegionalScene(options) {
     function applyCameraFit() {
       const size = hostSize();
       const aspect = size.width / size.height;
-      home = fitCamera(camera, controls, frame, aspect);
+      home = fitCamera(camera, controls, currentFrame(), aspect);
       renderer.setSize(size.width, size.height, false);
+    }
+
+    function applyVisibleVolume() {
+      const vis = currentFrame();
+      writeOutline(vis);
+      const radius = frameCornerRadius(vis);
+      const dist = home && home.dist ? home.dist : radius * 2;
+      limitOrbit(controls, dist, radius);
+      if (home) {
+        home.radius = radius;
+        home.minDistance = controls.minDistance;
+      }
+      syncPerspective(
+        camera,
+        camera.position.distanceTo(controls.target),
+        radius,
+        controls.maxDistance,
+      );
+      controls.update();
     }
 
     function rebuildDrawing() {
@@ -1016,9 +1159,8 @@ export async function createRegionalScene(options) {
         if (ledger.disposed) {
           return;
         }
-        visualZ = range && Number.isFinite(range.min) && Number.isFinite(range.max)
-          ? { min: range.min, max: range.max }
-          : null;
+        visualZ = parseVisualZ(range);
+        applyVisibleVolume();
         rebuildDrawing();
         invalidate();
       },
@@ -1080,6 +1222,10 @@ export async function createRegionalScene(options) {
             distance: camera.position.distanceTo(controls.target),
             minDistance: controls.minDistance,
             maxDistance: controls.maxDistance,
+          },
+          outline: {
+            min: currentFrame().frameMin.slice(),
+            max: currentFrame().frameMax.slice(),
           },
           occupants: records.map((record) => ({
             id: record.occupant.id,

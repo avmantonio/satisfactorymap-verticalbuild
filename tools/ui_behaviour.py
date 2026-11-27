@@ -594,6 +594,9 @@ def run(page, save):
         handle.setVisibility({ F1: true, S1: false, U1: true, P1: true });
         handle.setVisualZ({ min: -8, max: 16 });
         const inspected = handle.inspect();
+        if (!inspected.outline || inspected.outline.max[2] - inspected.outline.min[2] < 20) {
+          fail('hec08-outline-full-z', JSON.stringify(inspected.outline));
+        }
         if (!inspected.legend || inspected.legend.indexOf('not collision') < 0) fail('hec09-legend');
         if (!inspected.summary || inspected.summary.indexOf('Admitted') < 0) fail('hec09-summary');
         const smelter = inspected.occupants.find((row) => row.id === 'S1');
@@ -612,6 +615,10 @@ def run(page, save):
         handle.setVisibility({ F1: true, S1: false, U1: true, P1: true });
         handle.setVisualZ({ min: -3, max: 2 });
         const mixed = handle.inspect();
+        const zSpan = mixed.outline && (mixed.outline.max[2] - mixed.outline.min[2]);
+        if (!(zSpan > 4.5 && zSpan < 6.5)) {
+          fail('hec08-outline-visual-z', JSON.stringify(mixed.outline));
+        }
         const pathMixed = mixed.occupants.find((row) => row.id === 'P1');
         if (!pathMixed || pathMixed.zVisible || pathMixed.drawn) fail('hec08-path-zclip', JSON.stringify(pathMixed));
         const floorMixed = mixed.occupants.find((row) => row.id === 'F1');
@@ -817,6 +824,12 @@ def run(page, save):
         if (HeightView.isOpen()) fail('c015-hv-open-during-visit');
         const first = RegionalViewer.inspect();
         if (!first || !first.occupants || !first.occupants.length) fail('c015-empty-constructors');
+        if (!first.outline) {
+          fail('c015-outline-missing');
+        } else {
+          const span = first.outline.max[2] - first.outline.min[2];
+          if (!(span > 8 && span < 120)) fail('c015-outline-z-margins', String(span));
+        }
         const admitted0 = first.occupants.length;
         const ids0 = first.occupants.map((row) => row.id).sort();
         if (EditorTool.opCount() !== ops0) fail('c015-visit-mutated-undo');
