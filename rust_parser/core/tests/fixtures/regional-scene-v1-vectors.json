@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "description": "Hand-authored protocol reference cases, not game-data output or runtime scene evidence. Compact metadata uses object insertion order, ensure_ascii=false and no optional whitespace for these byte-exact fixtures.",
+  "vectors": [
+    {
+      "name": "named-box-offset",
+      "request": {"schemaVersion": 1, "requestId": "regional:box", "xyM": {"minX": 0, "maxX": 16, "minY": 0, "maxY": 16}, "cutZM": {"min": 0, "max": 20}, "altitudeCapM": null},
+      "originM": [8, 8, 10],
+      "metadata": {
+        "requestId": "regional:box", "admissionCount": 1,
+        "effectiveBoundsM": {"min": [0, 0, 0], "max": [16, 16, 20]}, "emptyReason": null,
+        "types": [{"typePath": "/Fixture/Build_Box.Build_Box_C", "label": "Box", "category": "Foundation", "subcategory": "Floors"}],
+        "occupants": [{"id": "Factory:Box_1", "typeIndex": 0, "sourceKind": "actor", "recordKind": "occupant", "sizeKind": "named-box", "poseFlags": 15, "pathState": "not-path", "uncertainty": []}]
+      },
+      "poses": [[-7, -6, -7, 0, 0, 0, 1, 1, 1, 1, 8, 8, 4, 0, 0, 2]],
+      "fragments": [], "vertices": [], "vertexFlags": [],
+      "expected": {
+        "metadataBytes": 409, "offsets": [544, 608, 608, 608], "totalBytes": 608,
+        "headerHex": "534d524547334400010000008000000060020000990100000100000000000000000000000000000000000000000020400000000000002040000000000000244000000000000000000000000000000000000000000000000000000000000030400000000000003040000000000000344020020000600200006002000060020000",
+        "numericSha256": "bc4de90f07900e3cf8370923d945ac032de266db86f39573187f052f4064da24",
+        "frameSha256": "ced89f5c6c3283521f9e57aba4c5d153b5b2c8fa9e23005ffecd942e6f90ec89"
+      }
+    },
+    {
+      "name": "unknown-scale-with-reference-size",
+      "request": {"schemaVersion": 1, "requestId": "regional:scale", "xyM": {"minX": 0, "maxX": 16, "minY": 0, "maxY": 16}, "cutZM": {"min": 0, "max": 20}, "altitudeCapM": null},
+      "originM": [8, 8, 10],
+      "metadata": {
+        "requestId": "regional:scale", "admissionCount": 1,
+        "effectiveBoundsM": {"min": [0, 0, 0], "max": [16, 16, 20]}, "emptyReason": null,
+        "types": [{"typePath": "/Fixture/Build_Box.Build_Box_C", "label": "Box", "category": "Foundation", "subcategory": "Floors"}],
+        "occupants": [{"id": "LightweightBuildable:/Fixture/Build_Box.Build_Box_C:0", "typeIndex": 0, "sourceKind": "lightweight", "recordKind": "occupant", "sizeKind": "named-box", "poseFlags": 13, "pathState": "not-path", "uncertainty": ["scale-unknown"]}]
+      },
+      "poses": [[-7, -6, -7, 0, 0, 0, 1, 0, 0, 0, 8, 8, 4, 0, 0, 2]],
+      "fragments": [], "vertices": [], "vertexFlags": [],
+      "expected": {
+        "metadataBytes": 472, "offsets": [600, 664, 664, 664], "totalBytes": 664,
+        "headerHex": "534d524547334400010000008000000098020000d80100000100000000000000000000000000000000000000000020400000000000002040000000000000244000000000000000000000000000000000000000000000000000000000000030400000000000003040000000000000344058020000980200009802000098020000",
+        "numericSha256": "42d0ed0da45f51f8189e5572af52f4c42b3869fb5c4012b7ef0fcc99bd220092",
+        "frameSha256": "3e07c9419a41b0d33ef1a5c61d0753d1d4e3a7339f170d7bac648fe150353cea"
+      }
+    },
+    {
+      "name": "unicode-reserve",
+      "request": {"schemaVersion": 1, "requestId": "regional:unicode", "xyM": {"minX": 0, "maxX": 16, "minY": 0, "maxY": 16}, "cutZM": {"min": 0, "max": 20}, "altitudeCapM": null},
+      "originM": [8, 8, 10],
+      "metadata": {
+        "requestId": "regional:unicode", "admissionCount": 1,
+        "effectiveBoundsM": {"min": [0, 0, 0], "max": [16, 16, 20]}, "emptyReason": null,
+        "types": [{"typePath": "/Fixture/Build_Storage.Build_Storage_C", "label": "Dépôt", "category": "Organisation", "subcategory": "Storage"}],
+        "occupants": [{"id": "Factory:Dépot_1", "typeIndex": 0, "sourceKind": "actor", "recordKind": "occupant", "sizeKind": "clearance-reserve", "poseFlags": 7, "pathState": "not-path", "uncertainty": []}]
+      },
+      "poses": [[-6, -5, -6, 0, 0, 0, 1, 1, 1, 1, 5, 11, 4, 0, 0, 0]],
+      "fragments": [], "vertices": [], "vertexFlags": [],
+      "expected": {
+        "metadataBytes": 438, "offsets": [568, 632, 632, 632], "totalBytes": 632,
+        "headerHex": "534d524547334400010000008000000078020000b60100000100000000000000000000000000000000000000000020400000000000002040000000000000244000000000000000000000000000000000000000000000000000000000000030400000000000003040000000000000344038020000780200007802000078020000",
+        "numericSha256": "ee2fed1d621be830e9640f00bb291dacd0977a60ccf9d7ee89c72f3a6e4ba305",
+        "frameSha256": "5f22eb5328b96ca1fb5509c9c356703e423ba7daa671e31166b5177cf65af86d"
+      }
+    },
+    {
+      "name": "two-fragments-real-and-absent-tangents",
+      "request": {"schemaVersion": 1, "requestId": "regional:path", "xyM": {"minX": 0, "maxX": 16, "minY": 0, "maxY": 16}, "cutZM": {"min": 0, "max": 20}, "altitudeCapM": null},
+      "originM": [8, 8, 10],
+      "metadata": {
+        "requestId": "regional:path", "admissionCount": 1,
+        "effectiveBoundsM": {"min": [0, 0, 0], "max": [16, 16, 20]}, "emptyReason": null,
+        "types": [{"typePath": "/Fixture/Build_Path.Build_Path_C", "label": "Path", "category": "Logistics", "subcategory": null}],
+        "occupants": [{"id": "Factory:Path_1", "typeIndex": 0, "sourceKind": "actor", "recordKind": "path", "sizeKind": "unknown", "poseFlags": 3, "pathState": "linear", "uncertainty": []}]
+      },
+      "poses": [[-8, -8, -10, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0]],
+      "fragments": [[0, 0, 2, 0], [0, 2, 2, 0]],
+      "vertices": [[-8, -6, -5, 0, 0, 0, 0, 0, 0], [8, -6, -5, 0, 1, 2, 0, 0, 0], [8, 6, -5, 0, 0, 0, 0, 0, 0], [-8, 6, -5, 0, 0, 0, 0, 0, 0]],
+      "vertexFlags": [4, 1, 4, 4],
+      "expected": {
+        "metadataBytes": 400, "offsets": [528, 592, 624, 768], "totalBytes": 784,
+        "headerHex": "534d524547334400010000008000000010030000900100000100000002000000040000000000000000000000000020400000000000002040000000000000244000000000000000000000000000000000000000000000000000000000000030400000000000003040000000000000344010020000500200007002000000030000",
+        "numericSha256": "1b69acb3fb2fc8628ca193a3905a4fda0d181482e301d9e6c5591cf4411f0dd1",
+        "frameSha256": "05ebbb468b65deeaced83028b901b55e10effbc6f3f90caf5a741e75443a2f22"
+      }
+    },
+    {
+      "name": "disjoint-empty",
+      "request": {"schemaVersion": 1, "requestId": "regional:empty", "xyM": {"minX": 0, "maxX": 16, "minY": 0, "maxY": 16}, "cutZM": {"min": 0, "max": 20}, "altitudeCapM": {"min": 30, "max": 40}},
+      "originM": [8, 8, 10],
+      "metadata": {"requestId": "regional:empty", "admissionCount": 0, "effectiveBoundsM": null, "emptyReason": "DISJOINT_Z", "types": [], "occupants": []},
+      "poses": [], "fragments": [], "vertices": [], "vertexFlags": [],
+      "expected": {
+        "metadataBytes": 126, "offsets": [256, 256, 256, 256], "totalBytes": 256,
+        "headerHex": "534d5245473344000100000080000000000100007e0000000000000000000000000000000000000000000000000020400000000000002040000000000000244000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000100000001000000010000",
+        "numericSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "frameSha256": "48d7b97e6e3a47a842d7ccdce0892914ce1cac55be291e408ead473274d2562c"
+      }
+    },
+    {
+      "name": "zero-z-slab-point-contact",
+      "request": {"schemaVersion": 1, "requestId": "regional:contact", "xyM": {"minX": 0, "maxX": 16, "minY": 0, "maxY": 16}, "cutZM": {"min": 5, "max": 5}, "altitudeCapM": null},
+      "originM": [8, 8, 5],
+      "metadata": {
+        "requestId": "regional:contact", "admissionCount": 1,
+        "effectiveBoundsM": {"min": [0, 0, 5], "max": [16, 16, 5]}, "emptyReason": null,
+        "types": [{"typePath": "/Fixture/Build_Path.Build_Path_C", "label": "Path", "category": "Logistics", "subcategory": null}],
+        "occupants": [{"id": "Factory:Contact_1", "typeIndex": 0, "sourceKind": "actor", "recordKind": "path", "sizeKind": "unknown", "poseFlags": 3, "pathState": "linear", "uncertainty": []}]
+      },
+      "poses": [[-8, -8, -5, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0]],
+      "fragments": [[0, 0, 1, 0]], "vertices": [[-8, -8, 0, 0, 0, 0, 0, 0, 0]], "vertexFlags": [4],
+      "expected": {
+        "metadataBytes": 405, "offsets": [536, 600, 616, 656], "totalBytes": 664,
+        "headerHex": "534d524547334400010000008000000098020000950100000100000001000000010000000000000000000000000020400000000000002040000000000000144000000000000000000000000000000000000000000000144000000000000030400000000000003040000000000000144018020000580200006802000090020000",
+        "numericSha256": "a38f78445a5bf2b1ae0ee80e73c6e3704fdac065366c8938754da9538a0592a6",
+        "frameSha256": "0dbefc8f9559f6049c049e02fc07679650b8a12b360badd8c6269e424d8ddd4b"
+      }
+    }
+  ]
+}

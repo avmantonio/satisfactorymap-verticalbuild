@@ -13,6 +13,7 @@ pub mod mapdata;
 pub mod object;
 pub mod properties;
 pub mod reader;
+pub mod regional_scene;
 pub mod save_header;
 pub mod store;
 pub mod version_data;
