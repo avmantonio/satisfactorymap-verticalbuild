@@ -27,9 +27,14 @@ const LIVE = {
 };
 
 let injectedFailure = null;
+let testGate = null;
 
 export function setRegionalSceneTestFailure(step) {
   injectedFailure = step || null;
+}
+
+export function setRegionalSceneTestGate(fn) {
+  testGate = typeof fn === "function" ? fn : null;
 }
 
 export function regionalSceneLiveResources() {
@@ -433,6 +438,10 @@ export async function createRegionalScene(options) {
   try {
     throwIfAborted(signal);
     throwIfInjected("import");
+    if (testGate) {
+      await testGate("import");
+      throwIfAborted(signal);
+    }
     if (!model || !model.occupants || !model.poses) {
       throw regionalError("RENDER_FAILED", "Missing decoded regional model");
     }

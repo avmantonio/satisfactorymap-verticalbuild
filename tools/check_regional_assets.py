@@ -74,6 +74,7 @@ INCUMBENT = [
     "network.js",
     "data.js",
     "height_region.js",
+    "regional_viewer.js",
 ]
 
 

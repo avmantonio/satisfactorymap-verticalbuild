@@ -47,6 +47,10 @@ var EditorTool = (function() {
   var applyInFlight = false;
   var currentFileName = null;
 
+  function visitGatesEdits() {
+    return !!(window.RegionalViewer && RegionalViewer.isBusyOrActive && RegionalViewer.isBusyOrActive());
+  }
+
   var downloadBtn, toolbar, editCountEl, undoBtn, redoBtn;
   var hintBar;
   // Ghost = an L.rectangle in Leaflet's overlay pane rather than a
@@ -223,7 +227,7 @@ var EditorTool = (function() {
   }
 
   function applyAction(ops) {
-    if (applyInFlight || ops.length === 0) {
+    if (applyInFlight || ops.length === 0 || visitGatesEdits()) {
       return;
     }
     applyInFlight = true;
@@ -425,7 +429,7 @@ var EditorTool = (function() {
   }
 
   function undo() {
-    if (actions.length === 0 || applyInFlight) {
+    if (actions.length === 0 || applyInFlight || visitGatesEdits()) {
       return;
     }
     var popped = actions[actions.length - 1];
@@ -436,7 +440,7 @@ var EditorTool = (function() {
   }
 
   function redo() {
-    if (redoStack.length === 0 || applyInFlight) {
+    if (redoStack.length === 0 || applyInFlight || visitGatesEdits()) {
       return;
     }
     var ops = redoStack[redoStack.length - 1];
@@ -455,7 +459,7 @@ var EditorTool = (function() {
 
   function startPlacement(mode, targets) {
     var external = mode === "external";
-    if (!targets || applyInFlight
+    if (!targets || applyInFlight || visitGatesEdits()
         || (!external && (targets.actorNames.length + targets.lightweight.length) === 0)) {
       return;
     }
@@ -679,6 +683,9 @@ var EditorTool = (function() {
   }
 
   function startPaste() {
+    if (visitGatesEdits()) {
+      return;
+    }
     resolvePaste().then(function(src) {
       if (!src) {
         SaveLoadFlow.setStatus("Nothing to paste — copy something first.");
@@ -743,7 +750,8 @@ var EditorTool = (function() {
   // Delete applies immediately -- undo (full replay from pristine) is the
   // safety net, so no confirmation dialog.
   function deleteTargets(targets) {
-    if (!targets || (targets.actorNames.length + targets.lightweight.length) === 0 || applyInFlight) {
+    if (!targets || (targets.actorNames.length + targets.lightweight.length) === 0
+        || applyInFlight || visitGatesEdits()) {
       return;
     }
     var ops = [];
@@ -759,7 +767,7 @@ var EditorTool = (function() {
   // Context menu "Paste here": paste immediately at the given map point
   // without the ghost flow.
   function pasteAt(mapX, mapY) {
-    if (applyInFlight) {
+    if (applyInFlight || visitGatesEdits()) {
       return;
     }
     resolvePaste().then(function(src) {
@@ -1004,7 +1012,8 @@ var EditorTool = (function() {
   // ---- Offset dialog (precise moves incl. Z) -----------------------------------------
 
   function openOffsetDialog(targets) {
-    if (!targets || (targets.actorNames.length + targets.lightweight.length) === 0 || applyInFlight) {
+    if (!targets || (targets.actorNames.length + targets.lightweight.length) === 0
+        || applyInFlight || visitGatesEdits()) {
       return;
     }
     cancelPlacement();
@@ -1161,6 +1170,9 @@ var EditorTool = (function() {
 
     document.addEventListener("keydown", function(e) {
       var inInput = e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA");
+      if (visitGatesEdits() && !inInput) {
+        return;
+      }
       if (placement && !inInput && (e.key === "r" || e.key === "R")) {
         placement.rotSteps = (placement.rotSteps + 1) % 4;
         if (placement.mode !== "move") {

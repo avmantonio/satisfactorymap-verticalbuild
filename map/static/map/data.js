@@ -200,6 +200,9 @@
     if (stamp && window.SaveClient && SaveClient.markPayloadInstalled) {
       SaveClient.markPayloadInstalled(stamp);
     }
+    if (window.RegionalViewer && RegionalViewer.syncChrome) {
+      RegionalViewer.syncChrome();
+    }
     return true;
   }
 
@@ -242,6 +245,9 @@
     clearSaveBtn.style.display = "none";
     hideProgress();
     setStatus("Save unloaded -- drop a .sav anywhere or click above.");
+    if (window.RegionalViewer && RegionalViewer.syncChrome) {
+      RegionalViewer.syncChrome();
+    }
   }
 
   // Editor.js drives the same progress/status UI during applyEdits, and

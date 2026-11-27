@@ -57,8 +57,9 @@ const SaveClient = (() => {
    let sessionReady = false;
    let visitLive = false;
    let visitGeneration = 0;
-   let queryDrain = Promise.resolve();
-   let regionalQueryTransport = null;
+  let queryDrain = Promise.resolve();
+  let regionalQueryCount = 0;
+  let regionalQueryTransport = null;
    const invalidatedListeners = new Set();
    let handoffWorker = null; // lean worker being prepared in the background
 
@@ -653,6 +654,7 @@ const SaveClient = (() => {
          opts = opts || {};
          const stamp = opts.stamp || copyStamp();
          const signal = opts.signal;
+         regionalQueryCount += 1;
          const run = queryDrain.then(function() {
             assertQueryTokens(stamp, signal);
             return dispatchRegionalQuery(regionalRequest).then(function(bytes) {
@@ -667,9 +669,14 @@ const SaveClient = (() => {
                }
                throw error;
             });
+         }).finally(function() {
+            regionalQueryCount -= 1;
          });
          queryDrain = run.then(function() {}, function() {});
          return run.catch(normalizeRegionalError);
+      },
+      isRegionalQueryPending: function() {
+         return regionalQueryCount > 0;
       },
       // Test seam: next regional dispatch uses `fn(request)` instead of the
       // WASM/native transport, then restores the real transport. Lets HEC-06
