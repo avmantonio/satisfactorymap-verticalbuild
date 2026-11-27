@@ -48,7 +48,13 @@ var SelectionTool = {};
   }
 
   var selecting = false;
+  var inputSuspended = false;
   var selectingAdditive = false; // Ctrl held at right-drag start: add to selection
+
+  function visitFrozen() {
+    return inputSuspended
+      || !!(window.RegionalViewer && RegionalViewer.isBusyOrActive && RegionalViewer.isBusyOrActive());
+  }
   var startClient = null;
   var lastSelection = null; // aggregates of `selected`: { total, byLabel, labelOrder, ids, editTargets }
 
@@ -728,6 +734,9 @@ var SelectionTool = {};
   }
 
   function toggleRecord(r) {
+    if (visitFrozen()) {
+      return;
+    }
     if (window.HeightView && HeightView.isOpen() && !HeightView.allowToggle(r)) {
       return;
     }
@@ -777,6 +786,9 @@ var SelectionTool = {};
   SelectionTool.toggleRecord = toggleRecord;
 
   function clearSelection() {
+    if (visitFrozen()) {
+      return;
+    }
     if (window.HeightView && HeightView.isOpen()) {
       HeightView.dismiss();
     }
@@ -799,6 +811,9 @@ var SelectionTool = {};
 
   mapContainer.addEventListener("mousedown", function(e) {
     if (e.button !== 2) {
+      return;
+    }
+    if (visitFrozen()) {
       return;
     }
     selecting = true;
@@ -860,6 +875,9 @@ var SelectionTool = {};
       return; // Ctrl+A in a text field keeps its select-the-text meaning.
     }
     if (!window.MapApp || !MapApp.layer) {
+      return;
+    }
+    if (visitFrozen()) {
       return;
     }
     var count = selectableObjectCount();
@@ -996,6 +1014,22 @@ var SelectionTool = {};
     return selected.size;
   };
 
+  SelectionTool.identitySnapshot = function() {
+    return Array.from(selected.keys()).sort();
+  };
+
+  SelectionTool.isSelecting = function() {
+    return selecting;
+  };
+
+  SelectionTool.suspendInput = function(on) {
+    inputSuspended = !!on;
+    if (inputSuspended && selecting) {
+      selecting = false;
+      rect.style.display = "none";
+    }
+  };
+
   SelectionTool.collectInBox = collectInBox;
   SelectionTool.isSelectableLineBucket = isSelectableLineBucket;
   SelectionTool.recordKey = recordKey;
@@ -1026,6 +1060,7 @@ var SelectionTool = {};
   // Called on every save (re)load (see data.js) -- the previous selection's
   // ids belong to the old save's buckets, so drop it.
   SelectionTool.reset = function() {
+    inputSuspended = false;
     clearSelection();
     closeModal();
   };

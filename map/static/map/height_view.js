@@ -108,7 +108,16 @@ var HeightView = {};
     return isolation !== null;
   };
 
+  var bandDragging = false;
   var viewerSuspended = false;
+
+  function visitFrozen() {
+    return !!(window.RegionalViewer && RegionalViewer.isBusyOrActive && RegionalViewer.isBusyOrActive());
+  }
+
+  HeightView.isCommitting = function() {
+    return !!(edgeDrag || bandDragging);
+  };
 
   function currentSaveEpoch() {
     if (window.SaveClient && SaveClient.getSessionStamp) {
@@ -1321,7 +1330,7 @@ var HeightView = {};
   }
 
   function startEdgeDrag(spec, ev, el) {
-    if (!isolation || ev.button !== 0 || placingNow()) {
+    if (!isolation || ev.button !== 0 || placingNow() || visitFrozen()) {
       return;
     }
     ev.preventDefault();
@@ -2303,9 +2312,10 @@ var HeightView = {};
     var drag = null;
 
     function startDrag(kind, ev) {
-      if (!isolation) {
+      if (!isolation || visitFrozen()) {
         return;
       }
+      bandDragging = true;
       ev.preventDefault();
       ev.stopPropagation();
       bandEl.setPointerCapture(ev.pointerId);
@@ -2393,6 +2403,7 @@ var HeightView = {};
       }
       var info = drag;
       drag = null;
+      bandDragging = false;
       var dx = ev.clientX - info.startX;
       var dy = ev.clientY - info.startY;
       // A press that does not move is a click on whatever mark the band
@@ -2445,6 +2456,7 @@ var HeightView = {};
     cutHitsA = [];
     cutHitsB = [];
     edgeDrag = null;
+    bandDragging = false;
     document.body.classList.remove("height-view-edge-drag");
     if (mapEdgeEls) {
       mapEdgeEls.wrap.style.display = "none";
@@ -2453,6 +2465,9 @@ var HeightView = {};
   }
 
   HeightView.commitRectangle = function(bounds) {
+    if (visitFrozen()) {
+      return;
+    }
     isolation = {
       minX: bounds.minX,
       maxX: bounds.maxX,
@@ -2523,7 +2538,7 @@ var HeightView = {};
   };
 
   HeightView.onAltitudeChanged = function() {
-    if (!isolation) {
+    if (viewerSuspended || !isolation) {
       return;
     }
     var prevBand = { min: band.min, max: band.max };
@@ -2548,6 +2563,9 @@ var HeightView = {};
   HeightView.onPlacementChanged = function() {
     if (isolation) {
       positionEdgeHandles();
+    }
+    if (window.RegionalViewer && RegionalViewer.syncChrome) {
+      RegionalViewer.syncChrome();
     }
   };
 
