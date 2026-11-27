@@ -495,15 +495,36 @@ def run(page, save):
         }
         if (unmapped !== 'VISIBILITY_UNMAPPED') fail('hec07-unmapped', String(unmapped));
         const sample = (MapApp.layer.buckets || []).find((bucket) => bucket.ids && bucket.ids[0] && bucket.key && bucket.key.indexOf('building:') === 0);
+        const uncheckAll = document.getElementById('uncheckAllButton');
+        const checkAll = document.getElementById('checkAllButton');
         if (sample) {
           const typePath = sample.key.slice('building:'.length);
+          const occupant = { id: sample.ids[0], typePath: typePath };
           const release = Filters.registerRegionalTypes([{ typePath: typePath, category: 'Unknown' }]);
-          const mask = Filters.resolveRegionalVisibility([{ id: sample.ids[0], typePath: typePath }]);
-          if (!mask[sample.ids[0]]) fail('hec07-mask');
+          const mask = Filters.resolveRegionalVisibility([occupant]);
+          if (!mask[occupant.id] || !mask[occupant.id].visible) fail('hec07-mask');
+          if (uncheckAll) uncheckAll.click();
+          const hidden = Filters.resolveRegionalVisibility([occupant]);
+          if (!hidden[occupant.id] || hidden[occupant.id].visible) fail('hec07-after-uncheck');
+          if (checkAll) checkAll.click();
+          const shown = Filters.resolveRegionalVisibility([occupant]);
+          if (!shown[occupant.id] || !shown[occupant.id].visible) fail('hec07-after-check');
           release();
         } else {
           fail('hec07-sample-bucket');
         }
+        const ghostType = '/Game/FactoryGame/Buildable/Factory/NoSuchClass.NoSuchClass_C';
+        const ghost = { id: 'Persistent_Level:PersistentLevel.NoSuchClass_C_1', typePath: ghostType };
+        const releaseGhost = Filters.registerRegionalTypes([{ typePath: ghostType, category: 'Unknown' }]);
+        const ghostOn = Filters.resolveRegionalVisibility([ghost]);
+        if (!ghostOn[ghost.id] || !ghostOn[ghost.id].visible) fail('hec07-temp-default');
+        if (uncheckAll) uncheckAll.click();
+        const ghostOff = Filters.resolveRegionalVisibility([ghost]);
+        if (!ghostOff[ghost.id] || ghostOff[ghost.id].visible) fail('hec07-temp-uncheck-all');
+        if (checkAll) checkAll.click();
+        const ghostRestored = Filters.resolveRegionalVisibility([ghost]);
+        if (!ghostRestored[ghost.id] || !ghostRestored[ghost.id].visible) fail('hec07-temp-check-all');
+        releaseGhost();
       } catch (error) {
         fail('phase2-exception', String(error && error.stack || error));
       }

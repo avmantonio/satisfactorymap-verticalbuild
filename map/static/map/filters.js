@@ -707,15 +707,11 @@ var Filters = {};
       if (regionalByType.has(typePath)) {
         return;
       }
-      var key = "building:" + typePath;
-      var visible = savedVisibility.hasOwnProperty(key) ? savedVisibility[key]
-        : (savedVisibility.hasOwnProperty("*") ? savedVisibility["*"] : true);
       regionalByType.set(typePath, {
         buckets: [],
         category: (typeRow && typeRow.category) || "Unknown",
         subcategory: typeRow && typeRow.subcategory,
         temporary: true,
-        visible: visible,
       });
       extras.push(typePath);
     });
@@ -731,7 +727,38 @@ var Filters = {};
     };
   };
 
+  // Temporary types have no 2D bucket. Read the current shared store, not a
+  // snapshot from registration, so Check/Uncheck-all and category toggles
+  // hide them in 3D the same way they hide 2D rows.
+  function sharedTypeVisible(typePath, category, subcategory) {
+    var key = "building:" + typePath;
+    if (savedVisibility.hasOwnProperty(key)) {
+      return !!savedVisibility[key];
+    }
+    var parts = [];
+    if (category) {
+      parts.push(category);
+    }
+    if (subcategory) {
+      parts.push(subcategory);
+    }
+    for (var depth = parts.length; depth > 0; depth--) {
+      var groupKey = "group:" + parts.slice(0, depth).join("/");
+      if (savedVisibility.hasOwnProperty(groupKey)) {
+        return !!savedVisibility[groupKey];
+      }
+    }
+    if (category && DEFAULT_HIDDEN_CATEGORIES[category]) {
+      return false;
+    }
+    if (savedVisibility.hasOwnProperty("*")) {
+      return !!savedVisibility["*"];
+    }
+    return true;
+  }
+
   Filters.resolveRegionalVisibility = function(occupants) {
+    indexAdmittedMarks(occupants);
     var mask = {};
     (occupants || []).forEach(function(occupant) {
       var typePath = occupant.typePath;
@@ -754,13 +781,7 @@ var Filters = {};
         });
       } else {
         var entry = regionalByType.get(typePath);
-        if (entry.temporary) {
-          visible = entry.visible !== false;
-        } else if (entry.buckets.length) {
-          visible = entry.buckets.some(function(bucket) { return bucket.visible; });
-        } else {
-          visible = true;
-        }
+        visible = sharedTypeVisible(typePath, entry.category, entry.subcategory);
       }
       mask[occupant.id] = { visible: visible, typePath: typePath };
     });
@@ -2060,20 +2081,43 @@ var Filters = {};
         addRegionalType(bucket.key.slice("building:".length), [bucket],
           bucketCategoryLabel[bucket.key], null);
       }
-      if (bucket.ids) {
-        bucket.ids.forEach(function(id, index) {
-          if (!id) {
-            return;
-          }
-          var marks = regionalIdMarks.get(id);
-          if (!marks) {
-            marks = [];
-            regionalIdMarks.set(id, marks);
-          }
-          marks.push({ bucket: bucket, index: index });
-        });
+    });
+  }
+
+  // Resolve admitted extract ids against current 2D buckets once the visit
+  // list is known. Do not retain a whole-save identity tree.
+  function indexAdmittedMarks(occupants) {
+    var wanted = new Set();
+    (occupants || []).forEach(function(occupant) {
+      if (occupant && occupant.id) {
+        wanted.add(occupant.id);
       }
     });
+    regionalIdMarks = new Map();
+    if (!wanted.size) {
+      return;
+    }
+    var remaining = wanted.size;
+    var buckets = (MapApp.layer && MapApp.layer.buckets) || [];
+    for (var bi = 0; bi < buckets.length && remaining > 0; bi++) {
+      var bucket = buckets[bi];
+      if (!bucket.ids) {
+        continue;
+      }
+      for (var index = 0; index < bucket.ids.length; index++) {
+        var id = bucket.ids[index];
+        if (!id || !wanted.has(id)) {
+          continue;
+        }
+        var marks = regionalIdMarks.get(id);
+        if (!marks) {
+          marks = [];
+          regionalIdMarks.set(id, marks);
+          remaining--;
+        }
+        marks.push({ bucket: bucket, index: index });
+      }
+    }
   }
 
   // Tears the whole per-save UI down without building a new one -- the
