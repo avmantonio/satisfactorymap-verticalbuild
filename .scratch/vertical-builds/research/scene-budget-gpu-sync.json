@@ -1,0 +1,85 @@
+{
+  "measuredAt": "2026-11-23T20:19:16.191Z",
+  "stall": "draw + readPixels(1px). ANGLE gl.finish() was a no-op (~0 ms even at 150k).",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/3.31.15 Chrome/150.0.7871.250 Electron/43.8.9 Safari/537.36",
+  "hardwareConcurrency": 8,
+  "deviceMemoryGb": 16,
+  "host": {
+    "machine": "ASUSTeK VivoBook X512FB",
+    "cpu": "Intel Core i5-8265U 4c/8t",
+    "ramGb": 20,
+    "gpuMeasured": "NVIDIA GeForce MX110 2 GB (ANGLE D3D11)",
+    "gpuNotMeasured": "Intel UHD Graphics 620 1 GB shared"
+  },
+  "webgl": {
+    "vendor": "WebKit",
+    "renderer": "WebKit WebGL",
+    "unmaskedVendor": "Google Inc. (NVIDIA)",
+    "unmaskedRenderer": "ANGLE (NVIDIA, NVIDIA GeForce MX110 (0x0000174E) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "maxTexture": 16384,
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)"
+  },
+  "mapDummy95Mb": true,
+  "note": "Throwaway WebGL2 instanced boxes + line ribbons. Not a library choice. Terrain excluded. Dummy 95 MB buffer simulates the 2D map rect stream in the same context (allocated, not drawn).",
+  "gpuSync": [
+    {
+      "id": "ordinary-56m",
+      "occupants": 800,
+      "mode": "instanced-readPixels",
+      "gpuMb": 0.05,
+      "finish": { "frames": 30, "p50Ms": 3.4, "p95Ms": 13.4, "maxMs": 25.7, "meanMs": 5.82, "fpsUncapped": 171.72 },
+      "verdict": "ok",
+      "caveat": "First case after context setup; p95/max include pipeline warmup."
+    },
+    {
+      "id": "medium-region",
+      "occupants": 2500,
+      "mode": "instanced-readPixels",
+      "gpuMb": 0.16,
+      "finish": { "frames": 30, "p50Ms": 1.9, "p95Ms": 4.2, "maxMs": 6.9, "meanMs": 2.47, "fpsUncapped": 404.31 },
+      "verdict": "ok"
+    },
+    {
+      "id": "medium-region-fat8",
+      "occupants": 2500,
+      "boxes": 16000,
+      "mode": "instanced-readPixels",
+      "gpuMb": 0.74,
+      "finish": { "frames": 30, "p50Ms": 2.7, "p95Ms": 5.6, "maxMs": 14.5, "meanMs": 3.61, "fpsUncapped": 277.26 },
+      "verdict": "ok"
+    },
+    {
+      "id": "height-view-14k",
+      "occupants": 14000,
+      "mode": "instanced-readPixels",
+      "gpuMb": 0.9,
+      "finish": { "frames": 30, "p50Ms": 2.5, "p95Ms": 5.8, "maxMs": 6.5, "meanMs": 3.01, "fpsUncapped": 331.86 },
+      "verdict": "ok"
+    },
+    {
+      "id": "height-view-14k-fat8",
+      "occupants": 14000,
+      "boxes": 88000,
+      "mode": "instanced-readPixels",
+      "gpuMb": 4.13,
+      "finish": { "frames": 30, "p50Ms": 9.8, "p95Ms": 13, "maxMs": 16.5, "meanMs": 10.6, "fpsUncapped": 94.34 },
+      "verdict": "ok"
+    },
+    {
+      "id": "heavy-50k",
+      "occupants": 50000,
+      "mode": "instanced-readPixels",
+      "gpuMb": 3.13,
+      "finish": { "frames": 30, "p50Ms": 4.5, "p95Ms": 6.9, "maxMs": 10.1, "meanMs": 4.9, "fpsUncapped": 204.08 },
+      "verdict": "ok"
+    },
+    {
+      "id": "foundation-150k",
+      "occupants": 150000,
+      "mode": "instanced-readPixels",
+      "gpuMb": 6.29,
+      "finish": { "frames": 30, "p50Ms": 13.9, "p95Ms": 18, "maxMs": 23.8, "meanMs": 14.92, "fpsUncapped": 67.02 },
+      "verdict": "tight"
+    }
+  ]
+}

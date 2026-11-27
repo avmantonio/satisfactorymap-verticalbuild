@@ -1,0 +1,1783 @@
+{
+  "version": 2,
+  "feature": "vertical-builds",
+  "mapPath": ".scratch/vertical-builds/map.md",
+  "destination": "A shipped save editor that isolates a volume and edits/transfers it with real Z. The first 3D cut is a temporary read-only regional viewer of what is already applied; edits in that view come after it ships. Browser and desktop share one frontend. The `.sav` stays on device.",
+  "updatedAt": "2026-11-27T00:09:13.971Z",
+  "hasFog": true,
+  "fog": [
+    {
+      "id": "fog-01",
+      "text": "How occupancy, extrusion vs flat, and ghosts are drawn on the top-down map (Visual presentation)."
+    },
+    {
+      "id": "fog-02",
+      "text": "What stays in the browser tab versus what requires the desktop app (files, caps, memory). Height view itself is in the page; both shells inherit it. Caps/filesystem/headroom can still split later."
+    },
+    {
+      "id": "fog-03",
+      "text": "Headroom under Runtime limits for Height view Cut buffers — measure on a 600k save after the skeleton is in the client. Regional 3D cost is [Cost probe](issues/25-scene-budget.md), not a guess."
+    },
+    {
+      "id": "fog-04",
+      "text": "Adding occupants from outside the committed cube (Ctrl+click / Cut): whether the rectangle grows (as if select-all then subtract) or extras are a second category — Horizon, not the first skeleton."
+    },
+    {
+      "id": "fog-05",
+      "text": "Occupancy summary before copy (counts, types) — straddler warning is out (silent, same as today)."
+    },
+    {
+      "id": "fog-06",
+      "text": "Named-file Build package beyond same-bytes-as-clipboard (extension, import, caps)."
+    },
+    {
+      "id": "fog-07",
+      "text": "WASD fly and in-world labels, after the regional viewer. Fly is outside the first cut."
+    },
+    {
+      "id": "fog-08",
+      "text": "Object inspection, wall transparency, label detail, and the exact shape of the orbit controls. Product design after the viewer contract, not architecture."
+    },
+    {
+      "id": "fog-09",
+      "text": "Whether a later edit cycle restores gizmos, a cheaper rest-of-save, a nav cube, or an interior-opacity toggle. The first delivery does not."
+    },
+    {
+      "id": "fog-10",
+      "text": "Terrain mesh integration, only if [Terrain study](issues/29-simplified-map.md) shows a practicable source and it is funded. It must switch off, and the factory viewer does not require it."
+    },
+    {
+      "id": "fog-11",
+      "text": "Whether the tool proposes a Build by clustering, or only accepts a manual volume."
+    },
+    {
+      "id": "fog-12",
+      "text": "Two-save workspace versus sequential load in one tab."
+    },
+    {
+      "id": "fog-13",
+      "text": "Local FModel → glTF extract after schematic 3D ships (user-run, never in git) — optional fidelity, not the schematic bar."
+    },
+    {
+      "id": "fog-14",
+      "text": "Dragging the placement Cut band to edit destination Z (landing gizmo) — after [Height-driven edits](issues/14-height-driven-edits.md)’s read-only band + panel."
+    },
+    {
+      "id": "fog-15",
+      "text": "Development sections not yet named that only show up once Height view is on the real client."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "root",
+      "level": "root",
+      "kind": "group",
+      "title": "Vertical Build Transfer",
+      "parentId": null,
+      "path": ".scratch/vertical-builds/map.md",
+      "status": "open",
+      "specPath": null,
+      "blockedBy": [],
+      "assets": []
+    },
+    {
+      "id": "height-view",
+      "level": "strand",
+      "kind": "group",
+      "title": "height-view",
+      "gist": "Height view — Seeing and choosing Z on the current map: A–A′ / B–B′ strips and the shared Z band.",
+      "parentId": "root",
+      "path": ".scratch/vertical-builds/map.md",
+      "status": "specced",
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
+      "blockedBy": [],
+      "assets": []
+    },
+    {
+      "id": "regional-viewer",
+      "level": "strand",
+      "kind": "group",
+      "title": "regional-viewer",
+      "gist": "Regional viewer — The temporary read-only 3D scene of one delimited area: what it trusts, how you orbit it, and when it is ready to ship. [Viewer strand spec](specs/viewer-strand-regional-viewer.md).",
+      "parentId": "root",
+      "path": ".scratch/vertical-builds/map.md",
+      "status": "open",
+      "specPath": null,
+      "blockedBy": [],
+      "assets": []
+    },
+    {
+      "id": "volume-selection",
+      "level": "strand",
+      "kind": "group",
+      "title": "volume-selection",
+      "gist": "Volume selection — Rectangle plus Z window → the occupant set (straddlers, hidden children, filters). [Viewer strand spec](specs/viewer-strand-volume-selection.md).",
+      "parentId": "root",
+      "path": ".scratch/vertical-builds/map.md",
+      "status": "open",
+      "specPath": null,
+      "blockedBy": [],
+      "assets": []
+    },
+    {
+      "id": "edit-controls",
+      "level": "strand",
+      "kind": "group",
+      "title": "edit-controls",
+      "gist": "Edit controls — Move, rotate, copy, paste, delete as one loop, driven by that volume and Z.",
+      "parentId": "root",
+      "path": ".scratch/vertical-builds/map.md",
+      "status": "open",
+      "specPath": null,
+      "blockedBy": [],
+      "assets": []
+    },
+    {
+      "id": "build-package",
+      "level": "strand",
+      "kind": "group",
+      "title": "build-package",
+      "gist": "Build package — The bytes: clipboard and named file, same payload, not the game blueprint.",
+      "parentId": "root",
+      "path": ".scratch/vertical-builds/map.md",
+      "status": "open",
+      "specPath": null,
+      "blockedBy": [],
+      "assets": []
+    },
+    {
+      "id": "visual-presentation",
+      "level": "strand",
+      "kind": "group",
+      "title": "visual-presentation",
+      "gist": "Visual presentation — How occupancy, height, ghosts, filters, and later schematic shapes/opacity are drawn; chrome stays `ui.js` / `map.css`. [Viewer strand spec](specs/viewer-strand-visual-presentation.md).",
+      "parentId": "root",
+      "path": ".scratch/vertical-builds/map.md",
+      "status": "open",
+      "specPath": null,
+      "blockedBy": [],
+      "assets": []
+    },
+    {
+      "id": "save-integrity",
+      "level": "strand",
+      "kind": "group",
+      "title": "save-integrity",
+      "gist": "Save integrity — Anti-corruption: byte-splice + re-parse, undo from pristine, no chain-actor surgery, verification the `.sav` still loads. [Viewer strand spec](specs/viewer-strand-save-integrity.md).",
+      "parentId": "root",
+      "path": ".scratch/vertical-builds/map.md",
+      "status": "open",
+      "specPath": null,
+      "blockedBy": [],
+      "assets": []
+    },
+    {
+      "id": "browser-and-desktop",
+      "level": "strand",
+      "kind": "group",
+      "title": "browser-and-desktop",
+      "gist": "Browser and desktop — What the WASM tab can do versus what belongs in Tauri (caps, filesystem, memory, feature parity). [Viewer strand spec](specs/viewer-strand-browser-and-desktop.md).",
+      "parentId": "root",
+      "path": ".scratch/vertical-builds/map.md",
+      "status": "open",
+      "specPath": null,
+      "blockedBy": [],
+      "assets": []
+    },
+    {
+      "id": "runtime-limits",
+      "level": "strand",
+      "kind": "group",
+      "title": "runtime-limits",
+      "gist": "Runtime limits — wasm32 ~4 GB, standing memory, instanced buffers, vanilla JS, 600k-object saves. [Viewer strand spec](specs/viewer-strand-runtime-limits.md).",
+      "parentId": "root",
+      "path": ".scratch/vertical-builds/map.md",
+      "status": "open",
+      "specPath": null,
+      "blockedBy": [],
+      "assets": []
+    },
+    {
+      "id": "01",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "What is a Build",
+      "parentId": "62",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/01-what-is-a-build.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "A Build is a spatial volume: an XY region plus its Z extent. Occupants of that volume are the transfer set, including objects the 2D silhouette would hide.",
+      "assets": []
+    },
+    {
+      "id": "02",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "First observation layer",
+      "parentId": "64",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/02-first-observation-layer.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The first MVP this spec commits to ship is 2.5D with better verticality handling on the current map. Schematic 3D remains the final observation objective of the same spec, not a later map and not out of scope.",
+      "assets": []
+    },
+    {
+      "id": "03",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Transfer artifact",
+      "parentId": "66",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/03-transfer-artifact.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Both: the existing clipboard package for in-session Ctrl+C/V, and a named file for keep/share. Same payload; the file is that package with a name. Not a new object model, not the game’s blueprint.",
+      "assets": []
+    },
+    {
+      "id": "04",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Survey the current map",
+      "parentId": "72",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/04-survey-the-current-map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The map uses a 2D orthographic WebGL2 bucket renderer with 1D altitude filtering/depth sorting, selection rectangle/toggles, zstd-compressed cross-save clipboard with browser caps (50k/150k/200MB) vs native slots, and pristine body replay; hard walls are wasm32 4GB memory (~2GB standing) and Vanilla JS no-bundler constraints.",
+      "assets": []
+    },
+    {
+      "id": "05",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Survey peer tools",
+      "parentId": "66",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/05-survey-peer-tools.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "No surveyed tool both shows stacked floors well enough to isolate an existing factory volume and exports that volume as a portable artifact — SCIM is 2D plus an altitude filter, the in-game Designer is a rebuild-inside-a-cube workflow, and Factorio/DSP copy 2D layouts.",
+      "assets": []
+    },
+    {
+      "id": "06",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Meaning of 2.5D",
+      "parentId": "64",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/06-meaning-of-2-5d.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "2.5D is the current top-down map plus a linked A–A′ Cut. The Cut is required to see verticality — not an optional later viewer.",
+      "assets": []
+    },
+    {
+      "id": "07",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Relocate semantics",
+      "parentId": "67",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/07-relocate-semantics.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Cut at the set boundary using the **existing** copy/paste: whole selected actors travel; connections that left the set are tombstoned; power wires copy only when both endpoints are in the set. Internal connections stay. Do not weld on paste. Do not geometrically split belts/pipes at the volume wall, and do not retouch chain-actor internals — that is how a save corrupts (`docs/chained-belt-delete.md`).",
+      "assets": []
+    },
+    {
+      "id": "08",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Schematic 3D bar",
+      "parentId": "70",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/08-schematic-3d-bar.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Schematic 3D is a **tool-dock mode** in the **same viewport** (Leaflet hidden while on): **lookalike** proxies, **orbit**, **filtered save**, gizmos **XYZ+rotate**, **one Z window**, cheaper **rest-of-save** still visible; **one product, two render ceilings**.",
+      "assets": []
+    },
+    {
+      "id": "09",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Isolation UX",
+      "parentId": "62",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/09-isolation-ux.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Draw an XY rectangle on the map; then pick the Z extent on the A–A′ Cut of that rectangle. The Build is that XY plus that Z window.",
+      "assets": []
+    },
+    {
+      "id": "10",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Section plane",
+      "parentId": "64",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/10-section-plane.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Both: A–A′ and a perpendicular B–B′. The Cut is a pair of profiles through the rectangle, not one plane you hope is the right read.",
+      "assets": []
+    },
+    {
+      "id": "11",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "2.5D loop prototype",
+      "parentId": "65",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/11-2-5d-loop-prototype.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The MVP loop is: draw the XY rectangle → linked A–A′ and B–B′ Cuts → one shared Z window on either strip → occupants of that volume are the Build. Not flood, not a 3D prism, not a camera.",
+      "assets": []
+    },
+    {
+      "id": "12",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Volume occupancy",
+      "parentId": "62",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/12-volume-occupancy.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Occupants are today’s `collectInBox` rules, with the isolation Z window as the altitude gate. [Height view chrome](13-height-view-chrome.md) reads that gate as: `MapApp.altitudeRange` still caps the set; the Cut band peels **inside** that cap (AND), and cannot take what the global slider hides. Layer-off buckets stay out. `hiddenClasses` (sign poles, path nodes, …) stay out of the payload and out of the Build. Individually hidden objects (`hiddenIndices`) remain selectable, as they are today. Belts/pipes: whole actor if any vertex is in XY and that vertex’s Z is in the window. Power lines still copy only when both endpoint owners are in the set. Straddlers copy silently — no warning, no block, no Cut-exclusion mark as an occupancy contract. No geometric split.",
+      "assets": []
+    },
+    {
+      "id": "13",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Height view chrome",
+      "parentId": "64",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/13-height-view-chrome.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Altitude rail caps map and occupancy; the Cut start–end band peels Build Z inside that cap. No rectangle → no Cut. Docked side panel (A–A′ top half, B–B′ bottom half) with a session switch to flaps; independent A↔A′ / B↔B′ via end labels; empty strips stay. L-frame overlay dropped after the walking skeleton.",
+      "assets": []
+    },
+    {
+      "id": "14",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Height-driven edits",
+      "parentId": "67",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/14-height-driven-edits.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Move and paste share one 2.5D Height-view observation: the same L-frame Cut, retargeted to the destination ghost, showing dest background plus a neighborhood pad, with the traveling set more attenuated; payload Z is the floor of what actually travels, bound to the existing paste numbers (not today’s bbox center, not a Cut drag gizmo).",
+      "assets": []
+    },
+    {
+      "id": "15",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Save integrity gates",
+      "parentId": "83",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/15-save-integrity-gates.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Spec gate is `sav_core` CI: isolate with today’s occupancy plus a Z window, then copy, paste, delete, undo; parser accepts; occupant counts and bounds match a fixture snapshot; undo restores payload to pristine. wasm OOM on a 600k save is Runtime limits, not this gate. First-ship smoke is one in-game load of that edited `.sav` (human, not CI). `All_080726` is the fixture unless it lacks two floors in the same XY — then add a gitignored stacked save via `fetch_test_saves.py`. etothepii is an optional oracle, not a second writer and not CI. No new belt model; no chain-actor surgery.",
+      "assets": []
+    },
+    {
+      "id": "16",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Real-client skeleton",
+      "parentId": "65",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/16-real-client-skeleton.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "First non-throwaway Height view is **additive in the current tab**: same `index.html`, same WASM session, live buckets. Desktop inherits `dist/`. Not a sidecar HTML, not Tauri-only, not Three.js, not a second renderer “to see.”",
+      "assets": []
+    },
+    {
+      "id": "17",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Survey 3D fork options",
+      "parentId": "69",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/17-survey-3d-fork-options.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Keep `sav_core`. Schematic 3D (instanced proxies, camera, synced filters) **is this app’s later observation** — same editor, same Build loop; Height view ships first. Three.js as a vanilla scene adapter is the live stack option. R3F/bundler, `.sbp` as the Build package, and Coffee Stain glTF in git stay out. Real meshes stay local/out of git, after schematic.",
+      "assets": []
+    },
+    {
+      "id": "18",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Renderer probe",
+      "parentId": "74",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/18-3d-scene-adapter.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Browser and Tauri share one frontend, if the capacity tests pass. Do not start a desktop-only engine. The probe chose vendored vanilla Three.js. Decided 2026-11-23; do not re-grill.",
+      "assets": [
+        "../prototype/renderer-probe.html",
+        "../prototype/renderer-probe-notes.md"
+      ]
+    },
+    {
+      "id": "19",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Cut elevation marks",
+      "parentId": "65",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/19-cut-elevation-marks.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The first-ship Cut is an **orthographic lateral projection** onto A–A′ and onto B–B′ (along × Z), not a 3D camera and not a slice that shows objects outside the XY rectangle. Existing map/UI icons are unchanged. Who enters the Build stays [Volume occupancy](12-volume-occupancy.md) / today’s XY rules; this ticket is drawing only.",
+      "assets": []
+    },
+    {
+      "id": "20",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Survey cut laterals",
+      "parentId": "65",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/20-survey-cut-laterals.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Table height and XY already give a true-meter AABB Cut; richer laterals have no producer here. SCIM’s closer-to-model figures are hand-traced top-down polygons (~67 classes, JSON, not reusable) and do not rotate into elevations. SVG/mesh extract would have to be modeled later; AABB first-ship in 16 stays unblocked.",
+      "assets": []
+    },
+    {
+      "id": "21",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Orbit camera",
+      "parentId": "70",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/21-orbit-proxies.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The camera is orbit: rotate, pan, and zoom about a point of interest. Free flight is outside this cut. The exact control shape, including a nav cube, is product design and is not decided here. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "22",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Scene Z window",
+      "parentId": "63",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/22-scene-z-window.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The first delivery is a delimited region of what is already applied, not a selection and not a preview. This ticket starts only after that delivery and does not reopen region-versus-selection. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "23",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Edit gizmos",
+      "parentId": "68",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/23-edit-gizmos.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Move, rotate, and placement preview are outside the first delivery. Hiding foundations and walls there is the category filters on Shared visibility, not an opacity toggle. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "24",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Useful viewer",
+      "parentId": "70",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/24-3d-observation.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The first 3D delivery is a trustworthy reading of one delimited factory section: height, stacked floors, and the spatial relations that matter after a copy or import. It shows only what is already applied. Move preview, tentative placement, and fine adjustment are a later cycle. Terrain is not required. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "25",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Cost probe",
+      "parentId": "81",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/25-scene-budget.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The budget is closed: an oversized region is refused, and the user is asked to shrink it. No LOD and no automatic degradation in this version. Do not publish FPS, GPU megabytes, or a maximum region size before this probe. The old cheaper-rest-of-save split and the two render ceilings are not this delivery. Decided 2026-11-23; do not re-grill.",
+      "assets": [
+        ".scratch/vertical-builds/prototype/scene-budget.html",
+        ".scratch/vertical-builds/research/scene-budget.md",
+        ".scratch/vertical-builds/research/scene-budget-gpu-sync.json",
+        ".scratch/vertical-builds/research/scene-budget-gpu-pass1.json",
+        ".scratch/vertical-builds/research/scene-budget-cpu.json",
+        ".scratch/vertical-builds/prototype/scene-budget-cpu.mjs"
+      ]
+    },
+    {
+      "id": "26",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Scene picking",
+      "parentId": "77",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/26-scene-picking.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The first delivery shows only what is already applied. It does not select, move, or preview a placement. This ticket is the later edit cycle, and it does not reopen that. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "27",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "3D edits",
+      "parentId": "68",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/27-3d-edits.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The first delivery does not move structures, confirm collisions, validate connections, or predict a future paste. This checkpoint is the later cycle. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "28",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Proxy catalog",
+      "parentId": "76",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/28-proxy-modeling.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Shapes may be approximate. An approximation must not be presented as an exact measure. Official meshes stay out. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "29",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Terrain study",
+      "parentId": "77",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/29-simplified-map.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Terrain is a separate investigation and blocks nothing on the factory viewer. The viewer is useful without ground: missing ground hides geographic context, not the relative Z of buildings and connections. Integration is not a ticket unless this study shows a practicable path and it is funded, and that integration would have to switch off. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "31",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Spatial data audit",
+      "parentId": "69",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/31-spatial-data-audit.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The save stores quaternion, centimeter position, and scale; the payload keeps map pixels, yaw or a flat hull, and z in meters. Quaternion, scale, and tangent Z are dropped. Sizes are a class clearance lookup, not a per-instance shell.",
+      "assets": []
+    },
+    {
+      "id": "32",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Representative cases",
+      "parentId": "69",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/32-representative-cases.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The three fetched saves cover stacks, rotation, slopes, repeated modules, unknown vanilla classes, and density. A modded save is still a gap.",
+      "assets": []
+    },
+    {
+      "id": "33",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "2D regression guard",
+      "parentId": "73",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/33-2d-regression-guard.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Load and existing edits already have checks (`ui_behaviour.py`, `cargo test -p sav_core --release`); Height view is the manual runtime script; the viewer handoff has no automated check until enter/exit exists, and that check belongs in `ui_behaviour.py`.",
+      "assets": []
+    },
+    {
+      "id": "34",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Baseline gate",
+      "parentId": "69",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/34-baseline-gate.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Phase 0 is closed. Feasibility investigations may open. This gate does not pick a library or a proxy kit.",
+      "assets": []
+    },
+    {
+      "id": "35",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Transform proof",
+      "parentId": "69",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/35-transform-proof.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Position, orientation, and elevation come from the save. A class with no trustworthy Z or rotation is reported, not drawn as if it were exact. Shapes may be approximate later; this proof does not invent a number to fill a hole. Decided 2026-11-23; do not re-grill.",
+      "assets": [
+        ".scratch/vertical-builds/prototype/transform-proof.html",
+        ".scratch/vertical-builds/prototype/transform-exceptions.md",
+        ".scratch/vertical-builds/prototype/transform-samples.json"
+      ]
+    },
+    {
+      "id": "36",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Linear paths",
+      "parentId": "75",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/36-linear-paths.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Belts, pipes, and connections are static geometry. No animated item flow and no production simulation. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "40",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Asset supply",
+      "parentId": "75",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/40-asset-supply.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Recognizable does not mean the game’s mesh. Coffee Stain meshes, icons, and map art stay out of git. A local extract that never ships is optional later living, not this kit. No game-derived mesh enters the supply without this check. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "41",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Feasibility gate",
+      "parentId": "69",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/41-feasibility-gate.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "GO. A real multi-height region can be drawn with checkable spatial relations and stable behavior in the environments the phase-1 probes actually ran.",
+      "assets": []
+    },
+    {
+      "id": "42",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Scene contract",
+      "parentId": "70",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/42-scene-contract.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The scene receives a separate regional 3D extract of save-native pose, honest sizeKind, and path-actor traces; the 2D payload is unchanged; expensive buffers wait on [Budget precheck](44-budget-precheck.md).",
+      "assets": []
+    },
+    {
+      "id": "43",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Region occupants",
+      "parentId": "78",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/43-region-occupants.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "3D occupants are the Height-view isolation volume (XY rectangle + Cut Z band + altitude rail), not Selection; conservative AABB with orientation, scale, and `volumeOffsetM`; paths clip at the bound; filters hide, they do not change membership.",
+      "assets": []
+    },
+    {
+      "id": "44",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Budget precheck",
+      "parentId": "81",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/44-budget-precheck.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Count unique occupants the [Region occupants](43-region-occupants.md) predicate would admit; refuse if **> 8,000** before 3D buffers or replacing 2D; same cap on wasm and Tauri; `UI.dialog` to shrink XY or Cut Z.",
+      "assets": []
+    },
+    {
+      "id": "45",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Exclusive 3D mode",
+      "parentId": "76",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/45-exclusive-3d-mode.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "3D replaces the main 2D map for the visit. Two maps at once are not the base experience. Enter builds the scene from the current save. Exit destroys it. Enter again rebuilds, including edits made in between. No historical scenes and no stale cache. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "46",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Contract gate",
+      "parentId": "70",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/46-contract-gate.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Yes. The regional scene data contract ([Scene contract](42-scene-contract.md)), isolation-volume membership ([Region occupants](43-region-occupants.md)), >8,000 admission refusal before scene allocation ([Budget precheck](44-budget-precheck.md)), and enter/exit/rebuild lifecycle ([Exclusive 3D mode](45-exclusive-3d-mode.md)) are settled. Phase 2 is closed. The next tickets build representation and experience; they do not reopen these contracts. Decided 2026-11-25; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "48",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Family silhouettes",
+      "parentId": "76",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/48-family-silhouettes.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Buildings and structures are simplified silhouettes a person can recognize. Recognizable does not mean the game mesh. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "49",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Static networks",
+      "parentId": "76",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/49-static-networks.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Those networks are static geometry. No moving items, no production simulation. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "50",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Reserve volumes",
+      "parentId": "76",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/50-reserve-volumes.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "A valid `clearance` is a neutral reserve volume, labeled as an approximation, not as the true shell. With no dimensions, show the location and the uncertainty, and do not invent a size. The object is not dropped and is not drawn as an exact solid. Decided 2026-11-23.",
+      "assets": []
+    },
+    {
+      "id": "51",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Shared visibility",
+      "parentId": "76",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/51-shared-visibility.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Z isolation and today’s category filters are in from the start, so foundations and walls can be hidden and stacked floors can be read. This is not a separate opacity toggle and not a second filter list. Wall transparency as its own effect waits. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "52",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Honest readout",
+      "parentId": "76",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/52-honest-readout.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The interface states the restriction and does not claim precision the data does not have. This viewer is not a collision checker. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "53",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Scene teardown",
+      "parentId": "81",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/53-scene-teardown.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "Exit destroys the scene. The 2D session does not keep the 3D render cost. A session of repeated visits must not show persistent growth. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "54",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Geometry check",
+      "parentId": "71",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/54-geometry-check.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "A pass has no systematic axis, height, or rotation error. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "55",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Stress trial",
+      "parentId": "82",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/55-stress-trial.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "The limit hits before a failure. The way back to 2D still works, and memory is released. No LOD is added to survive the trial. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "56",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Parity trial",
+      "parentId": "84",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/56-parity-trial.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "One frontend covers those shells. A difference that blocks the 2D editor fails the trial. A browser that cannot hold an ordinary region is a budget cut, not a second product. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "57",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Controlled release",
+      "parentId": "74",
+      "status": "resolved",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/57-controlled-release.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "A person can tell this spatial viewer from a collision certifier. A gradual or experimental switch is allowed when behavior still depends on the machine. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "58",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Viewer delivery",
+      "parentId": "71",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/58-viewer-delivery.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "This delivery does not move objects, certify collisions, validate connections, or predict a future paste. It publishes as a stable feature only when precision, limits, resource release, and the cross-shell tests are credited. Decided 2026-11-23; do not re-grill.",
+      "assets": []
+    },
+    {
+      "id": "59",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Modded save",
+      "parentId": "80",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/59-modded-save.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": "No fetched modded save is available. The local corpus contains `All_080726-163150.sav`, `solo_autosave_1.sav`, `BuildITBIIIIIG_210726-231135.sav`, and `belt_item_state.sav`; the first three are the representative corpus named in [Representative cases](32-representative-cases.md), which records that none sets `isModdedSave`. `belt_item_state.sav` is the equipment-state fixture, not a modded-save claim. Keep a real modded save as a corpus gap until one is supplied or added to the fetch manifest. No filename or mod class is inferred.",
+      "assets": []
+    },
+    {
+      "id": "60",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Implement the regional 3D viewer",
+      "parentId": "79",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/60-regional-viewer-implementation.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "61",
+      "level": "theme",
+      "kind": "ticket",
+      "title": "Free-form and missing 3D shapes",
+      "parentId": "85",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/61-free-form-geometry.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "62",
+      "level": "branch",
+      "kind": "group",
+      "title": "2.5D volume contract",
+      "parentId": "volume-selection",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/62-occupant-admission.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "63",
+      "level": "branch",
+      "kind": "group",
+      "title": "Height slicing",
+      "parentId": "volume-selection",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/63-height-slicing.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "64",
+      "level": "branch",
+      "kind": "group",
+      "title": "2.5D contract",
+      "parentId": "height-view",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/64-2-5d-contract.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "65",
+      "level": "branch",
+      "kind": "group",
+      "title": "Height-view delivery",
+      "parentId": "height-view",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/65-height-view-delivery.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "66",
+      "level": "branch",
+      "kind": "group",
+      "title": "Build artifact",
+      "parentId": "build-package",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/66-build-artifact.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "67",
+      "level": "branch",
+      "kind": "group",
+      "title": "Relocation semantics",
+      "parentId": "edit-controls",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/67-relocation-semantics.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "68",
+      "level": "branch",
+      "kind": "group",
+      "title": "3D edit loop",
+      "parentId": "edit-controls",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/68-3d-edit-loop.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "69",
+      "level": "branch",
+      "kind": "group",
+      "title": "Viewer feasibility and architecture",
+      "parentId": "regional-viewer",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/69-viewer-feasibility.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/viewer-strand-regional-viewer.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "70",
+      "level": "branch",
+      "kind": "group",
+      "title": "Regional viewer contracts",
+      "parentId": "regional-viewer",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/70-viewer-contract-and-build.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/viewer-strand-regional-viewer.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "71",
+      "level": "branch",
+      "kind": "group",
+      "title": "Viewer validation and delivery",
+      "parentId": "regional-viewer",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/71-viewer-validation.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "72",
+      "level": "branch",
+      "kind": "group",
+      "title": "Runtime baseline survey",
+      "parentId": "runtime-limits",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/72-runtime-budget.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "73",
+      "level": "branch",
+      "kind": "group",
+      "title": "Viewer save integrity and regression",
+      "parentId": "save-integrity",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/73-save-integrity.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/viewer-strand-save-integrity.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "74",
+      "level": "branch",
+      "kind": "group",
+      "title": "Shell renderer and release",
+      "parentId": "browser-and-desktop",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/74-shell-renderer-parity.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/viewer-strand-browser-and-desktop.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "75",
+      "level": "branch",
+      "kind": "group",
+      "title": "Spatial presentation data",
+      "parentId": "visual-presentation",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/75-spatial-presentation-data.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/viewer-strand-visual-presentation.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "76",
+      "level": "branch",
+      "kind": "group",
+      "title": "Scene representation and readability",
+      "parentId": "visual-presentation",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/76-scene-representation.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/viewer-strand-visual-presentation.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "77",
+      "level": "branch",
+      "kind": "group",
+      "title": "Terrain and scene picking",
+      "parentId": "visual-presentation",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/77-terrain-and-picking.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "78",
+      "level": "branch",
+      "kind": "group",
+      "title": "Regional occupant contract",
+      "parentId": "volume-selection",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/78-regional-occupants.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/viewer-strand-volume-selection.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "79",
+      "level": "branch",
+      "kind": "group",
+      "title": "Regional viewer implementation",
+      "parentId": "regional-viewer",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/79-viewer-implementation.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "80",
+      "level": "branch",
+      "kind": "group",
+      "title": "Modded-save corpus gap",
+      "parentId": "regional-viewer",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/80-modded-save-gap.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "81",
+      "level": "branch",
+      "kind": "group",
+      "title": "Runtime budget and resource lifecycle",
+      "parentId": "runtime-limits",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/81-runtime-budget.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/viewer-strand-runtime-limits.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "82",
+      "level": "branch",
+      "kind": "group",
+      "title": "Runtime stress trial",
+      "parentId": "runtime-limits",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/82-runtime-stress-trial.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "83",
+      "level": "branch",
+      "kind": "group",
+      "title": "First-ship save integrity",
+      "parentId": "save-integrity",
+      "status": "specced",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/83-first-ship-save-integrity.md",
+      "blockedBy": [],
+      "specPath": ".scratch/vertical-builds/specs/2-5d-first-cut.md",
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "84",
+      "level": "branch",
+      "kind": "group",
+      "title": "Cross-shell parity trial",
+      "parentId": "browser-and-desktop",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/84-cross-shell-parity-trial.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    },
+    {
+      "id": "85",
+      "level": "branch",
+      "kind": "group",
+      "title": "Free-form geometry research",
+      "parentId": "visual-presentation",
+      "status": "open",
+      "workType": null,
+      "path": ".scratch/vertical-builds/issues/85-free-form-geometry.md",
+      "blockedBy": [],
+      "specPath": null,
+      "gist": null,
+      "assets": []
+    }
+  ],
+  "edges": [
+    {
+      "type": "childOf",
+      "from": "height-view",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "regional-viewer",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "volume-selection",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "edit-controls",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "build-package",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "visual-presentation",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "save-integrity",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "browser-and-desktop",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "runtime-limits",
+      "to": "root"
+    },
+    {
+      "type": "childOf",
+      "from": "01",
+      "to": "62"
+    },
+    {
+      "type": "childOf",
+      "from": "02",
+      "to": "64"
+    },
+    {
+      "type": "childOf",
+      "from": "03",
+      "to": "66"
+    },
+    {
+      "type": "childOf",
+      "from": "04",
+      "to": "72"
+    },
+    {
+      "type": "childOf",
+      "from": "05",
+      "to": "66"
+    },
+    {
+      "type": "childOf",
+      "from": "06",
+      "to": "64"
+    },
+    {
+      "type": "childOf",
+      "from": "07",
+      "to": "67"
+    },
+    {
+      "type": "childOf",
+      "from": "08",
+      "to": "70"
+    },
+    {
+      "type": "childOf",
+      "from": "09",
+      "to": "62"
+    },
+    {
+      "type": "childOf",
+      "from": "10",
+      "to": "64"
+    },
+    {
+      "type": "childOf",
+      "from": "11",
+      "to": "65"
+    },
+    {
+      "type": "childOf",
+      "from": "12",
+      "to": "62"
+    },
+    {
+      "type": "childOf",
+      "from": "13",
+      "to": "64"
+    },
+    {
+      "type": "childOf",
+      "from": "14",
+      "to": "67"
+    },
+    {
+      "type": "childOf",
+      "from": "15",
+      "to": "83"
+    },
+    {
+      "type": "childOf",
+      "from": "16",
+      "to": "65"
+    },
+    {
+      "type": "childOf",
+      "from": "17",
+      "to": "69"
+    },
+    {
+      "type": "childOf",
+      "from": "18",
+      "to": "74"
+    },
+    {
+      "type": "childOf",
+      "from": "19",
+      "to": "65"
+    },
+    {
+      "type": "childOf",
+      "from": "20",
+      "to": "65"
+    },
+    {
+      "type": "childOf",
+      "from": "21",
+      "to": "70"
+    },
+    {
+      "type": "childOf",
+      "from": "22",
+      "to": "63"
+    },
+    {
+      "type": "childOf",
+      "from": "23",
+      "to": "68"
+    },
+    {
+      "type": "childOf",
+      "from": "24",
+      "to": "70"
+    },
+    {
+      "type": "childOf",
+      "from": "25",
+      "to": "81"
+    },
+    {
+      "type": "childOf",
+      "from": "26",
+      "to": "77"
+    },
+    {
+      "type": "childOf",
+      "from": "27",
+      "to": "68"
+    },
+    {
+      "type": "childOf",
+      "from": "28",
+      "to": "76"
+    },
+    {
+      "type": "childOf",
+      "from": "29",
+      "to": "77"
+    },
+    {
+      "type": "childOf",
+      "from": "31",
+      "to": "69"
+    },
+    {
+      "type": "childOf",
+      "from": "32",
+      "to": "69"
+    },
+    {
+      "type": "childOf",
+      "from": "33",
+      "to": "73"
+    },
+    {
+      "type": "childOf",
+      "from": "34",
+      "to": "69"
+    },
+    {
+      "type": "childOf",
+      "from": "35",
+      "to": "69"
+    },
+    {
+      "type": "childOf",
+      "from": "36",
+      "to": "75"
+    },
+    {
+      "type": "childOf",
+      "from": "40",
+      "to": "75"
+    },
+    {
+      "type": "childOf",
+      "from": "41",
+      "to": "69"
+    },
+    {
+      "type": "childOf",
+      "from": "42",
+      "to": "70"
+    },
+    {
+      "type": "childOf",
+      "from": "43",
+      "to": "78"
+    },
+    {
+      "type": "childOf",
+      "from": "44",
+      "to": "81"
+    },
+    {
+      "type": "childOf",
+      "from": "45",
+      "to": "76"
+    },
+    {
+      "type": "childOf",
+      "from": "46",
+      "to": "70"
+    },
+    {
+      "type": "childOf",
+      "from": "48",
+      "to": "76"
+    },
+    {
+      "type": "childOf",
+      "from": "49",
+      "to": "76"
+    },
+    {
+      "type": "childOf",
+      "from": "50",
+      "to": "76"
+    },
+    {
+      "type": "childOf",
+      "from": "51",
+      "to": "76"
+    },
+    {
+      "type": "childOf",
+      "from": "52",
+      "to": "76"
+    },
+    {
+      "type": "childOf",
+      "from": "53",
+      "to": "81"
+    },
+    {
+      "type": "childOf",
+      "from": "54",
+      "to": "71"
+    },
+    {
+      "type": "childOf",
+      "from": "55",
+      "to": "82"
+    },
+    {
+      "type": "childOf",
+      "from": "56",
+      "to": "84"
+    },
+    {
+      "type": "childOf",
+      "from": "57",
+      "to": "74"
+    },
+    {
+      "type": "childOf",
+      "from": "58",
+      "to": "71"
+    },
+    {
+      "type": "childOf",
+      "from": "59",
+      "to": "80"
+    },
+    {
+      "type": "childOf",
+      "from": "60",
+      "to": "79"
+    },
+    {
+      "type": "childOf",
+      "from": "61",
+      "to": "85"
+    },
+    {
+      "type": "childOf",
+      "from": "62",
+      "to": "volume-selection"
+    },
+    {
+      "type": "childOf",
+      "from": "63",
+      "to": "volume-selection"
+    },
+    {
+      "type": "childOf",
+      "from": "64",
+      "to": "height-view"
+    },
+    {
+      "type": "childOf",
+      "from": "65",
+      "to": "height-view"
+    },
+    {
+      "type": "childOf",
+      "from": "66",
+      "to": "build-package"
+    },
+    {
+      "type": "childOf",
+      "from": "67",
+      "to": "edit-controls"
+    },
+    {
+      "type": "childOf",
+      "from": "68",
+      "to": "edit-controls"
+    },
+    {
+      "type": "childOf",
+      "from": "69",
+      "to": "regional-viewer"
+    },
+    {
+      "type": "childOf",
+      "from": "70",
+      "to": "regional-viewer"
+    },
+    {
+      "type": "childOf",
+      "from": "71",
+      "to": "regional-viewer"
+    },
+    {
+      "type": "childOf",
+      "from": "72",
+      "to": "runtime-limits"
+    },
+    {
+      "type": "childOf",
+      "from": "73",
+      "to": "save-integrity"
+    },
+    {
+      "type": "childOf",
+      "from": "74",
+      "to": "browser-and-desktop"
+    },
+    {
+      "type": "childOf",
+      "from": "75",
+      "to": "visual-presentation"
+    },
+    {
+      "type": "childOf",
+      "from": "76",
+      "to": "visual-presentation"
+    },
+    {
+      "type": "childOf",
+      "from": "77",
+      "to": "visual-presentation"
+    },
+    {
+      "type": "childOf",
+      "from": "78",
+      "to": "volume-selection"
+    },
+    {
+      "type": "childOf",
+      "from": "79",
+      "to": "regional-viewer"
+    },
+    {
+      "type": "childOf",
+      "from": "80",
+      "to": "regional-viewer"
+    },
+    {
+      "type": "childOf",
+      "from": "81",
+      "to": "runtime-limits"
+    },
+    {
+      "type": "childOf",
+      "from": "82",
+      "to": "runtime-limits"
+    },
+    {
+      "type": "childOf",
+      "from": "83",
+      "to": "save-integrity"
+    },
+    {
+      "type": "childOf",
+      "from": "84",
+      "to": "browser-and-desktop"
+    },
+    {
+      "type": "childOf",
+      "from": "85",
+      "to": "visual-presentation"
+    }
+  ],
+  "stages": []
+}

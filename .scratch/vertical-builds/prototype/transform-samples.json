@@ -1,0 +1,5440 @@
+{
+  "ticket": "Transform proof",
+  "question": "On the representative cases, do X, Y, Z, and rotations convert without an inverted axis, a unit error, or an invented elevation?",
+  "answer": "Position, orientation, and elevation come from the save. A class with no trustworthy Z or rotation is reported, not drawn as if it were exact.",
+  "constants": {
+    "mapSize": 8192.0,
+    "worldToPixelScale": 22.887,
+    "worldOffset": [
+      18282.5,
+      20480.0
+    ],
+    "oldMapDescale": 20.0,
+    "cropLo": 204.8,
+    "toHighres": 5.0,
+    "worldUnitsPerMeter": 100.0,
+    "tiltThreshold": 0.001,
+    "jnumDecimals": 2
+  },
+  "cases": [
+    {
+      "id": "stacked-poles-all",
+      "save": "All_080726-163150.sav",
+      "kind": "stack",
+      "boxPx": [
+        2690.0,
+        1474.0,
+        2752.0,
+        1536.0
+      ],
+      "watch": "Cut marks must keep the 32–45 m pole stack, not collapse to one band.",
+      "poseCount": 10,
+      "pathCount": 2,
+      "zSpanM": [
+        34.0,
+        42.0
+      ],
+      "checks": {
+        "maxXyRoundTripCm": 0.41,
+        "maxZRoundTripCm": 0.0,
+        "axisUnitOk": true,
+        "yawMismatch": 0,
+        "tiltedPayloadYawZero": 0,
+        "missingHeightExtent": 0,
+        "missingFootprint": 0,
+        "nonUnitOrDroppedScale": 0,
+        "pathVertices": 4,
+        "pathTangentsWithZDropped": 0
+      },
+      "poses": [
+        {
+          "class": "Build_ConveyorPoleStackable_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable/Build_ConveyorPoleStackable.Build_ConveyorPoleStackable_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            -75600.0,
+            237200.0,
+            3400.0
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 2720.83,
+            "py": 1505.01,
+            "yaw": 0.0,
+            "zM": 34.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              2.0
+            ],
+            "footprintPixels": [
+              -0.55,
+              -1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.13,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 474399.95,
+            "swappedXyErrorCm": 442365.88,
+            "zAsCmErrorM": 3366.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConveyorPoleStackable_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable/Build_ConveyorPoleStackable.Build_ConveyorPoleStackable_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            -75600.0,
+            237200.0,
+            3600.0
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 2720.83,
+            "py": 1505.01,
+            "yaw": 0.0,
+            "zM": 36.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              2.0
+            ],
+            "footprintPixels": [
+              -0.55,
+              -1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.13,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 474399.95,
+            "swappedXyErrorCm": 442365.88,
+            "zAsCmErrorM": 3564.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConveyorPoleStackable_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable/Build_ConveyorPoleStackable.Build_ConveyorPoleStackable_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            -75600.0,
+            237200.0,
+            3800.0
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 2720.83,
+            "py": 1505.01,
+            "yaw": 0.0,
+            "zM": 38.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              2.0
+            ],
+            "footprintPixels": [
+              -0.55,
+              -1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.13,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 474399.95,
+            "swappedXyErrorCm": 442365.88,
+            "zAsCmErrorM": 3762.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConveyorPoleStackable_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable/Build_ConveyorPoleStackable.Build_ConveyorPoleStackable_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            -75600.0,
+            237200.0,
+            4000.0
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 2720.83,
+            "py": 1505.01,
+            "yaw": 0.0,
+            "zM": 40.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              2.0
+            ],
+            "footprintPixels": [
+              -0.55,
+              -1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.13,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 474399.95,
+            "swappedXyErrorCm": 442365.88,
+            "zAsCmErrorM": 3960.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConveyorPoleStackable_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable/Build_ConveyorPoleStackable.Build_ConveyorPoleStackable_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            -75600.0,
+            237200.0,
+            4200.0
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 2720.83,
+            "py": 1505.01,
+            "yaw": 0.0,
+            "zM": 42.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              2.0
+            ],
+            "footprintPixels": [
+              -0.55,
+              -1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.13,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 474399.95,
+            "swappedXyErrorCm": 442365.88,
+            "zAsCmErrorM": 4158.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConveyorPoleStackable_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable/Build_ConveyorPoleStackable.Build_ConveyorPoleStackable_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            -73200.0,
+            237200.0,
+            3400.0
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 2747.04,
+            "py": 1505.01,
+            "yaw": 0.0,
+            "zM": 34.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              2.0
+            ],
+            "footprintPixels": [
+              -0.55,
+              -1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.41,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 474399.95,
+            "swappedXyErrorCm": 438972.14,
+            "zAsCmErrorM": 3366.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConveyorPoleStackable_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable/Build_ConveyorPoleStackable.Build_ConveyorPoleStackable_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            -73200.0,
+            237200.0,
+            3600.0
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 2747.04,
+            "py": 1505.01,
+            "yaw": 0.0,
+            "zM": 36.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              2.0
+            ],
+            "footprintPixels": [
+              -0.55,
+              -1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.41,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 474399.95,
+            "swappedXyErrorCm": 438972.14,
+            "zAsCmErrorM": 3564.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConveyorPoleStackable_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable/Build_ConveyorPoleStackable.Build_ConveyorPoleStackable_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            -73200.0,
+            237200.0,
+            3800.0
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 2747.04,
+            "py": 1505.01,
+            "yaw": 0.0,
+            "zM": 38.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              2.0
+            ],
+            "footprintPixels": [
+              -0.55,
+              -1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.41,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 474399.95,
+            "swappedXyErrorCm": 438972.14,
+            "zAsCmErrorM": 3762.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConveyorPoleStackable_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable/Build_ConveyorPoleStackable.Build_ConveyorPoleStackable_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            -73200.0,
+            237200.0,
+            4000.0
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 2747.04,
+            "py": 1505.01,
+            "yaw": 0.0,
+            "zM": 40.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              2.0
+            ],
+            "footprintPixels": [
+              -0.55,
+              -1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.41,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 474399.95,
+            "swappedXyErrorCm": 438972.14,
+            "zAsCmErrorM": 3960.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConveyorPoleStackable_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPoleStackable/Build_ConveyorPoleStackable.Build_ConveyorPoleStackable_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            -73200.0,
+            237200.0,
+            4200.0
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 2747.04,
+            "py": 1505.01,
+            "yaw": 0.0,
+            "zM": 42.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              2.0
+            ],
+            "footprintPixels": [
+              -0.55,
+              -1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.41,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 474399.95,
+            "swappedXyErrorCm": 438972.14,
+            "zAsCmErrorM": 4158.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        }
+      ],
+      "paths": [
+        {
+          "class": "Build_ConveyorBeltMk6_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk6/Build_ConveyorBeltMk6.Build_ConveyorBeltMk6_C",
+          "vertexCount": 2,
+          "zSpanM": [
+            45.0,
+            45.0
+          ],
+          "payloadDropsTangentZ": true,
+          "payloadDropsChainTriples": true,
+          "trust": {
+            "vertexPosition": "save",
+            "vertexZ": "save",
+            "tangentXY": "save",
+            "tangentZ": "dropped",
+            "verticalCurveBetweenSamples": "linear-blend-not-hermite"
+          },
+          "vertices": [
+            {
+              "worldCm": [
+                -75600.0,
+                237200.0,
+                4500.0
+              ],
+              "payload": {
+                "px": 2720.83,
+                "py": 1505.01,
+                "arriveX": 0.01,
+                "arriveY": -0.0,
+                "leaveX": 6.55,
+                "leaveY": -0.0,
+                "zM": 45.0
+              },
+              "arriveWorldCm": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                600.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                -73200.0,
+                237200.0,
+                4500.0
+              ],
+              "payload": {
+                "px": 2747.04,
+                "py": 1505.01,
+                "arriveX": 6.55,
+                "arriveY": -0.0,
+                "leaveX": 0.01,
+                "leaveY": -0.0,
+                "zM": 45.0
+              },
+              "arriveWorldCm": [
+                600.0,
+                0.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            }
+          ]
+        },
+        {
+          "class": "Build_ConveyorBeltMk6_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk6/Build_ConveyorBeltMk6.Build_ConveyorBeltMk6_C",
+          "vertexCount": 2,
+          "zSpanM": [
+            43.0,
+            43.0
+          ],
+          "payloadDropsTangentZ": true,
+          "payloadDropsChainTriples": true,
+          "trust": {
+            "vertexPosition": "save",
+            "vertexZ": "save",
+            "tangentXY": "save",
+            "tangentZ": "dropped",
+            "verticalCurveBetweenSamples": "linear-blend-not-hermite"
+          },
+          "vertices": [
+            {
+              "worldCm": [
+                -75600.0,
+                237200.0,
+                4300.0
+              ],
+              "payload": {
+                "px": 2720.83,
+                "py": 1505.01,
+                "arriveX": 0.01,
+                "arriveY": -0.0,
+                "leaveX": 6.55,
+                "leaveY": -0.0,
+                "zM": 43.0
+              },
+              "arriveWorldCm": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                600.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                -73200.0,
+                237200.0,
+                4300.0
+              ],
+              "payload": {
+                "px": 2747.04,
+                "py": 1505.01,
+                "arriveX": 6.55,
+                "arriveY": -0.0,
+                "leaveX": 0.01,
+                "leaveY": -0.0,
+                "zM": 43.0
+              },
+              "arriveWorldCm": [
+                600.0,
+                0.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stacked-pillars-big",
+      "save": "BuildITBIIIIIG_210726-231135.sav",
+      "kind": "stack",
+      "boxPx": [
+        449.0,
+        5787.0,
+        475.0,
+        5822.0
+      ],
+      "watch": "Pillars and lifts sit at different z. Extreme bins elsewhere are not this height.",
+      "poseCount": 10,
+      "pathCount": 2,
+      "zSpanM": [
+        -10.0,
+        14.0
+      ],
+      "checks": {
+        "maxXyRoundTripCm": 0.44,
+        "maxZRoundTripCm": 0.05,
+        "axisUnitOk": true,
+        "yawMismatch": 0,
+        "tiltedPayloadYawZero": 0,
+        "missingHeightExtent": 0,
+        "missingFootprint": 0,
+        "nonUnitOrDroppedScale": 0,
+        "pathVertices": 4,
+        "pathTangentsWithZDropped": 0
+      },
+      "poses": [
+        {
+          "class": "Build_ConstructorMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
+          "category": "Production",
+          "source": "actor",
+          "worldCm": [
+            -283200.0,
+            -157199.98,
+            -999.96
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 453.17,
+            "py": 5813.13,
+            "yaw": 0.0,
+            "zM": -10.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              6.0
+            ],
+            "footprintPixels": [
+              4.37,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.42,
+            "zErrorCm": 0.04,
+            "forgotYFlipErrorCm": 314399.8,
+            "swappedXyErrorCm": 178190.78,
+            "zAsCmErrorM": 989.96
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConstructorMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
+          "category": "Production",
+          "source": "actor",
+          "worldCm": [
+            -283200.0,
+            -157199.98,
+            -199.96
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 453.17,
+            "py": 5813.13,
+            "yaw": 0.0,
+            "zM": -2.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              6.0
+            ],
+            "footprintPixels": [
+              4.37,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.42,
+            "zErrorCm": 0.04,
+            "forgotYFlipErrorCm": 314399.8,
+            "swappedXyErrorCm": 178190.78,
+            "zAsCmErrorM": 197.96
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConstructorMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
+          "category": "Production",
+          "source": "actor",
+          "worldCm": [
+            -283200.0,
+            -157199.98,
+            600.05
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 453.17,
+            "py": 5813.13,
+            "yaw": 0.0,
+            "zM": 6.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              6.0
+            ],
+            "footprintPixels": [
+              4.37,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.42,
+            "zErrorCm": 0.05,
+            "forgotYFlipErrorCm": 314399.8,
+            "swappedXyErrorCm": 178190.78,
+            "zAsCmErrorM": 594.05
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConstructorMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
+          "category": "Production",
+          "source": "actor",
+          "worldCm": [
+            -283200.0,
+            -157199.98,
+            1400.04
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 453.17,
+            "py": 5813.13,
+            "yaw": 0.0,
+            "zM": 14.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              6.0
+            ],
+            "footprintPixels": [
+              4.37,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.42,
+            "zErrorCm": 0.04,
+            "forgotYFlipErrorCm": 314399.8,
+            "swappedXyErrorCm": 178190.78,
+            "zAsCmErrorM": 1386.04
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConstructorMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
+          "category": "Production",
+          "source": "actor",
+          "worldCm": [
+            -282400.0,
+            -157199.98,
+            -999.96
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 461.9,
+            "py": 5813.13,
+            "yaw": 0.0,
+            "zM": -10.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              6.0
+            ],
+            "footprintPixels": [
+              4.37,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.44,
+            "zErrorCm": 0.04,
+            "forgotYFlipErrorCm": 314399.8,
+            "swappedXyErrorCm": 177059.96,
+            "zAsCmErrorM": 989.96
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConstructorMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
+          "category": "Production",
+          "source": "actor",
+          "worldCm": [
+            -282400.0,
+            -157199.98,
+            -199.96
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 461.9,
+            "py": 5813.13,
+            "yaw": 0.0,
+            "zM": -2.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              6.0
+            ],
+            "footprintPixels": [
+              4.37,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.44,
+            "zErrorCm": 0.04,
+            "forgotYFlipErrorCm": 314399.8,
+            "swappedXyErrorCm": 177059.96,
+            "zAsCmErrorM": 197.96
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConstructorMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
+          "category": "Production",
+          "source": "actor",
+          "worldCm": [
+            -282400.0,
+            -157199.98,
+            600.05
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 461.9,
+            "py": 5813.13,
+            "yaw": 0.0,
+            "zM": 6.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              6.0
+            ],
+            "footprintPixels": [
+              4.37,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.44,
+            "zErrorCm": 0.05,
+            "forgotYFlipErrorCm": 314399.8,
+            "swappedXyErrorCm": 177059.96,
+            "zAsCmErrorM": 594.05
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConstructorMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
+          "category": "Production",
+          "source": "actor",
+          "worldCm": [
+            -282400.0,
+            -157199.98,
+            1400.04
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 461.9,
+            "py": 5813.13,
+            "yaw": 0.0,
+            "zM": 14.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              6.0
+            ],
+            "footprintPixels": [
+              4.37,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.44,
+            "zErrorCm": 0.04,
+            "forgotYFlipErrorCm": 314399.8,
+            "swappedXyErrorCm": 177059.96,
+            "zAsCmErrorM": 1386.04
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConstructorMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
+          "category": "Production",
+          "source": "actor",
+          "worldCm": [
+            -281600.0,
+            -157199.98,
+            -999.96
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 470.64,
+            "py": 5813.13,
+            "yaw": 0.0,
+            "zM": -10.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              6.0
+            ],
+            "footprintPixels": [
+              4.37,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.32,
+            "zErrorCm": 0.04,
+            "forgotYFlipErrorCm": 314399.8,
+            "swappedXyErrorCm": 175928.5,
+            "zAsCmErrorM": 989.96
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConstructorMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConstructorMk1/Build_ConstructorMk1.Build_ConstructorMk1_C",
+          "category": "Production",
+          "source": "actor",
+          "worldCm": [
+            -281600.0,
+            -157199.98,
+            -199.96
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 470.64,
+            "py": 5813.13,
+            "yaw": 0.0,
+            "zM": -2.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              6.0
+            ],
+            "footprintPixels": [
+              4.37,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.32,
+            "zErrorCm": 0.04,
+            "forgotYFlipErrorCm": 314399.8,
+            "swappedXyErrorCm": 175928.5,
+            "zAsCmErrorM": 197.96
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        }
+      ],
+      "paths": [
+        {
+          "class": "Build_ConveyorBeltMk5_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk5/Build_ConveyorBeltMk5.Build_ConveyorBeltMk5_C",
+          "vertexCount": 2,
+          "zSpanM": [
+            -14.0,
+            -14.0
+          ],
+          "payloadDropsTangentZ": true,
+          "payloadDropsChainTriples": true,
+          "trust": {
+            "vertexPosition": "save",
+            "vertexZ": "save",
+            "tangentXY": "save",
+            "tangentZ": "dropped",
+            "verticalCurveBetweenSamples": "linear-blend-not-hermite"
+          },
+          "vertices": [
+            {
+              "worldCm": [
+                -283500.0,
+                -157399.98,
+                -1399.96
+              ],
+              "payload": {
+                "px": 449.89,
+                "py": 5815.32,
+                "arriveX": 0.01,
+                "arriveY": -0.0,
+                "leaveX": 1.09,
+                "leaveY": -0.0,
+                "zM": -14.0
+              },
+              "arriveWorldCm": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                100.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                -283300.0,
+                -157399.98,
+                -1399.96
+              ],
+              "payload": {
+                "px": 452.07,
+                "py": 5815.32,
+                "arriveX": 1.09,
+                "arriveY": -0.0,
+                "leaveX": 0.01,
+                "leaveY": -0.0,
+                "zM": -14.0
+              },
+              "arriveWorldCm": [
+                100.0,
+                0.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            }
+          ]
+        },
+        {
+          "class": "Build_ConveyorBeltMk5_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk5/Build_ConveyorBeltMk5.Build_ConveyorBeltMk5_C",
+          "vertexCount": 2,
+          "zSpanM": [
+            -14.0,
+            -14.0
+          ],
+          "payloadDropsTangentZ": true,
+          "payloadDropsChainTriples": true,
+          "trust": {
+            "vertexPosition": "save",
+            "vertexZ": "save",
+            "tangentXY": "save",
+            "tangentZ": "dropped",
+            "verticalCurveBetweenSamples": "linear-blend-not-hermite"
+          },
+          "vertices": [
+            {
+              "worldCm": [
+                -283500.0,
+                -156999.98,
+                -1399.96
+              ],
+              "payload": {
+                "px": 449.89,
+                "py": 5810.95,
+                "arriveX": 0.01,
+                "arriveY": -0.0,
+                "leaveX": 1.09,
+                "leaveY": -0.0,
+                "zM": -14.0
+              },
+              "arriveWorldCm": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                100.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                -283300.0,
+                -156999.98,
+                -1399.96
+              ],
+              "payload": {
+                "px": 452.07,
+                "py": 5810.95,
+                "arriveX": 1.09,
+                "arriveY": -0.0,
+                "leaveX": 0.01,
+                "leaveY": -0.0,
+                "zM": -14.0
+              },
+              "arriveWorldCm": [
+                100.0,
+                0.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rotated-signs-big",
+      "save": "BuildITBIIIIIG_210726-231135.sav",
+      "kind": "rotation",
+      "boxPx": [
+        790.0,
+        4312.0,
+        824.0,
+        4344.0
+      ],
+      "watch": "Very-wide signs must keep off-axis yaw, not snap to 0/90.",
+      "poseCount": 10,
+      "pathCount": 0,
+      "zSpanM": [
+        13.0,
+        107.0
+      ],
+      "checks": {
+        "maxXyRoundTripCm": 0.53,
+        "maxZRoundTripCm": 0.16,
+        "axisUnitOk": true,
+        "yawMismatch": 0,
+        "tiltedPayloadYawZero": 5,
+        "missingHeightExtent": 0,
+        "missingFootprint": 0,
+        "nonUnitOrDroppedScale": 0,
+        "pathVertices": 0,
+        "pathTangentsWithZDropped": 0
+      },
+      "poses": [
+        {
+          "class": "Build_PowerPoleWall_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -250776.28,
+            -21292.65,
+            3400.15
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.9848,
+            0.1736
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 2.7925,
+          "payload": {
+            "px": 807.34,
+            "py": 4328.58,
+            "yaw": 2.79,
+            "zM": 34.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              0.49,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.47,
+            "zErrorCm": 0.15,
+            "forgotYFlipErrorCm": 42584.88,
+            "swappedXyErrorCm": 324539.01,
+            "zAsCmErrorM": 3366.15
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWall_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -252117.25,
+            -20006.44,
+            1430.16
+          ],
+          "quat": [
+            0.5792,
+            0.4056,
+            -0.5792,
+            0.4056
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.5,
+          "yawFromSave": 3.1416,
+          "payload": {
+            "px": 792.69,
+            "py": 4314.54,
+            "yaw": 0.0,
+            "zM": 14.3,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              0.49,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.46,
+            "zErrorCm": 0.16,
+            "forgotYFlipErrorCm": 40013.34,
+            "swappedXyErrorCm": 328253.92,
+            "zAsCmErrorM": 1415.86
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWall_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -250536.86,
+            -20634.86,
+            1300.15
+          ],
+          "quat": [
+            -0.1736,
+            -0.9848,
+            0.0,
+            0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 1.0,
+          "yawFromSave": 2.7925,
+          "payload": {
+            "px": 809.95,
+            "py": 4321.4,
+            "yaw": 0.0,
+            "zM": 13.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              0.49,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.27,
+            "zErrorCm": 0.15,
+            "forgotYFlipErrorCm": 41269.78,
+            "swappedXyErrorCm": 325130.67,
+            "zAsCmErrorM": 1287.15
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWall_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -250776.33,
+            -21292.69,
+            8200.13
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.9848,
+            0.1737
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 2.7925,
+          "payload": {
+            "px": 807.34,
+            "py": 4328.58,
+            "yaw": 2.79,
+            "zM": 82.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              0.49,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.53,
+            "zErrorCm": 0.13,
+            "forgotYFlipErrorCm": 42584.92,
+            "swappedXyErrorCm": 324539.01,
+            "zAsCmErrorM": 8118.13
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWall_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -250759.17,
+            -21245.82,
+            10700.13
+          ],
+          "quat": [
+            -0.1737,
+            -0.9848,
+            0.0,
+            0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 1.0,
+          "yawFromSave": 2.7925,
+          "payload": {
+            "px": 807.52,
+            "py": 4328.07,
+            "yaw": 0.0,
+            "zM": 107.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 4,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              0.49,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.5,
+            "zErrorCm": 0.13,
+            "forgotYFlipErrorCm": 42491.37,
+            "swappedXyErrorCm": 324581.38,
+            "zAsCmErrorM": 10593.13
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWallDouble_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWallDouble/Build_PowerPoleWallDouble.Build_PowerPoleWallDouble_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -250776.28,
+            -21292.65,
+            1300.15
+          ],
+          "quat": [
+            -0.0,
+            0.0,
+            -0.1736,
+            0.9848
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": -0.3491,
+          "payload": {
+            "px": 807.34,
+            "py": 4328.58,
+            "yaw": -0.35,
+            "zM": 13.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              1.09,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.47,
+            "zErrorCm": 0.15,
+            "forgotYFlipErrorCm": 42584.88,
+            "swappedXyErrorCm": 324539.01,
+            "zAsCmErrorM": 1287.15
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWallDouble_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWallDouble/Build_PowerPoleWallDouble.Build_PowerPoleWallDouble_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -250870.25,
+            -21258.45,
+            1420.15
+          ],
+          "quat": [
+            -0.1228,
+            -0.6964,
+            -0.1228,
+            0.6964
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.5,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 806.31,
+            "py": 4328.21,
+            "yaw": 0.0,
+            "zM": 14.2,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              1.09,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.14,
+            "zErrorCm": 0.15,
+            "forgotYFlipErrorCm": 42516.81,
+            "swappedXyErrorCm": 324720.26,
+            "zAsCmErrorM": 1405.95
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWallDouble_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWallDouble/Build_PowerPoleWallDouble.Build_PowerPoleWallDouble_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -250776.28,
+            -21292.81,
+            5800.13
+          ],
+          "quat": [
+            -0.0,
+            0.0,
+            -0.1737,
+            0.9848
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": -0.3491,
+          "payload": {
+            "px": 807.34,
+            "py": 4328.59,
+            "yaw": -0.35,
+            "zM": 58.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              1.09,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.4,
+            "zErrorCm": 0.13,
+            "forgotYFlipErrorCm": 42585.96,
+            "swappedXyErrorCm": 324538.24,
+            "zAsCmErrorM": 5742.13
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWallDouble_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWallDouble/Build_PowerPoleWallDouble.Build_PowerPoleWallDouble_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -250776.33,
+            -21292.69,
+            6100.13
+          ],
+          "quat": [
+            -0.0,
+            0.0,
+            -0.1737,
+            0.9848
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": -0.3491,
+          "payload": {
+            "px": 807.34,
+            "py": 4328.58,
+            "yaw": -0.35,
+            "zM": 61.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              1.09,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.53,
+            "zErrorCm": 0.13,
+            "forgotYFlipErrorCm": 42584.92,
+            "swappedXyErrorCm": 324539.01,
+            "zAsCmErrorM": 6039.13
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWallDouble_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWallDouble/Build_PowerPoleWallDouble.Build_PowerPoleWallDouble_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -250870.3,
+            -21258.48,
+            6220.13
+          ],
+          "quat": [
+            -0.1228,
+            -0.6964,
+            -0.1228,
+            0.6964
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.5,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 806.31,
+            "py": 4328.21,
+            "yaw": 0.0,
+            "zM": 62.2,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              1.09,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.14,
+            "zErrorCm": 0.13,
+            "forgotYFlipErrorCm": 42516.85,
+            "swappedXyErrorCm": 324720.27,
+            "zAsCmErrorM": 6157.93
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        }
+      ],
+      "paths": []
+    },
+    {
+      "id": "tilted-ramps-big",
+      "save": "BuildITBIIIIIG_210726-231135.sav",
+      "kind": "tilt",
+      "boxPx": [
+        1384.0,
+        3656.0,
+        1418.0,
+        3688.0
+      ],
+      "watch": "Tilted instances ship yaw 0 plus a flat hull. Do not draw that hull as an exact 3D box.",
+      "poseCount": 10,
+      "pathCount": 0,
+      "zSpanM": [
+        107.0,
+        143.0
+      ],
+      "checks": {
+        "maxXyRoundTripCm": 0.33,
+        "maxZRoundTripCm": 0.18,
+        "axisUnitOk": true,
+        "yawMismatch": 0,
+        "tiltedPayloadYawZero": 10,
+        "missingHeightExtent": 0,
+        "missingFootprint": 0,
+        "nonUnitOrDroppedScale": 10,
+        "pathVertices": 0,
+        "pathTangentsWithZDropped": 0
+      },
+      "poses": [
+        {
+          "class": "Build_PillarMiddle_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/Foundation/Build_PillarMiddle.Build_PillarMiddle_C",
+          "category": "Organisation",
+          "source": "lightweight",
+          "worldCm": [
+            -196689.75,
+            38998.76,
+            14300.18
+          ],
+          "quat": [
+            -0.4617,
+            0.887,
+            -0.0,
+            0.0
+          ],
+          "scale": null,
+          "scaleDropped": true,
+          "tiltIntensity": 1.0,
+          "yawFromSave": -2.1817,
+          "payload": {
+            "px": 1398.14,
+            "py": 3670.01,
+            "yaw": 0.0,
+            "zM": 143.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              4.0
+            ],
+            "footprintPixels": [
+              2.18,
+              2.18
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.33,
+            "zErrorCm": 0.18,
+            "forgotYFlipErrorCm": 77997.29,
+            "swappedXyErrorCm": 333313.55,
+            "zAsCmErrorM": 14157.18
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PillarMiddle_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/Foundation/Build_PillarMiddle.Build_PillarMiddle_C",
+          "category": "Organisation",
+          "source": "lightweight",
+          "worldCm": [
+            -196689.75,
+            38998.76,
+            13900.18
+          ],
+          "quat": [
+            -0.4617,
+            0.887,
+            -0.0,
+            0.0
+          ],
+          "scale": null,
+          "scaleDropped": true,
+          "tiltIntensity": 1.0,
+          "yawFromSave": -2.1817,
+          "payload": {
+            "px": 1398.14,
+            "py": 3670.01,
+            "yaw": 0.0,
+            "zM": 139.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              4.0
+            ],
+            "footprintPixels": [
+              2.18,
+              2.18
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.33,
+            "zErrorCm": 0.18,
+            "forgotYFlipErrorCm": 77997.29,
+            "swappedXyErrorCm": 333313.55,
+            "zAsCmErrorM": 13761.18
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PillarMiddle_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/Foundation/Build_PillarMiddle.Build_PillarMiddle_C",
+          "category": "Organisation",
+          "source": "lightweight",
+          "worldCm": [
+            -196689.7,
+            38998.75,
+            13500.18
+          ],
+          "quat": [
+            -0.887,
+            -0.4617,
+            0.0,
+            0.0
+          ],
+          "scale": null,
+          "scaleDropped": true,
+          "tiltIntensity": 1.0,
+          "yawFromSave": 0.9599,
+          "payload": {
+            "px": 1398.14,
+            "py": 3670.01,
+            "yaw": 0.0,
+            "zM": 135.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 4,
+            "heightExtentM": [
+              0.0,
+              4.0
+            ],
+            "footprintPixels": [
+              2.18,
+              2.18
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.29,
+            "zErrorCm": 0.18,
+            "forgotYFlipErrorCm": 77997.28,
+            "swappedXyErrorCm": 333313.51,
+            "zAsCmErrorM": 13365.18
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PillarMiddle_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/Foundation/Build_PillarMiddle.Build_PillarMiddle_C",
+          "category": "Organisation",
+          "source": "lightweight",
+          "worldCm": [
+            -196689.73,
+            38998.76,
+            13100.17
+          ],
+          "quat": [
+            -0.4617,
+            0.887,
+            -0.0,
+            0.0
+          ],
+          "scale": null,
+          "scaleDropped": true,
+          "tiltIntensity": 1.0,
+          "yawFromSave": -2.1817,
+          "payload": {
+            "px": 1398.14,
+            "py": 3670.01,
+            "yaw": 0.0,
+            "zM": 131.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              4.0
+            ],
+            "footprintPixels": [
+              2.18,
+              2.18
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.32,
+            "zErrorCm": 0.17,
+            "forgotYFlipErrorCm": 77997.29,
+            "swappedXyErrorCm": 333313.54,
+            "zAsCmErrorM": 12969.17
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PillarMiddle_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/Foundation/Build_PillarMiddle.Build_PillarMiddle_C",
+          "category": "Organisation",
+          "source": "lightweight",
+          "worldCm": [
+            -196689.73,
+            38998.76,
+            12700.17
+          ],
+          "quat": [
+            -0.4617,
+            0.887,
+            -0.0,
+            0.0
+          ],
+          "scale": null,
+          "scaleDropped": true,
+          "tiltIntensity": 1.0,
+          "yawFromSave": -2.1817,
+          "payload": {
+            "px": 1398.14,
+            "py": 3670.01,
+            "yaw": 0.0,
+            "zM": 127.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              4.0
+            ],
+            "footprintPixels": [
+              2.18,
+              2.18
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.32,
+            "zErrorCm": 0.17,
+            "forgotYFlipErrorCm": 77997.29,
+            "swappedXyErrorCm": 333313.54,
+            "zAsCmErrorM": 12573.17
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PillarMiddle_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/Foundation/Build_PillarMiddle.Build_PillarMiddle_C",
+          "category": "Organisation",
+          "source": "lightweight",
+          "worldCm": [
+            -196689.73,
+            38998.76,
+            12300.17
+          ],
+          "quat": [
+            -0.887,
+            -0.4617,
+            0.0,
+            0.0
+          ],
+          "scale": null,
+          "scaleDropped": true,
+          "tiltIntensity": 1.0,
+          "yawFromSave": 0.9599,
+          "payload": {
+            "px": 1398.14,
+            "py": 3670.01,
+            "yaw": 0.0,
+            "zM": 123.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              4.0
+            ],
+            "footprintPixels": [
+              2.18,
+              2.18
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.32,
+            "zErrorCm": 0.17,
+            "forgotYFlipErrorCm": 77997.29,
+            "swappedXyErrorCm": 333313.54,
+            "zAsCmErrorM": 12177.17
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PillarMiddle_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/Foundation/Build_PillarMiddle.Build_PillarMiddle_C",
+          "category": "Organisation",
+          "source": "lightweight",
+          "worldCm": [
+            -196689.73,
+            38998.76,
+            11900.17
+          ],
+          "quat": [
+            -0.887,
+            -0.4617,
+            0.0,
+            0.0
+          ],
+          "scale": null,
+          "scaleDropped": true,
+          "tiltIntensity": 1.0,
+          "yawFromSave": 0.9599,
+          "payload": {
+            "px": 1398.14,
+            "py": 3670.01,
+            "yaw": 0.0,
+            "zM": 119.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              4.0
+            ],
+            "footprintPixels": [
+              2.18,
+              2.18
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.32,
+            "zErrorCm": 0.17,
+            "forgotYFlipErrorCm": 77997.29,
+            "swappedXyErrorCm": 333313.54,
+            "zAsCmErrorM": 11781.17
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PillarMiddle_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/Foundation/Build_PillarMiddle.Build_PillarMiddle_C",
+          "category": "Organisation",
+          "source": "lightweight",
+          "worldCm": [
+            -196689.73,
+            38998.76,
+            11500.17
+          ],
+          "quat": [
+            -0.887,
+            -0.4617,
+            0.0,
+            0.0
+          ],
+          "scale": null,
+          "scaleDropped": true,
+          "tiltIntensity": 1.0,
+          "yawFromSave": 0.9599,
+          "payload": {
+            "px": 1398.14,
+            "py": 3670.01,
+            "yaw": 0.0,
+            "zM": 115.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              4.0
+            ],
+            "footprintPixels": [
+              2.18,
+              2.18
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.32,
+            "zErrorCm": 0.17,
+            "forgotYFlipErrorCm": 77997.29,
+            "swappedXyErrorCm": 333313.54,
+            "zAsCmErrorM": 11385.17
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PillarMiddle_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/Foundation/Build_PillarMiddle.Build_PillarMiddle_C",
+          "category": "Organisation",
+          "source": "lightweight",
+          "worldCm": [
+            -196689.73,
+            38998.76,
+            11100.17
+          ],
+          "quat": [
+            -0.887,
+            -0.4617,
+            0.0,
+            0.0
+          ],
+          "scale": null,
+          "scaleDropped": true,
+          "tiltIntensity": 1.0,
+          "yawFromSave": 0.9599,
+          "payload": {
+            "px": 1398.14,
+            "py": 3670.01,
+            "yaw": 0.0,
+            "zM": 111.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              4.0
+            ],
+            "footprintPixels": [
+              2.18,
+              2.18
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.32,
+            "zErrorCm": 0.17,
+            "forgotYFlipErrorCm": 77997.29,
+            "swappedXyErrorCm": 333313.54,
+            "zAsCmErrorM": 10989.17
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PillarMiddle_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/Foundation/Build_PillarMiddle.Build_PillarMiddle_C",
+          "category": "Organisation",
+          "source": "lightweight",
+          "worldCm": [
+            -196689.73,
+            38998.76,
+            10700.17
+          ],
+          "quat": [
+            -0.887,
+            -0.4617,
+            0.0,
+            0.0
+          ],
+          "scale": null,
+          "scaleDropped": true,
+          "tiltIntensity": 1.0,
+          "yawFromSave": 0.9599,
+          "payload": {
+            "px": 1398.14,
+            "py": 3670.01,
+            "yaw": 0.0,
+            "zM": 107.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              4.0
+            ],
+            "footprintPixels": [
+              2.18,
+              2.18
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.32,
+            "zErrorCm": 0.17,
+            "forgotYFlipErrorCm": 77997.29,
+            "swappedXyErrorCm": 333313.54,
+            "zAsCmErrorM": 10593.17
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        }
+      ],
+      "paths": []
+    },
+    {
+      "id": "sloped-belt-big",
+      "save": "BuildITBIIIIIG_210726-231135.sav",
+      "kind": "slope",
+      "boxPx": [
+        7664.0,
+        5124.0,
+        7676.0,
+        5175.0
+      ],
+      "watch": "Mk5 belt vertex z climbs ~28 m due north. Chain-actor triples are not this path.",
+      "poseCount": 0,
+      "pathCount": 1,
+      "zSpanM": null,
+      "checks": {
+        "maxXyRoundTripCm": 0.0,
+        "maxZRoundTripCm": 0.0,
+        "axisUnitOk": true,
+        "yawMismatch": 0,
+        "tiltedPayloadYawZero": 0,
+        "missingHeightExtent": 0,
+        "missingFootprint": 0,
+        "nonUnitOrDroppedScale": 0,
+        "pathVertices": 4,
+        "pathTangentsWithZDropped": 0
+      },
+      "poses": [],
+      "paths": [
+        {
+          "class": "Build_ConveyorBeltMk5_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk5/Build_ConveyorBeltMk5.Build_ConveyorBeltMk5_C",
+          "vertexCount": 4,
+          "zSpanM": [
+            55.65,
+            83.33
+          ],
+          "payloadDropsTangentZ": true,
+          "payloadDropsChainTriples": true,
+          "trust": {
+            "vertexPosition": "save",
+            "vertexZ": "save",
+            "tangentXY": "save",
+            "tangentZ": "dropped",
+            "verticalCurveBetweenSamples": "linear-blend-not-hermite"
+          },
+          "vertices": [
+            {
+              "worldCm": [
+                377426.81,
+                -98809.6,
+                8332.8
+              ],
+              "payload": {
+                "px": 7669.35,
+                "py": 5175.32,
+                "arriveX": 0.0,
+                "arriveY": -0.01,
+                "leaveX": 0.26,
+                "leaveY": -0.71,
+                "zM": 83.33
+              },
+              "arriveWorldCm": [
+                0.34,
+                0.94,
+                0.0
+              ],
+              "leaveWorldCm": [
+                23.52,
+                64.62,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                377438.81,
+                -98742.41,
+                8332.8
+              ],
+              "payload": {
+                "px": 7669.48,
+                "py": 5174.59,
+                "arriveX": 0.0,
+                "arriveY": -0.75,
+                "leaveX": 0.03,
+                "leaveY": -6.55,
+                "zM": 83.33
+              },
+              "arriveWorldCm": [
+                0.3,
+                68.77,
+                0.0
+              ],
+              "leaveWorldCm": [
+                2.62,
+                599.99,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                377458.95,
+                -94138.35,
+                5564.78
+              ],
+              "payload": {
+                "px": 7669.7,
+                "py": 5124.29,
+                "arriveX": 0.03,
+                "arriveY": -6.55,
+                "leaveX": 0.0,
+                "leaveY": -0.37,
+                "zM": 55.65
+              },
+              "arriveWorldCm": [
+                2.62,
+                599.99,
+                0.0
+              ],
+              "leaveWorldCm": [
+                0.15,
+                33.88,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                377461.97,
+                -94104.66,
+                5564.78
+              ],
+              "payload": {
+                "px": 7669.73,
+                "py": 5123.93,
+                "arriveX": 0.06,
+                "arriveY": -0.36,
+                "leaveX": 0.0,
+                "leaveY": -0.01,
+                "zM": 55.65
+              },
+              "arriveWorldCm": [
+                5.88,
+                33.37,
+                0.0
+              ],
+              "leaveWorldCm": [
+                0.17,
+                0.98,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unknown-potty-big",
+      "save": "BuildITBIIIIIG_210726-231135.sav",
+      "kind": "unknown-class",
+      "boxPx": [
+        5898.0,
+        2489.0,
+        5958.0,
+        2549.0
+      ],
+      "watch": "Vanilla class the menu calls Unknown. Place the point; do not invent a shell.",
+      "poseCount": 10,
+      "pathCount": 0,
+      "zSpanM": [
+        3.0,
+        79.0
+      ],
+      "checks": {
+        "maxXyRoundTripCm": 0.43,
+        "maxZRoundTripCm": 0.08,
+        "axisUnitOk": true,
+        "yawMismatch": 0,
+        "tiltedPayloadYawZero": 3,
+        "missingHeightExtent": 0,
+        "missingFootprint": 5,
+        "nonUnitOrDroppedScale": 0,
+        "pathVertices": 0,
+        "pathTangentsWithZDropped": 0
+      },
+      "poses": [
+        {
+          "class": "Build_ConveyorPole_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPole/Build_ConveyorPole.Build_ConveyorPole_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            216499.95,
+            142100.08,
+            299.98
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 5911.5,
+            "py": 2543.81,
+            "yaw": 0.0,
+            "zM": 3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              1.0
+            ],
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.42,
+            "zErrorCm": 0.02,
+            "forgotYFlipErrorCm": 284199.97,
+            "swappedXyErrorCm": 105217.18,
+            "zAsCmErrorM": 296.98
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_ConveyorPole_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPole/Build_ConveyorPole.Build_ConveyorPole_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            218599.95,
+            146900.08,
+            7699.98
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7074,
+            0.7068
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5716,
+          "payload": {
+            "px": 5934.44,
+            "py": 2491.38,
+            "yaw": 1.57,
+            "zM": 77.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              1.0
+            ],
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.42,
+            "zErrorCm": 0.02,
+            "forgotYFlipErrorCm": 293799.83,
+            "swappedXyErrorCm": 101398.98,
+            "zAsCmErrorM": 7622.98
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_ConveyorPole_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPole/Build_ConveyorPole.Build_ConveyorPole_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            218399.95,
+            146900.08,
+            7699.98
+          ],
+          "quat": [
+            -0.0,
+            0.0,
+            -0.7039,
+            0.7103
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": -1.5617,
+          "payload": {
+            "px": 5932.26,
+            "py": 2491.38,
+            "yaw": -1.56,
+            "zM": 77.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              1.0
+            ],
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.36,
+            "zErrorCm": 0.02,
+            "forgotYFlipErrorCm": 293799.83,
+            "swappedXyErrorCm": 101116.44,
+            "zAsCmErrorM": 7622.98
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_ConveyorPole_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPole/Build_ConveyorPole.Build_ConveyorPole_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            215400.0,
+            143800.09,
+            7699.98
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            1.0,
+            0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 3.1416,
+          "payload": {
+            "px": 5899.49,
+            "py": 2525.24,
+            "yaw": 3.14,
+            "zM": 77.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              1.0
+            ],
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.18,
+            "zErrorCm": 0.02,
+            "forgotYFlipErrorCm": 287600.03,
+            "swappedXyErrorCm": 101257.73,
+            "zAsCmErrorM": 7622.98
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_ConveyorPole_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/ConveyorPole/Build_ConveyorPole.Build_ConveyorPole_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            218199.94,
+            146800.13,
+            7699.92
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7073,
+            0.7069
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5713,
+          "payload": {
+            "px": 5930.07,
+            "py": 2492.47,
+            "yaw": 1.57,
+            "zM": 77.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              1.0
+            ],
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.35,
+            "zErrorCm": 0.08,
+            "forgotYFlipErrorCm": 293600.09,
+            "swappedXyErrorCm": 100974.47,
+            "zAsCmErrorM": 7622.92
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWall_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            216800.02,
+            143300.08,
+            7630.0
+          ],
+          "quat": [
+            0.5,
+            0.5,
+            -0.5,
+            0.5
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.5,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 5914.78,
+            "py": 2530.7,
+            "yaw": 0.0,
+            "zM": 76.3,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 4,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              0.49,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.16,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 286600.16,
+            "swappedXyErrorCm": 103944.49,
+            "zAsCmErrorM": 7553.7
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWall_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            216799.94,
+            143600.13,
+            7699.92
+          ],
+          "quat": [
+            -0.5,
+            -0.5,
+            0.5,
+            0.5
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.5,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 5914.78,
+            "py": 2527.42,
+            "yaw": 0.0,
+            "zM": 77.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 6,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              0.49,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.25,
+            "zErrorCm": 0.08,
+            "forgotYFlipErrorCm": 287200.49,
+            "swappedXyErrorCm": 103519.94,
+            "zAsCmErrorM": 7622.92
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerPoleWall_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerPoleWall/Build_PowerPoleWall.Build_PowerPoleWall_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            218799.94,
+            145600.13,
+            7699.92
+          ],
+          "quat": [
+            -0.0,
+            -0.7071,
+            0.7071,
+            0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.5,
+          "yawFromSave": 3.1416,
+          "payload": {
+            "px": 5936.63,
+            "py": 2505.58,
+            "yaw": 0.0,
+            "zM": 77.0,
+            "yawForcedZero": true,
+            "tiltedHullVerts": 4,
+            "heightExtentM": [
+              0.0,
+              0.57
+            ],
+            "footprintPixels": [
+              0.49,
+              0.31
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.43,
+            "zErrorCm": 0.08,
+            "forgotYFlipErrorCm": 291199.9,
+            "swappedXyErrorCm": 103520.59,
+            "zAsCmErrorM": 7622.92
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "tilt-dropped",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_RadarTower_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/RadarTower/Build_RadarTower.Build_RadarTower_C",
+          "category": "Organisation",
+          "source": "actor",
+          "worldCm": [
+            216799.94,
+            145600.13,
+            7299.97
+          ],
+          "quat": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 0.0,
+          "payload": {
+            "px": 5914.78,
+            "py": 2505.58,
+            "yaw": 0.0,
+            "zM": 73.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              118.0
+            ],
+            "footprintPixels": [
+              5.46,
+              5.46
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.36,
+            "zErrorCm": 0.03,
+            "forgotYFlipErrorCm": 291199.9,
+            "swappedXyErrorCm": 100691.93,
+            "zAsCmErrorM": 7226.97
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_ConveyorWallHole_C",
+          "typePath": "/Game/FactoryGame/Buildable/Building/ConveyorHole/Build_ConveyorWallHole.Build_ConveyorWallHole_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            215800.0,
+            143600.06,
+            7899.99
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 5903.86,
+            "py": 2527.42,
+            "yaw": 1.57,
+            "zM": 79.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              0.5
+            ],
+            "footprintPixels": [
+              0.27,
+              1.09
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.33,
+            "zErrorCm": 0.01,
+            "forgotYFlipErrorCm": 287200.42,
+            "swappedXyErrorCm": 102106.03,
+            "zAsCmErrorM": 7820.99
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        }
+      ],
+      "paths": []
+    },
+    {
+      "id": "sloped-rail-solo",
+      "save": "solo_autosave_1.sav",
+      "kind": "slope",
+      "boxPx": [
+        4725.0,
+        2145.0,
+        4776.0,
+        2233.0
+      ],
+      "watch": "Vertex z climbs ~32 m. Tangent Z is dropped, so vertical curvature between samples is a straight blend.",
+      "poseCount": 0,
+      "pathCount": 0,
+      "zSpanM": null,
+      "checks": {
+        "maxXyRoundTripCm": 0.0,
+        "maxZRoundTripCm": 0.0,
+        "axisUnitOk": true,
+        "yawMismatch": 0,
+        "tiltedPayloadYawZero": 0,
+        "missingHeightExtent": 0,
+        "missingFootprint": 0,
+        "nonUnitOrDroppedScale": 0,
+        "pathVertices": 0,
+        "pathTangentsWithZDropped": 0
+      },
+      "poses": [],
+      "paths": []
+    },
+    {
+      "id": "repeated-power-solo",
+      "save": "solo_autosave_1.sav",
+      "kind": "repeat",
+      "boxPx": [
+        296.0,
+        5145.0,
+        356.0,
+        5205.0
+      ],
+      "watch": "A field of copies, each with its own pose. Do not collapse onto one point.",
+      "poseCount": 10,
+      "pathCount": 0,
+      "zSpanM": [
+        -15.0,
+        -15.0
+      ],
+      "checks": {
+        "maxXyRoundTripCm": 0.58,
+        "maxZRoundTripCm": 0.0,
+        "axisUnitOk": true,
+        "yawMismatch": 0,
+        "tiltedPayloadYawZero": 0,
+        "missingHeightExtent": 0,
+        "missingFootprint": 0,
+        "nonUnitOrDroppedScale": 0,
+        "pathVertices": 0,
+        "pathTangentsWithZDropped": 0
+      },
+      "poses": [
+        {
+          "class": "Build_PowerStorageMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerStorage/Build_PowerStorageMk1.Build_PowerStorageMk1_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -292700.0,
+            -99100.0,
+            -1500.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 349.4,
+            "py": 5178.49,
+            "yaw": 1.57,
+            "zM": -15.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              12.0
+            ],
+            "footprintPixels": [
+              3.28,
+              3.28
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.49,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 198199.79,
+            "swappedXyErrorCm": 273791.58,
+            "zAsCmErrorM": 1485.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerStorageMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerStorage/Build_PowerStorageMk1.Build_PowerStorageMk1_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -292700.0,
+            -99700.0,
+            -1500.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 349.4,
+            "py": 5185.05,
+            "yaw": 1.57,
+            "zM": -15.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              12.0
+            ],
+            "footprintPixels": [
+              3.28,
+              3.28
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.57,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 199400.35,
+            "swappedXyErrorCm": 272942.66,
+            "zAsCmErrorM": 1485.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerStorageMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerStorage/Build_PowerStorageMk1.Build_PowerStorageMk1_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -292700.0,
+            -100300.0,
+            -1500.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 349.4,
+            "py": 5191.6,
+            "yaw": 1.57,
+            "zM": -15.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              12.0
+            ],
+            "footprintPixels": [
+              3.28,
+              3.28
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.45,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 200599.99,
+            "swappedXyErrorCm": 272094.38,
+            "zAsCmErrorM": 1485.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerStorageMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerStorage/Build_PowerStorageMk1.Build_PowerStorageMk1_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -292700.0,
+            -100900.0,
+            -1500.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 349.4,
+            "py": 5198.15,
+            "yaw": 1.57,
+            "zM": -15.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              12.0
+            ],
+            "footprintPixels": [
+              3.28,
+              3.28
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.58,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 201799.63,
+            "swappedXyErrorCm": 271246.11,
+            "zAsCmErrorM": 1485.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerStorageMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerStorage/Build_PowerStorageMk1.Build_PowerStorageMk1_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -293300.0,
+            -100900.0,
+            -1500.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 342.84,
+            "py": 5198.15,
+            "yaw": 1.57,
+            "zM": -15.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              12.0
+            ],
+            "footprintPixels": [
+              3.28,
+              3.28
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.39,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 201799.63,
+            "swappedXyErrorCm": 272095.03,
+            "zAsCmErrorM": 1485.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerStorageMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerStorage/Build_PowerStorageMk1.Build_PowerStorageMk1_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -293300.0,
+            -100300.0,
+            -1500.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 342.84,
+            "py": 5191.6,
+            "yaw": 1.57,
+            "zM": -15.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              12.0
+            ],
+            "footprintPixels": [
+              3.28,
+              3.28
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.11,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 200599.99,
+            "swappedXyErrorCm": 272943.3,
+            "zAsCmErrorM": 1485.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerStorageMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerStorage/Build_PowerStorageMk1.Build_PowerStorageMk1_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -293300.0,
+            -99700.0,
+            -1500.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 342.84,
+            "py": 5185.05,
+            "yaw": 1.57,
+            "zM": -15.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              12.0
+            ],
+            "footprintPixels": [
+              3.28,
+              3.28
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.37,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 199400.35,
+            "swappedXyErrorCm": 273791.58,
+            "zAsCmErrorM": 1485.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerStorageMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerStorage/Build_PowerStorageMk1.Build_PowerStorageMk1_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -293300.0,
+            -99100.0,
+            -1500.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 342.84,
+            "py": 5178.49,
+            "yaw": 1.57,
+            "zM": -15.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              12.0
+            ],
+            "footprintPixels": [
+              3.28,
+              3.28
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.23,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 198199.79,
+            "swappedXyErrorCm": 274640.5,
+            "zAsCmErrorM": 1485.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerStorageMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerStorage/Build_PowerStorageMk1.Build_PowerStorageMk1_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -293900.0,
+            -99100.0,
+            -1500.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 336.29,
+            "py": 5178.49,
+            "yaw": 1.57,
+            "zM": -15.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              12.0
+            ],
+            "footprintPixels": [
+              3.28,
+              3.28
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.32,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 198199.79,
+            "swappedXyErrorCm": 275488.77,
+            "zAsCmErrorM": 1485.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        },
+        {
+          "class": "Build_PowerStorageMk1_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PowerStorage/Build_PowerStorageMk1.Build_PowerStorageMk1_C",
+          "category": "Power",
+          "source": "actor",
+          "worldCm": [
+            -293900.0,
+            -99700.0,
+            -1500.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 336.29,
+            "py": 5185.05,
+            "yaw": 1.57,
+            "zM": -15.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": [
+              0.0,
+              12.0
+            ],
+            "footprintPixels": [
+              3.28,
+              3.28
+            ],
+            "renderType": "rect"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.43,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 199400.35,
+            "swappedXyErrorCm": 274639.85,
+            "zAsCmErrorM": 1485.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "class-clearance"
+          }
+        }
+      ],
+      "paths": []
+    },
+    {
+      "id": "unknown-flow-solo",
+      "save": "solo_autosave_1.sav",
+      "kind": "unknown-class",
+      "boxPx": [
+        4447.0,
+        6771.0,
+        4507.0,
+        6831.0
+      ],
+      "watch": "Unknown-category pins still have header z. No clearance → report size unknown, do not invent a box.",
+      "poseCount": 10,
+      "pathCount": 2,
+      "zSpanM": [
+        -3.0,
+        102.5
+      ],
+      "checks": {
+        "maxXyRoundTripCm": 0.51,
+        "maxZRoundTripCm": 0.0,
+        "axisUnitOk": true,
+        "yawMismatch": 0,
+        "tiltedPayloadYawZero": 0,
+        "missingHeightExtent": 10,
+        "missingFootprint": 10,
+        "nonUnitOrDroppedScale": 0,
+        "pathVertices": 14,
+        "pathTangentsWithZDropped": 6
+      },
+      "poses": [
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -247100.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6795.13,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.25,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494199.95,
+            "swappedXyErrorCm": 469519.04,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -246900.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6792.95,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.45,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 493800.38,
+            "swappedXyErrorCm": 469236.5,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84700.0,
+            -246900.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4471.82,
+            "py": 6792.95,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.45,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 493800.38,
+            "swappedXyErrorCm": 468953.31,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84700.0,
+            -247100.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4471.82,
+            "py": 6795.13,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.25,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494199.95,
+            "swappedXyErrorCm": 469235.85,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84700.0,
+            -247300.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4471.82,
+            "py": 6797.32,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.51,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494600.44,
+            "swappedXyErrorCm": 469519.04,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -247300.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6797.32,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.51,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494600.44,
+            "swappedXyErrorCm": 469802.23,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -247500.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6799.5,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.24,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 495000.02,
+            "swappedXyErrorCm": 470084.77,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84700.0,
+            -247500.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4471.82,
+            "py": 6799.5,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.25,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 495000.02,
+            "swappedXyErrorCm": 469801.58,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -247300.0,
+            10250.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6797.32,
+            "yaw": 1.57,
+            "zM": 102.5,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.51,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494600.44,
+            "swappedXyErrorCm": 469802.23,
+            "zAsCmErrorM": 10147.5
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -247100.0,
+            10250.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6795.13,
+            "yaw": 1.57,
+            "zM": 102.5,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.25,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494199.95,
+            "swappedXyErrorCm": 469519.04,
+            "zAsCmErrorM": 10147.5
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        }
+      ],
+      "paths": [
+        {
+          "class": "Build_PipelineMK2_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PipelineMk2/Build_PipelineMK2.Build_PipelineMK2_C",
+          "vertexCount": 7,
+          "zSpanM": [
+            -15.25,
+            -4.75
+          ],
+          "payloadDropsTangentZ": true,
+          "payloadDropsChainTriples": false,
+          "trust": {
+            "vertexPosition": "save",
+            "vertexZ": "save",
+            "tangentXY": "save",
+            "tangentZ": "dropped",
+            "verticalCurveBetweenSamples": "linear-blend-not-hermite"
+          },
+          "vertices": [
+            {
+              "worldCm": [
+                84700.0,
+                -246900.0,
+                -475.0
+              ],
+              "payload": {
+                "px": 4471.82,
+                "py": 6792.95,
+                "arriveX": 0.0,
+                "arriveY": -0.0,
+                "leaveX": 0.0,
+                "leaveY": -0.0,
+                "zM": -4.75
+              },
+              "arriveWorldCm": [
+                0.0,
+                0.0,
+                -1.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                0.0,
+                -10.0
+              ],
+              "arriveZDropped": true,
+              "leaveZDropped": true
+            },
+            {
+              "worldCm": [
+                84700.0,
+                -246900.0,
+                -575.0
+              ],
+              "payload": {
+                "px": 4471.82,
+                "py": 6792.95,
+                "arriveX": 0.0,
+                "arriveY": -0.0,
+                "leaveX": 0.0,
+                "leaveY": -0.0,
+                "zM": -5.75
+              },
+              "arriveWorldCm": [
+                0.0,
+                0.0,
+                -10.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                0.0,
+                -425.79
+              ],
+              "arriveZDropped": true,
+              "leaveZDropped": true
+            },
+            {
+              "worldCm": [
+                84700.0,
+                -246900.01,
+                -1426.57
+              ],
+              "payload": {
+                "px": 4471.82,
+                "py": 6792.95,
+                "arriveX": 0.0,
+                "arriveY": 0.0,
+                "leaveX": 0.0,
+                "leaveY": 0.0,
+                "zM": -14.27
+              },
+              "arriveWorldCm": [
+                0.0,
+                -0.01,
+                -425.79
+              ],
+              "leaveWorldCm": [
+                0.0,
+                -0.0,
+                -163.84
+              ],
+              "arriveZDropped": true,
+              "leaveZDropped": true
+            },
+            {
+              "worldCm": [
+                84700.0,
+                -247000.0,
+                -1525.0
+              ],
+              "payload": {
+                "px": 4471.82,
+                "py": 6794.04,
+                "arriveX": 0.0,
+                "arriveY": 1.79,
+                "leaveX": 0.0,
+                "leaveY": 9.28,
+                "zM": -15.25
+              },
+              "arriveWorldCm": [
+                0.0,
+                -163.84,
+                0.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                -850.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                84700.0,
+                -248700.0,
+                -1525.0
+              ],
+              "payload": {
+                "px": 4471.82,
+                "py": 6812.61,
+                "arriveX": 0.0,
+                "arriveY": 9.28,
+                "leaveX": 0.0,
+                "leaveY": -0.0,
+                "zM": -15.25
+              },
+              "arriveWorldCm": [
+                0.0,
+                -850.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                84700.0,
+                -248700.0,
+                -1525.0
+              ],
+              "payload": {
+                "px": 4471.82,
+                "py": 6812.61,
+                "arriveX": 0.0,
+                "arriveY": -0.0,
+                "leaveX": 0.0,
+                "leaveY": -0.0,
+                "zM": -15.25
+              },
+              "arriveWorldCm": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                84700.0,
+                -248800.0,
+                -1525.0
+              ],
+              "payload": {
+                "px": 4471.82,
+                "py": 6813.7,
+                "arriveX": 0.0,
+                "arriveY": 0.55,
+                "leaveX": 0.0,
+                "leaveY": 0.01,
+                "zM": -15.25
+              },
+              "arriveWorldCm": [
+                0.0,
+                -50.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                -1.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            }
+          ]
+        },
+        {
+          "class": "Build_PipelineMK2_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/PipelineMk2/Build_PipelineMK2.Build_PipelineMK2_C",
+          "vertexCount": 7,
+          "zSpanM": [
+            -15.25,
+            -4.75
+          ],
+          "payloadDropsTangentZ": true,
+          "payloadDropsChainTriples": false,
+          "trust": {
+            "vertexPosition": "save",
+            "vertexZ": "save",
+            "tangentXY": "save",
+            "tangentZ": "dropped",
+            "verticalCurveBetweenSamples": "linear-blend-not-hermite"
+          },
+          "vertices": [
+            {
+              "worldCm": [
+                84900.0,
+                -246900.0,
+                -475.0
+              ],
+              "payload": {
+                "px": 4474.01,
+                "py": 6792.95,
+                "arriveX": 0.0,
+                "arriveY": -0.0,
+                "leaveX": 0.0,
+                "leaveY": -0.0,
+                "zM": -4.75
+              },
+              "arriveWorldCm": [
+                0.0,
+                0.0,
+                -1.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                0.0,
+                -10.0
+              ],
+              "arriveZDropped": true,
+              "leaveZDropped": true
+            },
+            {
+              "worldCm": [
+                84900.0,
+                -246900.0,
+                -575.0
+              ],
+              "payload": {
+                "px": 4474.01,
+                "py": 6792.95,
+                "arriveX": 0.0,
+                "arriveY": -0.0,
+                "leaveX": 0.0,
+                "leaveY": -0.0,
+                "zM": -5.75
+              },
+              "arriveWorldCm": [
+                0.0,
+                0.0,
+                -10.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                0.0,
+                -425.79
+              ],
+              "arriveZDropped": true,
+              "leaveZDropped": true
+            },
+            {
+              "worldCm": [
+                84900.0,
+                -246900.01,
+                -1426.57
+              ],
+              "payload": {
+                "px": 4474.01,
+                "py": 6792.95,
+                "arriveX": -0.0,
+                "arriveY": 0.0,
+                "leaveX": -0.0,
+                "leaveY": 0.0,
+                "zM": -14.27
+              },
+              "arriveWorldCm": [
+                -0.0,
+                -0.01,
+                -425.79
+              ],
+              "leaveWorldCm": [
+                -0.0,
+                -0.0,
+                -163.84
+              ],
+              "arriveZDropped": true,
+              "leaveZDropped": true
+            },
+            {
+              "worldCm": [
+                84900.0,
+                -247000.0,
+                -1525.0
+              ],
+              "payload": {
+                "px": 4474.01,
+                "py": 6794.04,
+                "arriveX": 0.0,
+                "arriveY": 1.79,
+                "leaveX": 0.0,
+                "leaveY": 9.28,
+                "zM": -15.25
+              },
+              "arriveWorldCm": [
+                0.0,
+                -163.84,
+                0.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                -850.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                84900.0,
+                -248700.0,
+                -1525.0
+              ],
+              "payload": {
+                "px": 4474.01,
+                "py": 6812.61,
+                "arriveX": 0.0,
+                "arriveY": 9.28,
+                "leaveX": 0.0,
+                "leaveY": -0.0,
+                "zM": -15.25
+              },
+              "arriveWorldCm": [
+                0.0,
+                -850.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                84900.0,
+                -248700.0,
+                -1525.0
+              ],
+              "payload": {
+                "px": 4474.01,
+                "py": 6812.61,
+                "arriveX": 0.0,
+                "arriveY": -0.0,
+                "leaveX": 0.0,
+                "leaveY": -0.0,
+                "zM": -15.25
+              },
+              "arriveWorldCm": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            },
+            {
+              "worldCm": [
+                84900.0,
+                -248800.0,
+                -1525.0
+              ],
+              "payload": {
+                "px": 4474.01,
+                "py": 6813.7,
+                "arriveX": 0.0,
+                "arriveY": 0.55,
+                "leaveX": 0.0,
+                "leaveY": 0.01,
+                "zM": -15.25
+              },
+              "arriveWorldCm": [
+                0.0,
+                -50.0,
+                0.0
+              ],
+              "leaveWorldCm": [
+                0.0,
+                -1.0,
+                0.0
+              ],
+              "arriveZDropped": false,
+              "leaveZDropped": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "not-a-floor-solo",
+      "save": "solo_autosave_1.sav",
+      "kind": "fake-height-trap",
+      "boxPx": [
+        4439.0,
+        6771.0,
+        4499.0,
+        6831.0
+      ],
+      "watch": "This 8 m cell spans to ~726 m. That max is not a building height.",
+      "poseCount": 10,
+      "pathCount": 0,
+      "zSpanM": [
+        -3.0,
+        102.5
+      ],
+      "checks": {
+        "maxXyRoundTripCm": 0.51,
+        "maxZRoundTripCm": 0.0,
+        "axisUnitOk": true,
+        "yawMismatch": 0,
+        "tiltedPayloadYawZero": 0,
+        "missingHeightExtent": 10,
+        "missingFootprint": 10,
+        "nonUnitOrDroppedScale": 0,
+        "pathVertices": 0,
+        "pathTangentsWithZDropped": 0
+      },
+      "poses": [
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -247100.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6795.13,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.25,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494199.95,
+            "swappedXyErrorCm": 469519.04,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -246900.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6792.95,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.45,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 493800.38,
+            "swappedXyErrorCm": 469236.5,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84700.0,
+            -246900.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4471.82,
+            "py": 6792.95,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.45,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 493800.38,
+            "swappedXyErrorCm": 468953.31,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84700.0,
+            -247100.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4471.82,
+            "py": 6795.13,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.25,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494199.95,
+            "swappedXyErrorCm": 469235.85,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84700.0,
+            -247300.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4471.82,
+            "py": 6797.32,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.51,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494600.44,
+            "swappedXyErrorCm": 469519.04,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -247300.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6797.32,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.51,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494600.44,
+            "swappedXyErrorCm": 469802.23,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -247500.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6799.5,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.24,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 495000.02,
+            "swappedXyErrorCm": 470084.77,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84700.0,
+            -247500.0,
+            -300.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4471.82,
+            "py": 6799.5,
+            "yaw": 1.57,
+            "zM": -3.0,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.25,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 495000.02,
+            "swappedXyErrorCm": 469801.58,
+            "zAsCmErrorM": 297.0
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -247300.0,
+            10250.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6797.32,
+            "yaw": 1.57,
+            "zM": 102.5,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.51,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494600.44,
+            "swappedXyErrorCm": 469802.23,
+            "zAsCmErrorM": 10147.5
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        },
+        {
+          "class": "Build_FoundationPassthrough_Pipe_C",
+          "typePath": "/Game/FactoryGame/Buildable/Factory/FoundationPassthrough/Build_FoundationPassthrough_Pipe.Build_FoundationPassthrough_Pipe_C",
+          "category": "Logistics",
+          "source": "actor",
+          "worldCm": [
+            84900.0,
+            -247100.0,
+            10250.0
+          ],
+          "quat": [
+            0.0,
+            -0.0,
+            0.7071,
+            0.7071
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "scaleDropped": false,
+          "tiltIntensity": 0.0,
+          "yawFromSave": 1.5708,
+          "payload": {
+            "px": 4474.01,
+            "py": 6795.13,
+            "yaw": 1.57,
+            "zM": 102.5,
+            "yawForcedZero": false,
+            "tiltedHullVerts": null,
+            "heightExtentM": null,
+            "footprintPixels": null,
+            "renderType": "circle"
+          },
+          "roundTrip": {
+            "xyErrorCm": 0.25,
+            "zErrorCm": 0.0,
+            "forgotYFlipErrorCm": 494199.95,
+            "swappedXyErrorCm": 469519.04,
+            "zAsCmErrorM": 10147.5
+          },
+          "trust": {
+            "position": "save",
+            "z": "save",
+            "rotation": "yaw",
+            "size": "unknown"
+          }
+        }
+      ],
+      "paths": []
+    }
+  ]
+}

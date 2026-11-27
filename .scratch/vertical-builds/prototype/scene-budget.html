@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PROTOTYPE — regional scene cost (ticket 25)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #131519; --panel: #1a1d22; --border: #30333b; --text: #d9dde4;
+    --muted: #8a92a3; --accent: #5ba3e0; --warn: #e8b84a; --ok: #6cbf6c; --bad: #e07070;
+    --font: "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 var(--font); }
+  .banner { background: #3d2d1c; color: #ffd7b0; padding: 8px 16px; font-weight: 600; }
+  header { padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  h1 { margin: 0 0 6px; font-size: 18px; }
+  p { margin: 0 0 8px; color: var(--muted); max-width: 72rem; }
+  main { display: grid; grid-template-columns: 480px 1fr; min-height: calc(100vh - 120px); }
+  #view { background: #0b0d10; border-right: 1px solid var(--border); position: relative; }
+  canvas { width: 100%; height: 100%; display: block; }
+  aside { padding: 12px 16px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  th { color: var(--muted); font-weight: 600; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  #log { white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--muted); }
+  #status { margin: 8px 0; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="banner">PROTOTYPE / throwaway — Cost probe. Not the shipping renderer. Does not choose Three.js vs WebGL2.</div>
+<header>
+  <h1>What does a regional scene cost to build, hold, navigate, and release?</h1>
+  <p>
+    Scratch-local WebGL2 boxes and belt ribbons. Terrain is not an input.
+    Densities follow Representative cases plus the Height-view 14k / 150k cliffs.
+    The 2D map’s ~95&nbsp;MB rect stream is simulated as a dummy buffer in the same context.
+  </p>
+</header>
+<main>
+  <div id="view"><canvas id="gl" width="800" height="720"></canvas></div>
+  <aside>
+    <div id="status">Starting…</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Case</th><th>N</th><th>Mode</th><th>Build ms</th><th>GPU MB</th>
+          <th>Heap Δ MB</th><th>p95 ms</th><th>FPS</th><th>Tear ms</th><th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <pre id="log"></pre>
+  </aside>
+</main>
+<script>
+"use strict";
+/* PROTOTYPE — throwaway regional scene. Ticket 25. Not a product library choice. */
+
+var STRIDE_BOX = 8;
+var SAMPLES_PER_SPLINE = 8;
+var STRIDE_SPLINE = 4;
+var FAT = 8;
+var MAP_DUMMY_BYTES = 95 * 1024 * 1024;
+var NAV_FRAMES = 90;
+var CASES = [
+  { id: "all-stack", occupants: 11, boxes: 11, splines: 0, note: "All_080726 conveyor-pole stack" },
+  { id: "all-pad", occupants: 49, boxes: 49, splines: 0, note: "All 56 m foundation pad" },
+  { id: "dense-8m", occupants: 198, boxes: 198, splines: 0, note: "BuildITBIIIIIG densest 8 m cell" },
+  { id: "solo-storage", occupants: 452, boxes: 452, splines: 0, note: "solo 56 m PowerStorage field" },
+  { id: "ordinary-56m", occupants: 800, boxes: 640, splines: 160, note: "synthetic ordinary 56 m mix" },
+  { id: "medium-region", occupants: 2500, boxes: 2000, splines: 500, note: "synthetic multi-pad region" },
+  { id: "height-view-14k", occupants: 14000, boxes: 11000, splines: 3000, note: "Height-view documented isolation" },
+  { id: "heavy-50k", occupants: 50000, boxes: 40000, splines: 10000, note: "synthetic heavy region" },
+  { id: "foundation-150k", occupants: 150000, boxes: 150000, splines: 0, note: "Height-view 150 k foundation slab" }
+];
+
+var VS = `#version 300 es
+layout(location=0) in vec3 a_mesh;
+layout(location=1) in vec3 a_n;
+layout(location=2) in vec3 a_origin;
+layout(location=3) in float a_yaw;
+layout(location=4) in vec3 a_scale;
+layout(location=5) in vec3 a_color;
+uniform mat4 u_vp;
+uniform vec3 u_eye;
+out vec3 v_color;
+out vec3 v_n;
+out vec3 v_wpos;
+void main() {
+  float c = cos(a_yaw);
+  float s = sin(a_yaw);
+  vec3 p = a_mesh * a_scale;
+  vec3 w = vec3(c * p.x - s * p.y, s * p.x + c * p.y, p.z) + a_origin;
+  vec3 n = vec3(c * a_n.x - s * a_n.y, s * a_n.x + c * a_n.y, a_n.z);
+  v_wpos = w;
+  v_n = n;
+  v_color = a_color;
+  gl_Position = u_vp * vec4(w, 1.0);
+}`;
+
+var FS = `#version 300 es
+precision mediump float;
+in vec3 v_color;
+in vec3 v_n;
+in vec3 v_wpos;
+uniform vec3 u_eye;
+out vec4 o;
+void main() {
+  vec3 n = normalize(v_n);
+  vec3 L = normalize(vec3(0.35, 0.55, 0.85));
+  float d = 0.35 + 0.65 * max(dot(n, L), 0.0);
+  float fog = clamp(length(v_wpos - u_eye) / 900.0, 0.0, 1.0);
+  vec3 col = mix(v_color * d, vec3(0.05, 0.06, 0.08), fog);
+  o = vec4(col, 1.0);
+}`;
+
+var LINE_VS = `#version 300 es
+layout(location=0) in vec3 a_pos;
+uniform mat4 u_vp;
+void main() { gl_Position = u_vp * vec4(a_pos, 1.0); }`;
+
+var LINE_FS = `#version 300 es
+precision mediump float;
+out vec4 o;
+void main() { o = vec4(0.85, 0.62, 0.28, 1.0); }`;
+
+function log(msg) {
+  var el = document.getElementById("log");
+  el.textContent += msg + "\n";
+}
+
+function heapMb() {
+  var m = performance.memory;
+  return m ? m.usedJSHeapSize / (1024 * 1024) : null;
+}
+
+function round(n) {
+  return Math.round(n * 100) / 100;
+}
+
+function percentile(sorted, p) {
+  if (!sorted.length) return null;
+  var i = Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1)));
+  return sorted[i];
+}
+
+function compile(gl, type, src) {
+  var sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    throw new Error(gl.getShaderInfoLog(sh) || "shader");
+  }
+  return sh;
+}
+
+function program(gl, vs, fs) {
+  var p = gl.createProgram();
+  gl.attachShader(p, compile(gl, gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, compile(gl, gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    throw new Error(gl.getProgramInfoLog(p) || "link");
+  }
+  return p;
+}
+
+function cubeMesh() {
+  var faces = [
+    [0, 0, 1,  0, 0, 1],
+    [0, 0, -1, 0, 0, -1],
+    [1, 0, 0,  1, 0, 0],
+    [-1, 0, 0, -1, 0, 0],
+    [0, 1, 0,  0, 1, 0],
+    [0, -1, 0, 0, -1, 0]
+  ];
+  var verts = [];
+  var idx = [];
+  var corners = [[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]];
+  for (var f = 0; f < 6; f++) {
+    var axis = Math.floor(f / 2);
+    var sign = f % 2 === 0 ? 1 : -1;
+    var base = f * 4;
+    for (var c = 0; c < 4; c++) {
+      var u = corners[c][0];
+      var v = corners[c][1];
+      var p = [0, 0, 0];
+      if (axis === 0) { p = [0.5 * sign, u, v]; }
+      if (axis === 1) { p = [u, 0.5 * sign, v]; }
+      if (axis === 2) { p = [u, v, 0.5 * sign]; }
+      verts.push(p[0], p[1], p[2], axis === 0 ? sign : 0, axis === 1 ? sign : 0, axis === 2 ? sign : 0);
+    }
+    if (sign > 0) idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    else idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  }
+  return { verts: new Float32Array(verts), idx: new Uint16Array(idx) };
+}
+
+function fillBoxes(n) {
+  var data = new Float32Array(n * STRIDE_BOX);
+  for (var i = 0; i < n; i++) {
+    var o = i * STRIDE_BOX;
+    data[o] = (i % 80) * 8;
+    data[o + 1] = (Math.floor(i / 80) % 80) * 8;
+    data[o + 2] = (i % 12) * 4;
+    data[o + 3] = (i % 7) * 0.2;
+    data[o + 4] = 3.5 + (i % 3);
+    data[o + 5] = 3.5 + ((i + 1) % 3);
+    data[o + 6] = 3 + (i % 5);
+  }
+  return data;
+}
+
+function fillSplines(n) {
+  var data = new Float32Array(n * SAMPLES_PER_SPLINE * 3);
+  for (var s = 0; s < n; s++) {
+    var bx = (s % 40) * 16;
+    var by = Math.floor(s / 40) * 16;
+    for (var k = 0; k < SAMPLES_PER_SPLINE; k++) {
+      var o = (s * SAMPLES_PER_SPLINE + k) * 3;
+      data[o] = bx + k * 2;
+      data[o + 1] = by + Math.sin(k * 0.4) * 2;
+      data[o + 2] = k * 0.8;
+    }
+  }
+  return data;
+}
+
+function splineIndices(n) {
+  var idx = new Uint32Array(n * (SAMPLES_PER_SPLINE - 1) * 2);
+  var w = 0;
+  for (var s = 0; s < n; s++) {
+    var base = s * SAMPLES_PER_SPLINE;
+    for (var k = 0; k < SAMPLES_PER_SPLINE - 1; k++) {
+      idx[w++] = base + k;
+      idx[w++] = base + k + 1;
+    }
+  }
+  return idx;
+}
+
+function mat4Perspective(out, fovy, aspect, near, far) {
+  var f = 1 / Math.tan(fovy / 2);
+  out.fill(0);
+  out[0] = f / aspect;
+  out[5] = f;
+  out[10] = (far + near) / (near - far);
+  out[11] = -1;
+  out[14] = (2 * far * near) / (near - far);
+}
+
+function mat4LookAt(out, eye, center) {
+  var ux = 0, uy = 0, uz = 1;
+  var zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
+  var zl = 1 / Math.hypot(zx, zy, zz);
+  zx *= zl; zy *= zl; zz *= zl;
+  var xx = uy * zz - uz * zy, xy = uz * zx - ux * zz, xz = ux * zy - uy * zx;
+  var xl = Math.hypot(xx, xy, xz) || 1;
+  xx /= xl; xy /= xl; xz /= xl;
+  var yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
+  out.fill(0);
+  out[0] = xx; out[4] = xy; out[8] = xz;
+  out[1] = yx; out[5] = yy; out[9] = yz;
+  out[2] = zx; out[6] = zy; out[10] = zz;
+  out[12] = -(xx * eye[0] + xy * eye[1] + xz * eye[2]);
+  out[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
+  out[14] = -(zx * eye[0] + zy * eye[1] + zz * eye[2]);
+  out[15] = 1;
+}
+
+function mul4(a, b) {
+  var o = new Float32Array(16);
+  for (var c = 0; c < 4; c++) {
+    for (var r = 0; r < 4; r++) {
+      o[c * 4 + r] =
+        a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] +
+        a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+    }
+  }
+  return o;
+}
+
+function glError(gl) {
+  var e = gl.getError();
+  if (e) throw new Error("GL " + e);
+}
+
+function rendererInfo(gl) {
+  var ext = gl.getExtension("WEBGL_debug_renderer_info");
+  return {
+    vendor: gl.getParameter(gl.VENDOR),
+    renderer: gl.getParameter(gl.RENDERER),
+    unmaskedVendor: ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : null,
+    unmaskedRenderer: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : null,
+    maxTexture: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+    maxUbo: gl.getParameter(gl.MAX_UNIFORM_BLOCK_SIZE),
+    version: gl.getParameter(gl.VERSION)
+  };
+}
+
+function makeGpu(gl, boxCount, splineCount, mode) {
+  var mesh = cubeMesh();
+  var boxData = fillBoxes(boxCount);
+  var colors = new Float32Array(boxCount * 3);
+  for (var i = 0; i < boxCount; i++) {
+    colors[i * 3] = 0.25 + (i % 5) * 0.12;
+    colors[i * 3 + 1] = 0.45;
+    colors[i * 3 + 2] = 0.7 - (i % 4) * 0.1;
+  }
+  var splineData = fillSplines(splineCount);
+  var splineIdx = splineIndices(splineCount);
+  var buffers = [];
+  var vaos = [];
+  function buf(target, data, usage) {
+    var b = gl.createBuffer();
+    gl.bindBuffer(target, b);
+    gl.bufferData(target, data, usage || gl.STATIC_DRAW);
+    buffers.push(b);
+    return b;
+  }
+  var gpuBytes = 0;
+  var vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  vaos.push(vao);
+  buf(gl.ARRAY_BUFFER, mesh.verts);
+  gpuBytes += mesh.verts.byteLength;
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+  buf(gl.ELEMENT_ARRAY_BUFFER, mesh.idx);
+  gpuBytes += mesh.idx.byteLength;
+
+  if (mode === "instanced") {
+    buf(gl.ARRAY_BUFFER, boxData);
+    gpuBytes += boxData.byteLength;
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 3, gl.FLOAT, false, STRIDE_BOX * 4, 0);
+    gl.vertexAttribDivisor(2, 1);
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribPointer(3, 1, gl.FLOAT, false, STRIDE_BOX * 4, 12);
+    gl.vertexAttribDivisor(3, 1);
+    gl.enableVertexAttribArray(4);
+    gl.vertexAttribPointer(4, 3, gl.FLOAT, false, STRIDE_BOX * 4, 16);
+    gl.vertexAttribDivisor(4, 1);
+    buf(gl.ARRAY_BUFFER, colors);
+    gpuBytes += colors.byteLength;
+    gl.enableVertexAttribArray(5);
+    gl.vertexAttribPointer(5, 3, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(5, 1);
+  } else {
+    var expanded = new Float32Array(boxCount * 24 * 6);
+    var expIdx = new Uint32Array(boxCount * 36);
+    var vi = 0;
+    var ii = 0;
+    for (var b = 0; b < boxCount; b++) {
+      var o = b * STRIDE_BOX;
+      var ox = boxData[o], oy = boxData[o + 1], oz = boxData[o + 2], yaw = boxData[o + 3];
+      var sx = boxData[o + 4], sy = boxData[o + 5], sz = boxData[o + 6];
+      var c = Math.cos(yaw), s = Math.sin(yaw);
+      var cr = colors[b * 3], cg = colors[b * 3 + 1], cb = colors[b * 3 + 2];
+      var vbase = b * 24;
+      for (var v = 0; v < 24; v++) {
+        var mx = mesh.verts[v * 6] * sx;
+        var my = mesh.verts[v * 6 + 1] * sy;
+        var mz = mesh.verts[v * 6 + 2] * sz;
+        var nx = mesh.verts[v * 6 + 3];
+        var ny = mesh.verts[v * 6 + 4];
+        var nz = mesh.verts[v * 6 + 5];
+        expanded[vi++] = c * mx - s * my + ox;
+        expanded[vi++] = s * mx + c * my + oy;
+        expanded[vi++] = mz + oz;
+        expanded[vi++] = c * nx - s * ny;
+        expanded[vi++] = s * nx + c * ny;
+        expanded[vi++] = nz;
+      }
+      for (var t = 0; t < 36; t++) expIdx[ii++] = vbase + mesh.idx[t];
+    }
+    gl.bindVertexArray(vao);
+    buf(gl.ARRAY_BUFFER, expanded);
+    gpuBytes += expanded.byteLength;
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+    var identOrigin = new Float32Array([0, 0, 0]);
+    var identYaw = new Float32Array([0]);
+    var identScale = new Float32Array([1, 1, 1]);
+    var identColor = new Float32Array([0.5, 0.55, 0.6]);
+    buf(gl.ARRAY_BUFFER, identOrigin);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribDivisor(2, 0);
+    buf(gl.ARRAY_BUFFER, identYaw);
+    gl.enableVertexAttribArray(3);
+    gl.vertexAttribPointer(3, 1, gl.FLOAT, false, 0, 0);
+    buf(gl.ARRAY_BUFFER, identScale);
+    gl.enableVertexAttribArray(4);
+    gl.vertexAttribPointer(4, 3, gl.FLOAT, false, 0, 0);
+    buf(gl.ARRAY_BUFFER, identColor);
+    gl.enableVertexAttribArray(5);
+    gl.vertexAttribPointer(5, 3, gl.FLOAT, false, 0, 0);
+    buf(gl.ELEMENT_ARRAY_BUFFER, expIdx);
+    gpuBytes += expIdx.byteLength;
+  }
+
+  var lineVao = gl.createVertexArray();
+  gl.bindVertexArray(lineVao);
+  vaos.push(lineVao);
+  buf(gl.ARRAY_BUFFER, splineData);
+  gpuBytes += splineData.byteLength;
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  buf(gl.ELEMENT_ARRAY_BUFFER, splineIdx);
+  gpuBytes += splineIdx.byteLength;
+  gl.bindVertexArray(null);
+  glError(gl);
+  return {
+    vao: vao,
+    lineVao: lineVao,
+    buffers: buffers,
+    vaos: vaos,
+    boxCount: boxCount,
+    splineCount: splineCount,
+    splineIndexCount: splineIdx.length,
+    gpuBytes: gpuBytes,
+    cpuBytes: boxData.byteLength + colors.byteLength + splineData.byteLength + splineIdx.byteLength,
+    mode: mode
+  };
+}
+
+function destroyGpu(gl, scene) {
+  if (!scene) return;
+  for (var i = 0; i < scene.vaos.length; i++) gl.deleteVertexArray(scene.vaos[i]);
+  for (var j = 0; j < scene.buffers.length; j++) gl.deleteBuffer(scene.buffers[j]);
+}
+
+function waitFrame() {
+  return new Promise(function (resolve) { requestAnimationFrame(resolve); });
+}
+
+async function navigate(gl, prog, lineProg, scene, canvas) {
+  var times = [];
+  var locVp = gl.getUniformLocation(prog, "u_vp");
+  var locEye = gl.getUniformLocation(prog, "u_eye");
+  var locVpL = gl.getUniformLocation(lineProg, "u_vp");
+  var proj = new Float32Array(16);
+  var view = new Float32Array(16);
+  var center = [320, 320, 20];
+  var radius = 420;
+  gl.enable(gl.DEPTH_TEST);
+  gl.clearColor(0.05, 0.055, 0.07, 1);
+  var prev = performance.now();
+  var aborted = false;
+  for (var i = 0; i < NAV_FRAMES; i++) {
+    var now = await waitFrame();
+    times.push(now - prev);
+    prev = now;
+    if (i === 11) {
+      var probe = times.slice().sort(function (a, b) { return a - b; });
+      var probeMean = times.reduce(function (s, x) { return s + x; }, 0) / times.length;
+      if (percentile(probe, 0.5) > 80 || probeMean > 80) {
+        aborted = true;
+        break;
+      }
+    }
+    var a = i * 0.04;
+    var eye = [center[0] + Math.cos(a) * radius, center[1] + Math.sin(a) * radius, 180];
+    mat4Perspective(proj, Math.PI / 4, canvas.width / canvas.height, 1, 4000);
+    mat4LookAt(view, eye, center);
+    var vp = mul4(proj, view);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(prog);
+    gl.uniformMatrix4fv(locVp, false, vp);
+    gl.uniform3fv(locEye, eye);
+    gl.bindVertexArray(scene.vao);
+    if (scene.mode === "instanced") {
+      gl.drawElementsInstanced(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, scene.boxCount);
+    } else {
+      gl.drawElements(gl.TRIANGLES, scene.boxCount * 36, gl.UNSIGNED_INT, 0);
+    }
+    if (scene.splineCount) {
+      gl.useProgram(lineProg);
+      gl.uniformMatrix4fv(locVpL, false, vp);
+      gl.bindVertexArray(scene.lineVao);
+      gl.drawElements(gl.LINES, scene.splineIndexCount, gl.UNSIGNED_INT, 0);
+    }
+    gl.bindVertexArray(null);
+  }
+  times.sort(function (a, b) { return a - b; });
+  var mean = times.reduce(function (s, x) { return s + x; }, 0) / times.length;
+  return {
+    frames: times.length,
+    aborted: aborted,
+    p50Ms: round(percentile(times, 0.5)),
+    p95Ms: round(percentile(times, 0.95)),
+    maxMs: round(times[times.length - 1]),
+    meanMs: round(mean),
+    fps: round(1000 / Math.max(mean, 0.001))
+  };
+}
+
+function addRow(r) {
+  var tbody = document.getElementById("rows");
+  var tr = document.createElement("tr");
+  var verdictClass = r.verdict === "ok" ? "ok" : (r.verdict === "refuse" ? "bad" : "warn");
+  var cells = [
+    r.id, r.occupants, r.mode, r.constructMs, r.gpuMb, r.heapDeltaMb,
+    r.nav && r.nav.p95Ms, r.nav && r.nav.fps, r.teardownMs, r.verdict
+  ];
+  for (var i = 0; i < cells.length; i++) {
+    var td = document.createElement("td");
+    td.textContent = cells[i] == null ? "—" : cells[i];
+    if (i === cells.length - 1) td.className = verdictClass;
+    tr.appendChild(td);
+  }
+  tbody.appendChild(tr);
+}
+
+function verdictOf(row) {
+  if (row.error) return "refuse";
+  if (!row.nav) return "error";
+  if (row.nav.aborted) return "refuse";
+  if (row.nav.p95Ms > 50) return "refuse";
+  if (row.nav.p95Ms > 33) return "tight";
+  return "ok";
+}
+
+async function main() {
+  var canvas = document.getElementById("gl");
+  var gl = canvas.getContext("webgl2", { antialias: false, depth: true, alpha: false });
+  if (!gl) {
+    document.getElementById("status").textContent = "WebGL2 unavailable";
+    window.__SCENE_BUDGET_RESULTS__ = { error: "no-webgl2" };
+    return;
+  }
+  var info = rendererInfo(gl);
+  log(JSON.stringify(info, null, 2));
+  var dummyOk = false;
+  var dummy = gl.createBuffer();
+  try {
+    gl.bindBuffer(gl.ARRAY_BUFFER, dummy);
+    gl.bufferData(gl.ARRAY_BUFFER, MAP_DUMMY_BYTES, gl.STATIC_DRAW);
+    glError(gl);
+    dummyOk = true;
+    log("map dummy 95 MB: allocated");
+  } catch (err) {
+    log("map dummy 95 MB: FAIL " + err.message);
+    gl.deleteBuffer(dummy);
+    dummy = null;
+  }
+
+  var prog = program(gl, VS, FS);
+  var lineProg = program(gl, LINE_VS, LINE_FS);
+  var results = [];
+  var modes = ["instanced", "expanded"];
+  var skipExpanded = false;
+  var skipInstanced = false;
+  var syncOnly = /(?:\?|&)syncOnly=1(?:&|$)/.test(location.search);
+
+  for (var c = 0; !syncOnly && c < CASES.length; c++) {
+    var spec = CASES[c];
+    for (var m = 0; m < modes.length; m++) {
+      var mode = modes[m];
+      if (mode === "expanded" && skipExpanded) continue;
+      if (mode === "instanced" && skipInstanced) continue;
+      if (mode === "expanded" && spec.occupants > 50000) continue;
+      document.getElementById("status").textContent = "Measuring " + spec.id + " / " + mode;
+      var row = {
+        id: spec.id,
+        note: spec.note,
+        occupants: spec.occupants,
+        boxes: spec.boxes,
+        splines: spec.splines,
+        mode: mode,
+        dummy95Mb: dummyOk
+      };
+      var scene = null;
+      try {
+        var h0 = heapMb();
+        var t0 = performance.now();
+        scene = makeGpu(gl, spec.boxes, spec.splines, mode);
+        gl.finish();
+        row.constructMs = round(performance.now() - t0);
+        row.gpuBytes = scene.gpuBytes;
+        row.gpuMb = round(scene.gpuBytes / (1024 * 1024));
+        row.cpuBytes = scene.cpuBytes;
+        row.heapAfterConstructMb = heapMb();
+        row.heapDeltaMb = (h0 != null && row.heapAfterConstructMb != null)
+          ? round(row.heapAfterConstructMb - h0) : null;
+        await waitFrame();
+        row.nav = await navigate(gl, prog, lineProg, scene, canvas);
+        var t1 = performance.now();
+        destroyGpu(gl, scene);
+        scene = null;
+        gl.finish();
+        row.teardownMs = round(performance.now() - t1);
+        row.heapAfterTeardownMb = heapMb();
+        row.verdict = verdictOf(row);
+        if (row.verdict === "refuse" && mode === "expanded") skipExpanded = true;
+        if (row.verdict === "refuse" && mode === "instanced" && spec.occupants >= 50000) {
+          skipInstanced = true;
+        }
+      } catch (err) {
+        row.error = String(err && err.message || err);
+        row.verdict = "refuse";
+        try { destroyGpu(gl, scene); } catch (ignore) {}
+        if (mode === "expanded") skipExpanded = true;
+        if (mode === "instanced") skipInstanced = true;
+        log("FAIL " + spec.id + " " + mode + ": " + row.error);
+      }
+      results.push(row);
+      addRow(row);
+      await waitFrame();
+    }
+
+    if (spec.occupants <= 2500) {
+      var fatSpec = {
+        id: spec.id + "-fat8",
+        note: spec.note + " (8 boxes / occupant bound)",
+        occupants: spec.occupants,
+        boxes: spec.boxes * FAT,
+        splines: spec.splines
+      };
+      document.getElementById("status").textContent = "Measuring " + fatSpec.id + " / instanced";
+      var fatRow = {
+        id: fatSpec.id,
+        note: fatSpec.note,
+        occupants: spec.occupants,
+        boxes: fatSpec.boxes,
+        splines: fatSpec.splines,
+        mode: "instanced-fat8",
+        dummy95Mb: dummyOk
+      };
+      var fatScene = null;
+      try {
+        var hf0 = heapMb();
+        var tf0 = performance.now();
+        fatScene = makeGpu(gl, fatSpec.boxes, fatSpec.splines, "instanced");
+        gl.finish();
+        fatRow.constructMs = round(performance.now() - tf0);
+        fatRow.gpuBytes = fatScene.gpuBytes;
+        fatRow.gpuMb = round(fatScene.gpuBytes / (1024 * 1024));
+        fatRow.cpuBytes = fatScene.cpuBytes;
+        fatRow.heapAfterConstructMb = heapMb();
+        fatRow.heapDeltaMb = (hf0 != null && fatRow.heapAfterConstructMb != null)
+          ? round(fatRow.heapAfterConstructMb - hf0) : null;
+        fatRow.nav = await navigate(gl, prog, lineProg, fatScene, canvas);
+        var tf1 = performance.now();
+        destroyGpu(gl, fatScene);
+        fatScene = null;
+        gl.finish();
+        fatRow.teardownMs = round(performance.now() - tf1);
+        fatRow.heapAfterTeardownMb = heapMb();
+        fatRow.verdict = verdictOf(fatRow);
+      } catch (err) {
+        fatRow.error = String(err && err.message || err);
+        fatRow.verdict = "refuse";
+        try { destroyGpu(gl, fatScene); } catch (ignore) {}
+      }
+      results.push(fatRow);
+      addRow(fatRow);
+    }
+  }
+
+  var syncCases = [
+    { id: "ordinary-56m", boxes: 640, splines: 160, occupants: 800 },
+    { id: "medium-region", boxes: 2000, splines: 500, occupants: 2500 },
+    { id: "medium-region-fat8", boxes: 16000, splines: 500, occupants: 2500 },
+    { id: "height-view-14k", boxes: 11000, splines: 3000, occupants: 14000 },
+    { id: "height-view-14k-fat8", boxes: 88000, splines: 3000, occupants: 14000 },
+    { id: "heavy-50k", boxes: 40000, splines: 10000, occupants: 50000 },
+    { id: "foundation-150k", boxes: 150000, splines: 0, occupants: 150000 }
+  ];
+  var syncRows = [];
+  var locVp = gl.getUniformLocation(prog, "u_vp");
+  var locEye = gl.getUniformLocation(prog, "u_eye");
+  var locVpL = gl.getUniformLocation(lineProg, "u_vp");
+  for (var s = 0; s < syncCases.length; s++) {
+    var sc = syncCases[s];
+    document.getElementById("status").textContent = "GPU-sync " + sc.id + " / instanced";
+    var syncScene = null;
+    var syncRow = { id: sc.id, occupants: sc.occupants, mode: "instanced-finish" };
+    try {
+      syncScene = makeGpu(gl, sc.boxes, sc.splines, "instanced");
+      var proj = new Float32Array(16);
+      var view = new Float32Array(16);
+      var center = [320, 320, 20];
+      gl.enable(gl.DEPTH_TEST);
+      gl.clearColor(0.05, 0.055, 0.07, 1);
+      gl.finish();
+      var pixel = new Uint8Array(4);
+      var times = [];
+      for (var f = 0; f < 30; f++) {
+        var a = f * 0.04;
+        var eye = [center[0] + Math.cos(a) * 420, center[1] + Math.sin(a) * 420, 180];
+        mat4Perspective(proj, Math.PI / 4, canvas.width / canvas.height, 1, 4000);
+        mat4LookAt(view, eye, center);
+        var vp = mul4(proj, view);
+        var t0 = performance.now();
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.useProgram(prog);
+        gl.uniformMatrix4fv(locVp, false, vp);
+        gl.uniform3fv(locEye, eye);
+        gl.bindVertexArray(syncScene.vao);
+        gl.drawElementsInstanced(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, syncScene.boxCount);
+        if (syncScene.splineCount) {
+          gl.useProgram(lineProg);
+          gl.uniformMatrix4fv(locVpL, false, vp);
+          gl.bindVertexArray(syncScene.lineVao);
+          gl.drawElements(gl.LINES, syncScene.splineIndexCount, gl.UNSIGNED_INT, 0);
+        }
+        gl.bindVertexArray(null);
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        times.push(performance.now() - t0);
+      }
+      times.sort(function (a, b) { return a - b; });
+      var mean = times.reduce(function (sum, x) { return sum + x; }, 0) / times.length;
+      syncRow.gpuBytes = syncScene.gpuBytes;
+      syncRow.gpuMb = round(syncScene.gpuBytes / (1024 * 1024));
+      syncRow.finish = {
+        frames: times.length,
+        p50Ms: round(percentile(times, 0.5)),
+        p95Ms: round(percentile(times, 0.95)),
+        maxMs: round(times[times.length - 1]),
+        meanMs: round(mean),
+        fpsUncapped: round(1000 / Math.max(mean, 0.001))
+      };
+      syncRow.verdict = syncRow.finish.p95Ms > 33 ? "refuse" : (syncRow.finish.p95Ms > 16 ? "tight" : "ok");
+      destroyGpu(gl, syncScene);
+    } catch (err) {
+      syncRow.error = String(err && err.message || err);
+      syncRow.verdict = "refuse";
+      try { destroyGpu(gl, syncScene); } catch (ignore) {}
+    }
+    syncRows.push(syncRow);
+    addRow({
+      id: sc.id + "-finish",
+      occupants: sc.occupants,
+      mode: "finish",
+      constructMs: null,
+      gpuMb: syncRow.gpuMb,
+      heapDeltaMb: null,
+      nav: syncRow.finish ? { p95Ms: syncRow.finish.p95Ms, fps: syncRow.finish.fpsUncapped } : null,
+      teardownMs: null,
+      verdict: syncRow.verdict
+    });
+  }
+
+  if (dummy) gl.deleteBuffer(dummy);
+  var payload = {
+    measuredAt: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    hardwareConcurrency: navigator.hardwareConcurrency,
+    deviceMemoryGb: navigator.deviceMemory || null,
+    webgl: info,
+    mapDummy95Mb: dummyOk,
+    navFrames: NAV_FRAMES,
+    note: "Throwaway WebGL2 boxes + line ribbons. Not a library choice. Terrain excluded. gpuSync finish[] is draw + readPixels(1px) per frame (ANGLE gl.finish is a no-op).",
+    results: results,
+    gpuSync: syncRows
+  };
+  window.__SCENE_BUDGET_RESULTS__ = payload;
+  document.getElementById("status").textContent = "Done. window.__SCENE_BUDGET_RESULTS__";
+  log("DONE " + results.length + " rows, " + syncRows.length + " gpu-sync");
+}
+
+main().catch(function (err) {
+  document.getElementById("status").textContent = String(err);
+  window.__SCENE_BUDGET_RESULTS__ = { error: String(err) };
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "measuredAt": "2026-11-23T20:10:13.572Z",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/3.31.15 Chrome/150.0.7871.250 Electron/43.8.9 Safari/537.36",
+  "hardwareConcurrency": 8,
+  "deviceMemoryGb": 16,
+  "webgl": {
+    "vendor": "WebKit",
+    "renderer": "WebKit WebGL",
+    "unmaskedVendor": "Google Inc. (NVIDIA)",
+    "unmaskedRenderer": "ANGLE (NVIDIA, NVIDIA GeForce MX110 (0x0000174E) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "maxTexture": 16384,
+    "maxUbo": 65536,
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)"
+  },
+  "mapDummy95Mb": true,
+  "navFrames": 90,
+  "note": "Pass 1: vsync-capped rAF orbit. p95 ~16.7 ms is vsync, not GPU headroom. See scene-budget-gpu-sync.json for gl.finish pass.",
+  "results": [
+    {"id":"all-stack","mode":"instanced","occupants":11,"constructMs":5,"gpuMb":0,"heapDeltaMb":0,"nav":{"frames":90,"p50Ms":16.7,"p95Ms":16.8,"maxMs":92.3,"fps":54.8},"teardownMs":1.1,"verdict":"ok"},
+    {"id":"all-stack","mode":"expanded","occupants":11,"constructMs":6.6,"gpuMb":0.01,"nav":{"frames":90,"p50Ms":16.7,"p95Ms":16.7,"fps":60.03},"teardownMs":0.1,"verdict":"ok"},
+    {"id":"all-stack-fat8","mode":"instanced-fat8","occupants":11,"boxes":88,"constructMs":2.9,"gpuMb":0,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.14},"verdict":"ok"},
+    {"id":"all-pad","mode":"instanced","occupants":49,"constructMs":4.4,"gpuMb":0,"nav":{"p50Ms":16.7,"p95Ms":16.7,"fps":60.03},"verdict":"ok"},
+    {"id":"all-pad","mode":"expanded","occupants":49,"constructMs":2,"gpuMb":0.03,"nav":{"p50Ms":16.7,"p95Ms":16.7,"fps":60.01},"verdict":"ok"},
+    {"id":"all-pad-fat8","mode":"instanced-fat8","occupants":49,"boxes":392,"constructMs":0.8,"gpuMb":0.02,"nav":{"p50Ms":16.7,"p95Ms":16.7,"fps":60.06},"verdict":"ok"},
+    {"id":"dense-8m","mode":"instanced","occupants":198,"constructMs":1.1,"gpuMb":0.01,"nav":{"p50Ms":16.7,"p95Ms":16.7,"fps":60.02},"verdict":"ok"},
+    {"id":"dense-8m","mode":"expanded","occupants":198,"constructMs":5.3,"gpuMb":0.14,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.02},"verdict":"ok"},
+    {"id":"dense-8m-fat8","mode":"instanced-fat8","occupants":198,"boxes":1584,"constructMs":1.7,"gpuMb":0.07,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.09},"verdict":"ok"},
+    {"id":"solo-storage","mode":"instanced","occupants":452,"constructMs":1.1,"gpuMb":0.02,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.02},"verdict":"ok"},
+    {"id":"solo-storage","mode":"expanded","occupants":452,"constructMs":2.6,"gpuMb":0.31,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.02},"verdict":"ok"},
+    {"id":"solo-storage-fat8","mode":"instanced-fat8","occupants":452,"boxes":3616,"constructMs":2.3,"gpuMb":0.15,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.11},"verdict":"ok"},
+    {"id":"ordinary-56m","mode":"instanced","occupants":800,"constructMs":1.7,"gpuMb":0.05,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.02},"verdict":"ok"},
+    {"id":"ordinary-56m","mode":"expanded","occupants":800,"constructMs":4.8,"gpuMb":0.46,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.01},"verdict":"ok"},
+    {"id":"ordinary-56m-fat8","mode":"instanced-fat8","occupants":800,"boxes":5120,"constructMs":2.5,"gpuMb":0.24,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.12},"verdict":"ok"},
+    {"id":"medium-region","mode":"instanced","occupants":2500,"constructMs":3.5,"gpuMb":0.16,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.02},"verdict":"ok"},
+    {"id":"medium-region","mode":"expanded","occupants":2500,"constructMs":7.8,"gpuMb":1.45,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.03},"verdict":"ok"},
+    {"id":"medium-region-fat8","mode":"instanced-fat8","occupants":2500,"boxes":16000,"constructMs":8.4,"gpuMb":0.74,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.89},"verdict":"ok"},
+    {"id":"height-view-14k","mode":"instanced","occupants":14000,"constructMs":7.7,"gpuMb":0.9,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.02},"verdict":"ok"},
+    {"id":"height-view-14k","mode":"expanded","occupants":14000,"constructMs":34.4,"gpuMb":7.99,"heapDeltaMb":8.46,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.16},"verdict":"ok"},
+    {"id":"heavy-50k","mode":"instanced","occupants":50000,"constructMs":19.6,"gpuMb":3.13,"nav":{"p50Ms":16.7,"p95Ms":16.8,"maxMs":17.1,"fps":60.31},"verdict":"ok"},
+    {"id":"heavy-50k","mode":"expanded","occupants":50000,"constructMs":108.7,"gpuMb":28.92,"heapDeltaMb":30.6,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.44},"verdict":"ok"},
+    {"id":"foundation-150k","mode":"instanced","occupants":150000,"constructMs":13.6,"gpuMb":6.29,"nav":{"p50Ms":16.7,"p95Ms":16.8,"fps":60.04},"verdict":"ok"}
+  ]
+}

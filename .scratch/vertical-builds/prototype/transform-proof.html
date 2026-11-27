@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>PROTOTYPE — Transform proof</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --surface-0: #131519;
+    --surface-1: #1a1d22;
+    --surface-2: #21242b;
+    --raised: #23262c;
+    --inset: #171a20;
+    --border: #30333b;
+    --text: #d9dde4;
+    --text-bright: #fff;
+    --muted: #8a92a3;
+    --faint: #6a7180;
+    --accent: #5ba3e0;
+    --accent-bg: #2a3545;
+    --accent-border: #3a5070;
+    --warn: #e8b84a;
+    --ok: #6cbf6c;
+    --bad: #e07a7a;
+    --font: "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--surface-0); color: var(--text); font: 13px/1.45 var(--font); }
+  body { display: grid; grid-template-rows: auto auto 1fr; }
+  .banner {
+    background: #3d2d1c; border-bottom: 1px solid #8a5e2e; color: #ffd7b0;
+    padding: 8px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+  }
+  header.intro { padding: 14px 18px 12px; border-bottom: 1px solid var(--border); background: var(--surface-1); }
+  header.intro h1 { margin: 0 0 6px; font-size: 16px; color: var(--text-bright); font-weight: 650; }
+  header.intro p { margin: 0; color: var(--muted); max-width: 82ch; }
+  #workspace { display: grid; grid-template-columns: 1fr 340px; min-height: 0; }
+  #main { padding: 14px 18px 80px; overflow: auto; }
+  #side { background: var(--surface-1); border-left: 1px solid var(--border); padding: 12px 14px 80px; overflow: auto; }
+  #side h2 { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .hint { color: var(--faint); font-size: 12px; margin: 0 0 10px; }
+  .state-card, .walk, .free { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+  .state-row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+  .state-row .k { color: var(--muted); }
+  .state-row .v { color: var(--text-bright); text-align: right; }
+  .v.ok { color: var(--ok); }
+  .v.warn { color: var(--warn); }
+  .v.bad { color: var(--bad); }
+  .flag { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); font-size: 11px; }
+  .flag.ok { border-color: #3a6040; color: var(--ok); }
+  .flag.warn { border-color: #6a5a20; color: var(--warn); }
+  .flag.bad { border-color: #6a3030; color: var(--bad); }
+  button.act, .walk button, .free button {
+    display: block; width: 100%; margin: 4px 0; padding: 7px 10px;
+    background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border);
+    border-radius: 6px; cursor: pointer; font: inherit; font-weight: 600; text-align: left;
+  }
+  button.act:hover, .walk button:hover, .free button:hover { filter: brightness(1.12); }
+  button.act.on, .free button.on { outline: 1px solid var(--accent); color: var(--text-bright); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+  .tabs button {
+    flex: 1 1 28%; padding: 6px; background: var(--raised); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font: inherit; font-weight: 600;
+  }
+  .tabs button.on { color: var(--text-bright); border-color: var(--accent-border); background: var(--accent-bg); }
+  .walk p { margin: 0 0 8px; color: var(--muted); }
+  .walk .step-on { outline: 1px solid var(--accent); }
+  .diagram {
+    height: 220px; background: var(--inset); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 12px; position: relative; overflow: hidden;
+  }
+  .diagram svg { width: 100%; height: 100%; display: block; }
+  .diagram .cap {
+    position: absolute; top: 8px; left: 10px; font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--faint); pointer-events: none;
+  }
+  .note { margin: 0 0 10px; color: var(--muted); max-width: 72ch; }
+  code { color: var(--accent); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="banner">PROTOTYPE · throwaway · conversión X Y Z rotación · no cámara de producto · no siluetas · no política de región</div>
+<header class="intro">
+  <h1>¿X, Y, Z y la rotación salen del save sin eje invertido, error de unidad ni cota inventada?</h1>
+  <p>
+    Referencia barata sobre los tres saves del corpus. La conversión usa las mismas constantes que
+    <code>geometry.rs</code> / <code>editor.js</code>. Un agujero (tilt, tangente Z, tamaño de clase)
+    se <strong>reporta</strong>, no se rellena con un número. Esto no es el visor.
+  </p>
+</header>
+<div id="workspace">
+  <div id="main">
+    <p class="note" id="loadNote"></p>
+    <div class="diagram">
+      <div class="cap" id="diagramCap">Muestra</div>
+      <svg id="diagram" viewBox="0 0 640 220" aria-hidden="true"></svg>
+    </div>
+    <div class="free">
+      <p class="hint">Juego libre — cualquier orden. Cada clic deja el estado completo a la derecha.</p>
+      <button type="button" data-act="nextCase">Caso siguiente</button>
+      <button type="button" data-act="nextPose">Siguiente objeto</button>
+      <button type="button" data-act="nextPath">Siguiente trayecto</button>
+      <button type="button" data-act="checkCorrect">Conversión correcta (save → payload → inverse)</button>
+      <button type="button" data-act="checkNoYFlip">Contrafactual: olvidar el flip Y</button>
+      <button type="button" data-act="checkSwapXY">Contrafactual: intercambiar X e Y</button>
+      <button type="button" data-act="checkZAsCm">Contrafactual: Z en cm, no metros</button>
+      <button type="button" data-act="checkInvent4m">Contrafactual: inventar 4 m de altura</button>
+    </div>
+    <div class="walk">
+      <div class="tabs" id="tabs"></div>
+      <p id="walkBlurb"></p>
+      <div id="walkSteps"></div>
+    </div>
+  </div>
+  <aside id="side">
+    <h2>Estado</h2>
+    <p class="hint" id="changed"></p>
+    <div class="state-card" id="stateCard"></div>
+    <p class="hint">Lista: <code>transform-exceptions.md</code>. Datos: <code>transform-samples.json</code>.</p>
+  </aside>
+</div>
+
+<script src="transform-samples.data.js"></script>
+<script>
+/* ===== TransformProof — portable conversion (no DOM) ===== */
+var TransformProof = (function () {
+  "use strict";
+
+  var MAP_SIZE = 8192;
+  var SCALE = 22.887;
+  var OFF_X = 18282.5;
+  var OFF_Y = 20480.0;
+  var DESCALE = 20;
+  var CROP_LO = 204.8;
+  var TO_HIGHRES = 5;
+  var TILT = 0.001;
+
+  function round2(x) { return Math.round(x * 100) / 100; }
+  function hypot(a, b) { return Math.sqrt(a * a + b * b); }
+
+  function projectXY(wx, wy) {
+    var px = ((wx / SCALE + OFF_X) / DESCALE - CROP_LO) * TO_HIGHRES;
+    var py = MAP_SIZE - ((wy / SCALE + OFF_Y) / DESCALE - CROP_LO) * TO_HIGHRES;
+    return [px, py];
+  }
+
+  function mapPxToWorldXY(mapX, mapY) {
+    var wx = ((mapX / TO_HIGHRES + CROP_LO) * DESCALE - OFF_X) * SCALE;
+    var wy = (((MAP_SIZE - mapY) / TO_HIGHRES + CROP_LO) * DESCALE - OFF_Y) * SCALE;
+    return [wx, wy];
+  }
+
+  function mapPxToWorldXYNoYFlip(mapX, mapY) {
+    var wx = ((mapX / TO_HIGHRES + CROP_LO) * DESCALE - OFF_X) * SCALE;
+    var wy = ((mapY / TO_HIGHRES + CROP_LO) * DESCALE - OFF_Y) * SCALE;
+    return [wx, wy];
+  }
+
+  function yawFromQuaternion(q) {
+    var qx = q[0], qy = q[1], qz = q[2], qw = q[3];
+    return Math.atan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz));
+  }
+
+  function tiltIntensity(q) {
+    return q[0] * q[0] + q[1] * q[1];
+  }
+
+  function convertPose(pose) {
+    var w = pose.worldCm;
+    var proj = projectXY(w[0], w[1]);
+    var px = round2(proj[0]), py = round2(proj[1]);
+    var zM = round2(w[2] / 100);
+    var yaw = yawFromQuaternion(pose.quat);
+    var tilt = tiltIntensity(pose.quat);
+    var inv = mapPxToWorldXY(px, py);
+    var noFlip = mapPxToWorldXYNoYFlip(px, py);
+    var xyErr = hypot(inv[0] - w[0], inv[1] - w[1]);
+    var zErr = Math.abs(zM * 100 - w[2]);
+    var yawPayload = pose.payload.yaw;
+    var yawForced = !!(pose.payload.yawForcedZero || (tilt > TILT && yawPayload === 0 && pose.payload.tiltedHullVerts));
+    return {
+      px: px, py: py, zM: zM, yaw: round2(yaw), tilt: tilt,
+      xyErrorCm: round2(xyErr),
+      zErrorCm: round2(zErr),
+      forgotYFlipErrorCm: round2(hypot(noFlip[0] - w[0], noFlip[1] - w[1])),
+      swappedXyErrorCm: round2(hypot(inv[0] - w[1], inv[1] - w[0])),
+      zAsCmErrorM: round2(Math.abs(zM - w[2])),
+      invent4mDeltaM: pose.payload.heightExtentM == null ? 4 : null,
+      yawForcedZero: yawForced,
+      axisUnitOk: xyErr < 5 && zErr < 5
+    };
+  }
+
+  function classifyPose(pose, conv) {
+    var flags = [];
+    if (conv.axisUnitOk) flags.push({ k: "ejes/unidades", t: "ok", d: "round-trip sub-cm" });
+    else flags.push({ k: "ejes/unidades", t: "bad", d: "round-trip roto" });
+    flags.push({ k: "Z origen", t: "ok", d: "sale del save" });
+    if (conv.yawForcedZero) flags.push({ k: "rotación", t: "warn", d: "tilt-dropped — yaw 0 + casco plano; no dibujar como caja exacta" });
+    else flags.push({ k: "rotación", t: "ok", d: "yaw del cuaternión" });
+    if (pose.payload.heightExtentM == null) flags.push({ k: "altura de clase", t: "warn", d: "sin heightExtentM — reportar, no inventar 4 m" });
+    if (pose.payload.footprintPixels == null) flags.push({ k: "planta", t: "warn", d: "sin footprint — punto, no caja XY" });
+    if (pose.scaleDropped) flags.push({ k: "escala", t: "warn", d: "lightweight: escala no viaja en el payload" });
+    return flags;
+  }
+
+  function classifyPath(path) {
+    var nDrop = 0;
+    (path.vertices || []).forEach(function (v) {
+      if (v.arriveZDropped || v.leaveZDropped) nDrop += 1;
+    });
+    var span = path.zSpanM || [0, 0];
+    var rise = Math.abs(span[1] - span[0]);
+    return {
+      vertexZ: "save",
+      tangentZ: "dropped",
+      blend: "linear-blend-not-hermite",
+      nonzeroTangentZDropped: nDrop,
+      riseM: round2(rise),
+      flags: [
+        { k: "vértices", t: "ok", d: "XYZ del save (z en metros)" },
+        { k: "tangente Z", t: nDrop ? "warn" : "ok", d: nDrop ? (nDrop + " vértices con Z de tangente no enviada") : "campo siempre caído; en esta muestra la Z de tangente era 0" },
+        { k: "curva vertical", t: "warn", d: "entre muestras: mezcla lineal de z, no Hermite 3D" }
+      ]
+    };
+  }
+
+  function errorForCheck(conv, check, pose) {
+    if (check === "correct") return { label: "error XY / Z", xy: conv.xyErrorCm, z: conv.zErrorCm, unit: "cm", ok: conv.axisUnitOk };
+    if (check === "noYFlip") return { label: "sin flip Y", xy: conv.forgotYFlipErrorCm, z: null, unit: "cm", ok: false };
+    if (check === "swapXY") return { label: "X↔Y", xy: conv.swappedXyErrorCm, z: null, unit: "cm", ok: false };
+    if (check === "zAsCm") return { label: "Z como cm", xy: null, z: conv.zAsCmErrorM, unit: "m", ok: false };
+    if (check === "invent4m") {
+      var hole = pose && pose.payload.heightExtentM == null;
+      return { label: "4 m inventados", xy: null, z: hole ? 4 : 0, unit: "m", ok: !hole, hole: hole };
+    }
+    return { label: check, xy: null, z: null, unit: "", ok: true };
+  }
+
+  var WALKS = [
+    { id: "axes", title: "Ejes", caseId: "stacked-poles-all", blurb: "La conversión correcta cierra el ciclo. Olvidar el flip Y o mezclar cm/m revienta kilómetros. Eso es la prueba de que no hay eje invertido ni error de unidad.", steps: [
+      { act: "checkCorrect", label: "Probar la conversión correcta" },
+      { act: "checkNoYFlip", label: "Ver el desastre sin flip Y" },
+      { act: "checkSwapXY", label: "Ver X e Y intercambiados" },
+      { act: "checkZAsCm", label: "Tratar Z como centímetros" }
+    ]},
+    { id: "stack", title: "Apilado", caseId: "stacked-poles-all", blurb: "Cinco postes en 34–42 m. La cota es del save. Colapsar la pila a una banda, o poner 4 m, sería inventar elevación.", steps: [
+      { act: "goCase:stacked-poles-all", label: "Ir a los postes de All" },
+      { act: "nextPose", label: "Siguiente poste (sube 2 m)" },
+      { act: "nextPose", label: "Otro poste" },
+      { act: "checkCorrect", label: "Comprobar round-trip" }
+    ]},
+    { id: "yaw", title: "Rotación", caseId: "rotated-signs-big", blurb: "En la celda de los carteles, los postes de pared guardan yaw 2.79 y −0.35 rad — no 0/90. El dump no trajo el cartel very-wide; no se inventa.", steps: [
+      { act: "goCase:rotated-signs-big", label: "Ir a la celda rotada" },
+      { act: "checkCorrect", label: "Yaw del save vs payload" },
+      { act: "nextPose", label: "Siguiente (algunos están inclinados)" }
+    ]},
+    { id: "tilt", title: "Inclinación", caseId: "tilted-ramps-big", blurb: "Pilar lightweight: cuaternión con tilt 1, yaw del save −2.18, payload yaw 0 y casco plano. Reportar la clase, no dibujar una caja exacta.", steps: [
+      { act: "goCase:tilted-ramps-big", label: "Ir a los pilares inclinados" },
+      { act: "checkCorrect", label: "Ver tilt-dropped" }
+    ]},
+    { id: "slope", title: "Pendiente", caseId: "sloped-belt-big", blurb: "Cinta Mk5: z de vértice 55.65 → 83.33 m. La tangente Z no viaja. El rail de solo no salió en este dump (origen fuera de la caja): no se inventan esos puntos.", steps: [
+      { act: "goCase:sloped-belt-big", label: "Cinta Mk5 en pendiente" },
+      { act: "nextPath", label: "Ver el trayecto" },
+      { act: "goCase:unknown-flow-solo", label: "Tubería con tangente Z real caída" }
+    ]},
+    { id: "holes", title: "Agujeros", caseId: "unknown-flow-solo", blurb: "Pasante de tubería: punto con Z del save, sin planta ni heightExtentM. No pintar 4 m. El máximo de la celda no es la altura de una máquina.", steps: [
+      { act: "goCase:unknown-flow-solo", label: "Clase sin tamaño de tabla" },
+      { act: "checkInvent4m", label: "Intentar inventar 4 m (debe rechazarse)" },
+      { act: "goCase:not-a-floor-solo", label: "Trampa: máximo de celda ≠ altura" },
+      { act: "goCase:sloped-rail-solo", label: "Rail no muestreado: hueco, no número" }
+    ]}
+  ];
+
+  function initial(samples) {
+    return {
+      samples: samples,
+      caseIndex: 0,
+      poseIndex: 0,
+      pathIndex: 0,
+      focus: "pose",
+      check: "correct",
+      walk: 0,
+      step: 0,
+      last: "listo"
+    };
+  }
+
+  function caseAt(state) {
+    return state.samples.cases[state.caseIndex] || state.samples.cases[0];
+  }
+
+  function goCase(state, id) {
+    var i = state.samples.cases.findIndex(function (c) { return c.id === id; });
+    if (i < 0) return state;
+    var c = state.samples.cases[i];
+    return Object.assign({}, state, {
+      caseIndex: i,
+      poseIndex: 0,
+      pathIndex: 0,
+      focus: c.poseCount ? "pose" : "path",
+      last: "caso " + id
+    });
+  }
+
+  function reduce(state, action) {
+    var c = caseAt(state);
+    if (action === "nextCase") {
+      var ni = (state.caseIndex + 1) % state.samples.cases.length;
+      return goCase(Object.assign({}, state, { caseIndex: ni }), state.samples.cases[ni].id);
+    }
+    if (action === "nextPose") {
+      if (!c.poses.length) return Object.assign({}, state, { last: "este caso no tiene objetos" });
+      return Object.assign({}, state, {
+        poseIndex: (state.poseIndex + 1) % c.poses.length,
+        focus: "pose",
+        last: "siguiente objeto"
+      });
+    }
+    if (action === "nextPath") {
+      if (!c.paths.length) return Object.assign({}, state, { last: "este caso no tiene trayecto en el dump", focus: "path" });
+      return Object.assign({}, state, {
+        pathIndex: (state.pathIndex + 1) % c.paths.length,
+        focus: "path",
+        last: "trayecto"
+      });
+    }
+    if (action.indexOf("goCase:") === 0) return goCase(state, action.slice(7));
+    if (action === "checkCorrect") return Object.assign({}, state, { check: "correct", last: "conversión correcta" });
+    if (action === "checkNoYFlip") return Object.assign({}, state, { check: "noYFlip", last: "contrafactual flip Y" });
+    if (action === "checkSwapXY") return Object.assign({}, state, { check: "swapXY", last: "contrafactual X↔Y" });
+    if (action === "checkZAsCm") return Object.assign({}, state, { check: "zAsCm", last: "contrafactual Z en cm" });
+    if (action === "checkInvent4m") return Object.assign({}, state, { check: "invent4m", last: "intentar 4 m" });
+    if (action.indexOf("walk:") === 0) {
+      var w = +action.slice(5);
+      var next = Object.assign({}, goCase(state, WALKS[w].caseId), { walk: w, step: 0, check: "correct", last: "recorrido " + WALKS[w].title });
+      return next;
+    }
+    if (action.indexOf("step:") === 0) {
+      var si = +action.slice(5);
+      var walk = WALKS[state.walk];
+      var step = walk.steps[si];
+      var after = reduce(Object.assign({}, state, { step: si }), step.act);
+      after.walk = state.walk;
+      after.step = si;
+      return after;
+    }
+    return state;
+  }
+
+  return {
+    WALKS: WALKS,
+    initial: initial,
+    reduce: reduce,
+    caseAt: caseAt,
+    convertPose: convertPose,
+    classifyPose: classifyPose,
+    classifyPath: classifyPath,
+    errorForCheck: errorForCheck,
+    yawFromQuaternion: yawFromQuaternion,
+    tiltIntensity: tiltIntensity
+  };
+})();
+</script>
+<script>
+/* ===== page shell ===== */
+(function () {
+  "use strict";
+
+  var samples = window.TRANSFORM_SAMPLES;
+  var note = document.getElementById("loadNote");
+  if (!samples || !samples.cases) {
+    note.textContent = "Falta transform-samples.data.js (generado desde transform-samples.json). No se re-parsean los .sav.";
+    return;
+  }
+  note.textContent = samples.cases.length + " casos del corpus. " + samples.question;
+
+  var state = TransformProof.initial(samples);
+
+  function el(html) {
+    return html;
+  }
+
+  function fmt(n, d) {
+    if (n == null || n !== n) return "—";
+    return Number(n).toFixed(d == null ? 2 : d);
+  }
+
+  function renderDiagram() {
+    var svg = document.getElementById("diagram");
+    var cap = document.getElementById("diagramCap");
+    var c = TransformProof.caseAt(state);
+    var ns = "http://www.w3.org/2000/svg";
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    function node(name, attrs, text) {
+      var e = document.createElementNS(ns, name);
+      Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+      if (text) e.textContent = text;
+      svg.appendChild(e);
+      return e;
+    }
+    node("rect", { x: 0, y: 0, width: 640, height: 220, fill: "#171a20" });
+    if (state.focus === "path" && c.paths[state.pathIndex]) {
+      cap.textContent = "Trayecto · z de vértice";
+      var path = c.paths[state.pathIndex];
+      var verts = path.vertices || [];
+      var zs = verts.map(function (v) { return v.payload.zM; });
+      var z0 = Math.min.apply(null, zs.concat(path.zSpanM || []));
+      var z1 = Math.max.apply(null, zs.concat(path.zSpanM || []));
+      if (z1 === z0) { z0 -= 1; z1 += 1; }
+      node("text", { x: 16, y: 36, fill: "#8a92a3", "font-size": 12 }, path.class + "  " + fmt(z0) + " → " + fmt(z1) + " m");
+      verts.forEach(function (v, i) {
+        var x = 40 + i * (560 / Math.max(verts.length - 1, 1));
+        var y = 180 - (v.payload.zM - z0) / (z1 - z0) * 120;
+        if (i) {
+          var p = verts[i - 1];
+          var x0 = 40 + (i - 1) * (560 / Math.max(verts.length - 1, 1));
+          var y0 = 180 - (p.payload.zM - z0) / (z1 - z0) * 120;
+          node("line", { x1: x0, y1: y0, x2: x, y2: y, stroke: v.arriveZDropped || v.leaveZDropped ? "#e8b84a" : "#5ba3e0", "stroke-width": 2 });
+        }
+        node("circle", { cx: x, cy: y, r: 5, fill: v.arriveZDropped || v.leaveZDropped ? "#e8b84a" : "#5ba3e0" });
+        node("text", { x: x - 10, y: y - 10, fill: "#d9dde4", "font-size": 11 }, fmt(v.payload.zM, 1));
+      });
+      node("text", { x: 16, y: 208, fill: "#6a7180", "font-size": 11 }, "amarillo = tangente Z del save no viaja en el payload");
+      return;
+    }
+    if (!c.poses.length) {
+      cap.textContent = "Sin objetos en este dump";
+      node("text", { x: 24, y: 110, fill: "#e8b84a", "font-size": 14 }, "Hueco de muestreo — no se inventan puntos. Caso: " + c.id);
+      return;
+    }
+    cap.textContent = "Objetos · Z del save";
+    var poses = c.poses;
+    var zlo = Math.min.apply(null, poses.map(function (p) { return p.payload.zM; }));
+    var zhi = Math.max.apply(null, poses.map(function (p) { return p.payload.zM; }));
+    if (zhi === zlo) { zlo -= 2; zhi += 2; }
+    poses.forEach(function (p, i) {
+      var x = 36 + (i % 10) * 60;
+      var y = 188 - (p.payload.zM - zlo) / (zhi - zlo) * 140;
+      var on = i === state.poseIndex;
+      var tilt = p.payload.yawForcedZero;
+      var miss = p.payload.heightExtentM == null;
+      node("rect", {
+        x: x - 10, y: y - 14, width: 20, height: 28, rx: 3,
+        fill: miss ? "none" : (tilt ? "#3d2d1c" : "#2a3545"),
+        stroke: on ? "#fff" : (tilt ? "#e8b84a" : (miss ? "#e8b84a" : "#5ba3e0")),
+        "stroke-dasharray": miss ? "3 2" : "",
+        "stroke-width": on ? 2 : 1
+      });
+      if (i === 0 || i === poses.length - 1 || on) {
+        node("text", { x: x - 16, y: y - 20, fill: "#8a92a3", "font-size": 10 }, fmt(p.payload.zM, 0) + "m");
+      }
+    });
+    node("text", { x: 16, y: 208, fill: "#6a7180", "font-size": 11 }, "sólido = cota del save · dashed = tamaño de clase desconocido · ámbar = tilt-dropped");
+  }
+
+  function renderState() {
+    var c = TransformProof.caseAt(state);
+    var pose = c.poses[state.poseIndex];
+    var path = c.paths[state.pathIndex];
+    var conv = pose ? TransformProof.convertPose(pose) : null;
+    var flags = pose ? TransformProof.classifyPose(pose, conv) : [];
+    var err = conv ? TransformProof.errorForCheck(conv, state.check, pose) : null;
+    var pathCls = path ? TransformProof.classifyPath(path) : null;
+    var rows = [];
+    rows.push(["Caso", c.id + " · " + c.save.replace(".sav", "")]);
+    rows.push(["Qué mirar", c.watch]);
+    rows.push(["Objetos / trayectos", c.poseCount + " / " + c.pathCount]);
+    rows.push(["Span Z del dump", c.zSpanM ? (fmt(c.zSpanM[0]) + " … " + fmt(c.zSpanM[1]) + " m") : "ninguno (hueco)"]);
+    if (pose && state.focus === "pose") {
+      rows.push(["Clase", pose.class]);
+      rows.push(["Categoría menú", pose.category]);
+      rows.push(["Origen", pose.source + (pose.scaleDropped ? " · escala no enviada" : "")]);
+      rows.push(["World cm", pose.worldCm.map(function (n) { return fmt(n, 1); }).join(", ")]);
+      rows.push(["Payload px, py, zM, yaw", [pose.payload.px, pose.payload.py, pose.payload.zM, pose.payload.yaw].join(" · ")]);
+      rows.push(["Yaw del save", fmt(pose.yawFromSave, 4) + " rad · tilt " + fmt(pose.tiltIntensity, 4)]);
+      rows.push(["heightExtentM", pose.payload.heightExtentM ? pose.payload.heightExtentM.join(" … ") + " m" : "ausente"]);
+    }
+    if (path && state.focus === "path") {
+      rows.push(["Trayecto", path.class + " · " + path.vertexCount + " vértices"]);
+      rows.push(["z vértices", path.zSpanM ? path.zSpanM.join(" → ") + " m" : "—"]);
+      rows.push(["Tangente Z", pathCls.nonzeroTangentZDropped ? pathCls.nonzeroTangentZDropped + " caídas (no cero)" : "campo caído; muestra con Z≈0"]);
+    }
+    if (err) {
+      var bits = [];
+      if (err.xy != null) bits.push("XY " + fmt(err.xy) + " " + err.unit);
+      if (err.z != null) bits.push("Z " + fmt(err.z) + " " + err.unit);
+      if (state.check === "invent4m") bits.push(err.hole ? "agujero: no rellenar" : "esta clase sí tiene tabla; 4 m no aplica");
+      rows.push([err.label, bits.join(" · ") || "—"]);
+    }
+    var html = rows.map(function (r) {
+      var cls = "";
+      if (r[0] === err && err && !err.ok) cls = "bad";
+      if (conv && r[0].indexOf("error") === -1 && state.check === "correct" && conv.axisUnitOk && r[0] === err.label) cls = "ok";
+      return '<div class="state-row"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + "</span></div>";
+    }).join("");
+    if (err) {
+      html += '<div class="state-row"><span class="k">Contrafactual</span><span class="v ' + (err.ok ? "ok" : "bad") + '">' +
+        (err.ok ? "pasa" : "falla a propósito") + "</span></div>";
+    }
+    var flagHtml = flags.map(function (f) {
+      return '<span class="flag ' + f.t + '">' + f.k + " — " + f.d + "</span>";
+    }).join("");
+    if (pathCls && state.focus === "path") {
+      flagHtml += pathCls.flags.map(function (f) {
+        return '<span class="flag ' + f.t + '">' + f.k + " — " + f.d + "</span>";
+      }).join("");
+    }
+    document.getElementById("stateCard").innerHTML = html + '<div style="margin-top:8px">' + flagHtml + "</div>";
+    document.getElementById("changed").textContent = "Último: " + state.last;
+    Array.prototype.forEach.call(document.querySelectorAll(".free button"), function (b) {
+      b.classList.toggle("on", b.getAttribute("data-act") === (
+        state.check === "correct" ? "checkCorrect" :
+        state.check === "noYFlip" ? "checkNoYFlip" :
+        state.check === "swapXY" ? "checkSwapXY" :
+        state.check === "zAsCm" ? "checkZAsCm" :
+        state.check === "invent4m" ? "checkInvent4m" : ""
+      ));
+    });
+  }
+
+  function renderWalk() {
+    var tabs = document.getElementById("tabs");
+    tabs.innerHTML = TransformProof.WALKS.map(function (w, i) {
+      return '<button type="button" data-act="walk:' + i + '" class="' + (state.walk === i ? "on" : "") + '">' + w.title + "</button>";
+    }).join("");
+    var w = TransformProof.WALKS[state.walk];
+    document.getElementById("walkBlurb").textContent = w.blurb;
+    document.getElementById("walkSteps").innerHTML = w.steps.map(function (s, i) {
+      return '<button type="button" data-act="step:' + i + '" class="' + (state.step === i ? "step-on" : "") + '">' + (i + 1) + ". " + s.label + "</button>";
+    }).join("");
+  }
+
+  function draw() {
+    renderWalk();
+    renderState();
+    renderDiagram();
+  }
+
+  document.getElementById("workspace").addEventListener("click", function (ev) {
+    var btn = ev.target.closest("[data-act]");
+    if (!btn) return;
+    state = TransformProof.reduce(state, btn.getAttribute("data-act"));
+    draw();
+  });
+
+  draw();
+})();
+</script>
+</body>
+</html>
