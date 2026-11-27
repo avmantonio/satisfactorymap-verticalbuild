@@ -377,8 +377,7 @@ var RegionalViewer = (function() {
     MapApp.map.invalidateSize();
   }
 
-  function restoreFocus() {
-    var target = snapshot && snapshot.focus;
+  function restoreFocus(target) {
     if (target && document.contains(target) && typeof target.focus === "function"
         && !target.disabled && target.offsetParent !== null) {
       try { target.focus(); } catch (error) { /* not focusable */ }
@@ -474,7 +473,7 @@ var RegionalViewer = (function() {
     announce(opts.status || "");
     syncChrome();
     if (opts.restoreFocus !== false) {
-      restoreFocus();
+      restoreFocus(snap && snap.focus);
     }
     return hadAttached;
   }
@@ -606,7 +605,11 @@ var RegionalViewer = (function() {
   async function runEnter(id, snap, signal) {
     var request = buildRequest(id, snap);
     announce("Querying the current save…");
-    var bytes = await SaveClient.queryRegionalScene(request, { stamp: snap.stamp, signal: signal });
+    var query = SaveClient.queryRegionalScene(request, { stamp: snap.stamp, signal: signal });
+    // Serialize only the save query. Cancelled import/build must not block
+    // the next enter; overlapping queries still wait until this one settles.
+    queryDrain = query.then(function() {}, function() {});
+    var bytes = await query;
     if (abandonIfStale(id)) {
       void bytes;
       return;
@@ -762,7 +765,6 @@ var RegionalViewer = (function() {
       }
       failCurrent(id, error, true);
     });
-    queryDrain = work.then(function() {}, function() {});
     return work;
   }
 

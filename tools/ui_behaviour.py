@@ -1040,24 +1040,27 @@ def run(page, save):
         await waitIdle();
         liveZero('c015-after-late-error');
 
-        RegionalViewer.testHooks.wrapImport = (url) => {
-          const real = import(url);
-          return new Promise((resolve, reject) => {
-            releaseImport = {
-              go: async function() {
-                RegionalViewer.testHooks.wrapImport = null;
-                try { resolve(await real); } catch (error) { reject(error); }
-              }
-            };
-          });
-        };
-        const duringImport = RegionalViewer.enter();
-        await waitUntil(() => !!releaseImport, 'import-gate', 60000);
+        const sceneModHeld = await importScene();
+        let releaseHeldBuild = null;
+        sceneModHeld.setRegionalSceneTestGate(() => new Promise((resolve) => {
+          releaseHeldBuild = { go: resolve };
+        }));
+        const heldBuild = RegionalViewer.enter();
+        await waitUntil(() => RegionalViewer.state() === 'building' && !!releaseHeldBuild, 'build-gate', 60000);
         RegionalViewer.exit('cancel');
-        await releaseImport.go();
-        await duringImport;
-        RegionalViewer.testHooks.wrapImport = null;
         await waitIdle();
+        sceneModHeld.setRegionalSceneTestGate(null);
+        const secondEnter = RegionalViewer.enter();
+        await waitUntil(() => {
+          const next = RegionalViewer.state();
+          return next === 'querying' || next === 'building' || next === 'active';
+        }, 'second-enter-unblocked', 20000);
+        await waitActive();
+        RegionalViewer.exit('back');
+        await waitIdle();
+        if (releaseHeldBuild && releaseHeldBuild.go) releaseHeldBuild.go();
+        await heldBuild;
+        await secondEnter;
         liveZero('c015-after-import-exit');
 
         const sceneMod = await importScene();
@@ -1091,6 +1094,8 @@ def run(page, save):
         fail('c015-exception', String(error && error.stack || error));
         try {
           RegionalViewer.testHooks.wrapImport = null;
+          const sceneMod = await importScene();
+          sceneMod.setRegionalSceneTestGate(null);
           if (releaseImport && releaseImport.go) {
             await releaseImport.go();
           }
@@ -1174,8 +1179,8 @@ def run(page, save):
 
       return {
         fails,
-        heap: heapSamples.slice(-3),
-        wasm: wasmSamples.slice(-3),
+        heap: heapSamples,
+        wasm: wasmSamples,
         evidence: RegionalViewer.evidence(),
       };
     }""")
@@ -1192,7 +1197,10 @@ def run(page, save):
               "unavailable" in str((product.get("heap") or [{}])[-1])
               or "jsHeapUsed" in str((product.get("heap") or [{}])[-1])
           )),
-          product.get("heap"))
+          "n=" + str(len(product.get("heap") or [])))
+    check("C-016 heap trend samples",
+          len(product.get("heap") or []) > 3,
+          len(product.get("heap") or []))
 
     check("no JS errors overall", not errors, errors[:5])
 
