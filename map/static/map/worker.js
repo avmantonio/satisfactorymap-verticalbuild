@@ -64,6 +64,17 @@ function replyError(id, error, sessionLost) {
    });
 }
 
+function regionalNoSessionError() {
+   return "REGIONAL_ERROR:" + JSON.stringify({
+      name: "RegionalError",
+      code: "NO_SESSION",
+      message: "No save is loaded for a regional query",
+      requestId: null,
+      sessionLost: false,
+      details: {},
+   });
+}
+
 self.onmessage = async (event) => {
    const msg = event.data;
    if (msg.op === "dispose") {
@@ -124,6 +135,10 @@ self.onmessage = async (event) => {
          return;
       }
       if (!session) {
+         if (op === "queryRegionalScene") {
+            replyError(id, { message: regionalNoSessionError() }, false);
+            return;
+         }
          throw new Error("No save loaded");
       }
       let raw;
@@ -154,6 +169,38 @@ self.onmessage = async (event) => {
          case "exportSave": {
             const bytes = session.export_sav();
             reply(id, bytes, [bytes.buffer]);
+            return;
+         }
+         case "queryRegionalScene": {
+            // Copy WASM Vec<u8> into an owned buffer, then transfer that
+            // buffer — never wasm linear memory.
+            let bytes;
+            try {
+               bytes = session.regional_scene(JSON.stringify(msg.request));
+            } catch (error) {
+               const message = String(error && error.message || error);
+               if (message.indexOf("REGIONAL_ERROR:") === 0) {
+                  let sessionLost = false;
+                  try {
+                     const body = JSON.parse(message.slice("REGIONAL_ERROR:".length));
+                     sessionLost = !!(body && body.sessionLost);
+                  } catch (parseError) {
+                     sessionLost = false;
+                  }
+                  if (!sessionLost && session) {
+                     try {
+                        sessionLost = !session.is_healthy();
+                     } catch (probeError) {
+                        sessionLost = true;
+                     }
+                  }
+                  replyError(id, error, sessionLost);
+                  return;
+               }
+               throw error;
+            }
+            const out = bytes instanceof Uint8Array ? bytes.slice() : new Uint8Array(bytes);
+            reply(id, out, [out.buffer]);
             return;
          }
          case "extractClipboard":

@@ -207,6 +207,27 @@ async fn export_save(state: State<'_, AppState>) -> Result<Response, String> {
     Ok(Response::new(session.export_sav()?))
 }
 
+/// Regional extract: raw v1 frame bytes, never a JSON number array.
+/// The session mutex is held for both count and encode; this command does
+/// not await while the guard is live.
+#[tauri::command]
+async fn regional_scene(
+    request_json: String,
+    state: State<'_, AppState>,
+) -> Result<Response, String> {
+    let guard = state.session.lock().unwrap();
+    let session = match guard.as_ref() {
+        Some(session) => session,
+        None => {
+            return Err(sav_core::regional_scene::RegionalError::no_session(None).to_prefixed_json())
+        }
+    };
+    let bytes = session
+        .regional_scene(&request_json)
+        .map_err(|e| e.to_prefixed_json())?;
+    Ok(Response::new(bytes))
+}
+
 /// Where the game itself lists saves: %LOCALAPPDATA%\FactoryGame\Saved\
 /// SaveGames, descending into the per-account folder when there's exactly
 /// one. None (the dialog keeps its own default) when absent.
@@ -722,6 +743,7 @@ fn main() {
             apply_edits,
             export_save,
             export_save_dialog,
+            regional_scene,
             clipboard_write_text,
             read_paste_blob,
             extract_clipboard,

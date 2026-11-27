@@ -38,11 +38,26 @@ var Filters = {};
   // representative color (the rows inside still show their own correct color).
   var NEUTRAL_COLOR = "#999999";
 
+  var visibilityListeners = [];
+  var regionalByType = new Map();
+  var regionalIdMarks = new Map();
+  var regionalTempTypes = [];
+  var regionalTypes = [];
+
+  function notifyVisibility() {
+    visibilityListeners.forEach(function(listener) {
+      try {
+        listener();
+      } catch (e) { /* visibility listeners must not break filters */ }
+    });
+  }
+
   function redrawBuckets() {
     MapApp.layer.requestRedraw();
     if (window.HeightView && HeightView.onFiltersChanged) {
       HeightView.onFiltersChanged();
     }
+    notifyVisibility();
   }
 
   var PURITY_COLORS = { PURE: "#80b139", NORMAL: "#f26418", IMPURE: "#d23430", UNKNOWN: "#aaaaaa" };
@@ -670,6 +685,108 @@ var Filters = {};
   // in sync with) the sidebar's own row.
   var buildingSearchEntries = [];
   Filters.getBuildingSearchEntries = function() { return buildingSearchEntries; };
+
+  Filters.onVisibilityChanged = function(listener) {
+    if (typeof listener !== "function") {
+      return function() {};
+    }
+    visibilityListeners.push(listener);
+    return function() {
+      visibilityListeners = visibilityListeners.filter(function(item) { return item !== listener; });
+    };
+  };
+
+  Filters.registerRegionalTypes = function(types) {
+    regionalTypes = types || [];
+    var extras = [];
+    regionalTypes.forEach(function(typeRow) {
+      var typePath = typeRow && typeRow.typePath;
+      if (!typePath) {
+        return;
+      }
+      if (regionalByType.has(typePath)) {
+        return;
+      }
+      regionalByType.set(typePath, {
+        buckets: [],
+        category: (typeRow && typeRow.category) || "Unknown",
+        subcategory: typeRow && typeRow.subcategory,
+        temporary: true,
+      });
+      extras.push(typePath);
+    });
+    regionalTempTypes = extras;
+    return function release() {
+      extras.forEach(function(typePath) {
+        var entry = regionalByType.get(typePath);
+        if (entry && entry.temporary) {
+          regionalByType.delete(typePath);
+        }
+      });
+      regionalTempTypes = [];
+    };
+  };
+
+  // Temporary types have no 2D bucket. Read the current shared store, not a
+  // snapshot from registration, so Check/Uncheck-all and category toggles
+  // hide them in 3D the same way they hide 2D rows.
+  function sharedTypeVisible(typePath, category, subcategory) {
+    var key = "building:" + typePath;
+    if (savedVisibility.hasOwnProperty(key)) {
+      return !!savedVisibility[key];
+    }
+    var parts = [];
+    if (category) {
+      parts.push(category);
+    }
+    if (subcategory) {
+      parts.push(subcategory);
+    }
+    for (var depth = parts.length; depth > 0; depth--) {
+      var groupKey = "group:" + parts.slice(0, depth).join("/");
+      if (savedVisibility.hasOwnProperty(groupKey)) {
+        return !!savedVisibility[groupKey];
+      }
+    }
+    if (category && DEFAULT_HIDDEN_CATEGORIES[category]) {
+      return false;
+    }
+    if (savedVisibility.hasOwnProperty("*")) {
+      return !!savedVisibility["*"];
+    }
+    return true;
+  }
+
+  Filters.resolveRegionalVisibility = function(occupants) {
+    indexAdmittedMarks(occupants);
+    var mask = {};
+    (occupants || []).forEach(function(occupant) {
+      var typePath = occupant.typePath;
+      if (!typePath && regionalTypes[occupant.typeIndex]) {
+        typePath = regionalTypes[occupant.typeIndex].typePath;
+      }
+      if (!typePath || !regionalByType.has(typePath)) {
+        var err = new Error("No shared filter authority could be registered");
+        err.name = "RegionalError";
+        err.code = "VISIBILITY_UNMAPPED";
+        err.details = { typePath: typePath || "" };
+        throw err;
+      }
+      var marks = regionalIdMarks.get(occupant.id) || [];
+      var visible;
+      if (marks.length) {
+        visible = marks.some(function(mark) {
+          var hidden = mark.bucket.hiddenIndices && mark.bucket.hiddenIndices.has(mark.index);
+          return mark.bucket.visible && !hidden;
+        });
+      } else {
+        var entry = regionalByType.get(typePath);
+        visible = sharedTypeVisible(typePath, entry.category, entry.subcategory);
+      }
+      mask[occupant.id] = { visible: visible, typePath: typePath };
+    });
+    return mask;
+  };
   Filters.buildingCategoryColor = function(category) { return BUILDING_CATEGORY_COLORS[category] || BUILDING_CATEGORY_COLORS.Unknown; };
 
   // Vehicle counterpart of buildingSearchEntries: one row per vehicle type in
@@ -1913,8 +2030,95 @@ var Filters = {};
     // was hidden in the previous save.
     Filters.refreshHiddenObjectsIndicator();
 
+    indexRegionalRegistry();
     redrawBuckets();
   };
+
+  function addRegionalType(typePath, buckets, category, subcategory) {
+    if (!typePath) {
+      return;
+    }
+    var entry = regionalByType.get(typePath);
+    if (!entry) {
+      entry = {
+        buckets: [],
+        category: category || "Unknown",
+        subcategory: subcategory || null,
+        temporary: false,
+      };
+      regionalByType.set(typePath, entry);
+    }
+    (buckets || []).forEach(function(bucket) {
+      if (entry.buckets.indexOf(bucket) === -1) {
+        entry.buckets.push(bucket);
+      }
+    });
+  }
+
+  function indexRegionalRegistry() {
+    regionalByType = new Map();
+    regionalIdMarks = new Map();
+    regionalTempTypes = [];
+    function rememberRow(row) {
+      if (!row) {
+        return;
+      }
+      var paths = row.typePaths || [];
+      paths.forEach(function(typePath) {
+        addRegionalType(typePath, row.buckets || [], row.category, row.subcategory);
+      });
+    }
+    buildingSearchEntries.forEach(rememberRow);
+    vehicleSearchEntries.forEach(rememberRow);
+    wildlifeSearchEntries.forEach(rememberRow);
+    resourceSearchEntries.forEach(rememberRow);
+    ["belts", "lifts", "pipes"].forEach(function(kind) {
+      (layerCategoryRows[kind] || []).forEach(rememberRow);
+    });
+    var buckets = (MapApp.layer && MapApp.layer.buckets) || [];
+    buckets.forEach(function(bucket) {
+      if (bucket.key && bucket.key.indexOf("building:") === 0) {
+        addRegionalType(bucket.key.slice("building:".length), [bucket],
+          bucketCategoryLabel[bucket.key], null);
+      }
+    });
+  }
+
+  // Resolve admitted extract ids against current 2D buckets once the visit
+  // list is known. Do not retain a whole-save identity tree.
+  function indexAdmittedMarks(occupants) {
+    var wanted = new Set();
+    (occupants || []).forEach(function(occupant) {
+      if (occupant && occupant.id) {
+        wanted.add(occupant.id);
+      }
+    });
+    regionalIdMarks = new Map();
+    if (!wanted.size) {
+      return;
+    }
+    var remaining = wanted.size;
+    var buckets = (MapApp.layer && MapApp.layer.buckets) || [];
+    for (var bi = 0; bi < buckets.length && remaining > 0; bi++) {
+      var bucket = buckets[bi];
+      if (!bucket.ids) {
+        continue;
+      }
+      for (var index = 0; index < bucket.ids.length; index++) {
+        var id = bucket.ids[index];
+        if (!id || !wanted.has(id)) {
+          continue;
+        }
+        var marks = regionalIdMarks.get(id);
+        if (!marks) {
+          marks = [];
+          regionalIdMarks.set(id, marks);
+          remaining--;
+        }
+        marks.push({ bucket: bucket, index: index });
+      }
+    }
+  }
 
   // Tears the whole per-save UI down without building a new one -- the
   // "unload save" flow (see data.js's clearSave). Mirrors the reset half of
@@ -1939,6 +2143,10 @@ var Filters = {};
     bucketCategoryCheckbox = {};
     bucketCategoryLabel = {};
     groupCheckboxStates = [];
+    regionalByType = new Map();
+    regionalIdMarks = new Map();
+    regionalTempTypes = [];
+    regionalTypes = [];
     MapApp.layer.clearBuckets();
     deselectAllCategories();
     var totalEl = document.getElementById("totalObjectCount");

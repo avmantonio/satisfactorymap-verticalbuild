@@ -1,0 +1,71 @@
+{
+  "comment": "Hand-authored HEC-04 cases for solo_autosave_1.sav. Coordinates come from representative-cases.md (constructors ~px 730,5359; rail 4725,2145–4776,2233; flow/passthrough ~4477,6801). Fixtures are test-only and must not become product fallback data. The runner converts rectMapPx with the wire inverse of project_xy.",
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "solo-constructors",
+      "expect": "nonempty",
+      "require": ["constructor"],
+      "rectMapPx": { "minX": 699, "maxX": 761, "minY": 5328, "maxY": 5390 },
+      "cutZM": { "min": -80, "max": 120 },
+      "altitudeCapM": null
+    },
+    {
+      "id": "solo-rail",
+      "expect": "nonempty",
+      "require": ["path"],
+      "rectMapPx": { "minX": 4725, "maxX": 4776, "minY": 2145, "maxY": 2233 },
+      "cutZM": { "min": -80, "max": 200 },
+      "altitudeCapM": null
+    },
+    {
+      "id": "solo-flow-passthrough",
+      "expect": "nonempty",
+      "require": ["unknown-size"],
+      "rectMapPx": { "minX": 4446, "maxX": 4508, "minY": 6770, "maxY": 6832 },
+      "cutZM": { "min": -30, "max": 80 },
+      "altitudeCapM": null
+    },
+    {
+      "id": "empty-volume",
+      "expect": "empty",
+      "emptyReason": "NO_OCCUPANTS",
+      "rectMapPx": { "minX": 180, "maxX": 220, "minY": 180, "maxY": 220 },
+      "cutZM": { "min": 0, "max": 1 },
+      "altitudeCapM": null
+    },
+    {
+      "id": "disjoint-z",
+      "expect": "empty",
+      "emptyReason": "DISJOINT_Z",
+      "rectMapPx": { "minX": 699, "maxX": 761, "minY": 5328, "maxY": 5390 },
+      "cutZM": { "min": -80, "max": 120 },
+      "altitudeCapM": { "min": 5000, "max": 5100 }
+    },
+    {
+      "id": "invalid-xy",
+      "expect": "error",
+      "errorCode": "INVALID_REGION",
+      "xyM": { "minX": 10, "maxX": 10, "minY": 0, "maxY": 16 },
+      "cutZM": { "min": 0, "max": 20 },
+      "altitudeCapM": null
+    },
+    {
+      "id": "unsupported-schema",
+      "expect": "error",
+      "errorCode": "UNSUPPORTED_SCHEMA",
+      "schemaVersion": 2,
+      "xyM": { "minX": 0, "maxX": 16, "minY": 0, "maxY": 16 },
+      "cutZM": { "min": 0, "max": 20 },
+      "altitudeCapM": null
+    },
+    {
+      "id": "region-too-large",
+      "expect": "error",
+      "errorCode": "REGION_TOO_LARGE",
+      "xyM": { "minX": -400000, "maxX": 400000, "minY": -400000, "maxY": 400000 },
+      "cutZM": { "min": -2000, "max": 2000 },
+      "altitudeCapM": null
+    }
+  ]
+}

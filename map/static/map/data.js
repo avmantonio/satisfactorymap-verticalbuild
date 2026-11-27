@@ -170,11 +170,21 @@
 
   // The payload -> UI build chain, shared by save loads and save edits (the
   // editor's applyEdits returns a payload of exactly the same shape).
-  function applyPayload(payload) {
+  function applyPayload(payload, stamp) {
+    if (stamp && window.SaveClient && SaveClient.stampIsCurrent && !SaveClient.stampIsCurrent(stamp)) {
+      return false;
+    }
     Tooltip.hide();
     MapApp.setHighlight(null, null);
     if (window.HeightView && HeightView.isOpen()) {
       HeightView.dismiss();
+    }
+    if (window.HeightRegion && window.SaveClient && SaveClient.getSessionStamp) {
+      var committed = HeightRegion.getCommitted();
+      var epoch = SaveClient.getSessionStamp().saveEpoch;
+      if (committed && committed.saveEpoch !== epoch) {
+        HeightRegion.clear("new-save");
+      }
     }
     Filters.build(payload);
     Altitude.build(payload);
@@ -187,6 +197,10 @@
     // out-of-map build snaps the limits back too.
     MapApp.refreshMaxBounds();
     clearSaveBtn.style.display = "flex";
+    if (stamp && window.SaveClient && SaveClient.markPayloadInstalled) {
+      SaveClient.markPayloadInstalled(stamp);
+    }
+    return true;
   }
 
   // "Unload" (the eject button next to the Save File header): drop the
@@ -207,6 +221,9 @@
       return;
     }
     SaveClient.reset();
+    if (window.HeightRegion) {
+      HeightRegion.clear("unload");
+    }
     MapApp.currentFile = null;
     currentFile = null;
     currentPath = null;
@@ -278,12 +295,14 @@
     // what a user would call "how long it took".
     var startedAt = performance.now();
 
+    var loadOp = null;
     return file.arrayBuffer()
       .then(function(buffer) {
-        return SaveClient.loadSave(buffer, function(phase, current, total) {
+        loadOp = SaveClient.loadSave(buffer, function(phase, current, total) {
           var percent = total > 0 ? (current / total) * 100 : 0;
           showProgress(phase, percent);
         });
+        return loadOp;
       })
       .then(function(payload) {
         hideProgress();
@@ -296,7 +315,9 @@
         currentPath = null;
         currentUrl = null;
         EditorTool.onSaveLoaded(file.name);
-        applyPayload(payload);
+        if (!applyPayload(payload, loadOp && loadOp.sessionStamp)) {
+          return;
+        }
         if (pinnedSelection) {
           restorePinnedSelection(pinnedSelection);
         }
@@ -333,10 +354,11 @@
     var pinnedSelection = Tooltip.getPinnedSelection();
     showProgress("Reading file", 0);
 
-    return SaveClient.loadSavePath(path, function(phase, current, total) {
+    var loadOp = SaveClient.loadSavePath(path, function(phase, current, total) {
       var percent = total > 0 ? (current / total) * 100 : 0;
       showProgress(phase, percent);
-    })
+    });
+    return loadOp
       .then(function(payload) {
         hideProgress();
         loadInFlight = false;
@@ -346,7 +368,9 @@
         currentFile = null;
         currentUrl = null;
         EditorTool.onSaveLoaded(name);
-        applyPayload(payload);
+        if (!applyPayload(payload, loadOp.sessionStamp)) {
+          return;
+        }
         if (pinnedSelection) {
           restorePinnedSelection(pinnedSelection);
         }
@@ -421,14 +445,16 @@
     showProgress("Downloading", 0);
     var startedAt = performance.now();
     var bytes = 0;
+    var loadOp = null;
 
     return downloadSave(url)
       .then(function(buffer) {
         bytes = buffer.byteLength;
-        return SaveClient.loadSave(buffer, function(phase, current, total) {
+        loadOp = SaveClient.loadSave(buffer, function(phase, current, total) {
           var percent = total > 0 ? (current / total) * 100 : 0;
           showProgress(phase, percent);
         });
+        return loadOp;
       })
       .then(function(payload) {
         hideProgress();
@@ -439,7 +465,9 @@
         currentFile = null;
         currentPath = null;
         EditorTool.onSaveLoaded(name);
-        applyPayload(payload);
+        if (!applyPayload(payload, loadOp && loadOp.sessionStamp)) {
+          return;
+        }
         if (pinnedSelection) {
           restorePinnedSelection(pinnedSelection);
         }
@@ -677,6 +705,22 @@
       e.preventDefault();
       loadLocalFile(e.dataTransfer && e.dataTransfer.files[0]);
     });
+
+    if (window.SaveClient && SaveClient.onSessionInvalidated) {
+      SaveClient.onSessionInvalidated(function() {
+        if (!window.HeightRegion) {
+          return;
+        }
+        var committed = HeightRegion.getCommitted();
+        if (!committed) {
+          return;
+        }
+        var stamp = SaveClient.getSessionStamp();
+        if (!stamp || committed.saveEpoch !== stamp.saveEpoch) {
+          HeightRegion.clear("lost-session");
+        }
+      });
+    }
 
     // Auto-load a linked save (see loadRemoteUrl). Kicked off last so a
     // failed download still leaves every normal load path fully wired.

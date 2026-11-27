@@ -2835,6 +2835,40 @@ button:focus-visible, select:focus-visible, input[type="checkbox"]:focus-visible
    Hidden until a save is loaded (altitude.js). Because the dock's grid track
    is `auto`, hiding it costs zero width -- which is what removed the dead
    64px black strip that used to sit beside the map on first load. */
+.altitudeMetreLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--text);
+  width: 100%;
+  padding: 0 var(--sp-1);
+}
+
+.altitudeMetreLabel[hidden] {
+  display: none;
+}
+
+.altitudeMetreInput {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-2);
+  color: var(--text-bright);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  padding: var(--sp-1);
+}
+
+.altitudeMetreInput:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.altitudeMetreInput:disabled {
+  opacity: 0.5;
+}
+
 #altitudePanel {
   flex: none;
   width: var(--rail-width);

@@ -16,6 +16,10 @@ path = "src/lib.rs"
 name = "sav_tauri"
 path = "src/main.rs"
 
+[[example]]
+name = "regional_scene_dump"
+path = "examples/regional_scene_dump.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

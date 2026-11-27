@@ -17,6 +17,7 @@ use sav_core::editor;
 use sav_core::level::{parse_full_save_lean, ProgressFn};
 use sav_core::mapdata::{self, index::MapIndex};
 use sav_core::object::ClassTables;
+use sav_core::regional_scene::{self, RegionalError, RegionalRequest};
 use sav_core::save_header::SaveFileInfo;
 use sav_core::store::SaveStore;
 
@@ -222,5 +223,16 @@ impl AppSession {
     pub fn export_sav(&self) -> Result<Vec<u8>, String> {
         let store = self.store()?;
         Ok(editor::export_sav(&store.file_header, editor::effective_body(store)))
+    }
+
+    /// Atomic regional extract under the current session. Does not mutate the
+    /// store. Callers must hold the session guard across both count and encode.
+    pub fn regional_scene(&self, request_json: &str) -> Result<Vec<u8>, RegionalError> {
+        let store = match self.store.as_ref() {
+            Some(store) => store,
+            None => return Err(RegionalError::session_lost(None)),
+        };
+        let request = RegionalRequest::from_json(request_json)?;
+        regional_scene::regional_scene(store, &request)
     }
 }

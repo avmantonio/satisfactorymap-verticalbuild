@@ -94,6 +94,7 @@ use sav_core::level::{parse_full_save_lean, ProgressFn};
 use sav_core::mapdata;
 use sav_core::mapdata::index::MapIndex;
 use sav_core::object::ClassTables;
+use sav_core::regional_scene::{self, RegionalError, RegionalRequest};
 use sav_core::store::SaveStore;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
@@ -486,6 +487,21 @@ impl SaveSession {
             &store.file_header,
             sav_core::editor::effective_body(store),
         ))
+    }
+
+    /// Atomic regional extract. Success is a v1 `SMREG3D` frame copied into
+    /// a JS-owned `Uint8Array`. Failures are `REGIONAL_ERROR:` JSON.
+    pub fn regional_scene(&self, request_json: &str) -> Result<Vec<u8>, JsError> {
+        let store = match self.store.as_ref() {
+            Some(store) => store.as_ref(),
+            None => {
+                return Err(JsError::new(&RegionalError::session_lost(None).to_prefixed_json()));
+            }
+        };
+        let request = RegionalRequest::from_json(request_json)
+            .map_err(|e| JsError::new(&e.to_prefixed_json()))?;
+        regional_scene::regional_scene(store, &request)
+            .map_err(|e| JsError::new(&e.to_prefixed_json()))
     }
 
     pub fn selection_inventory(&self, names: Vec<String>) -> Result<String, JsError> {
