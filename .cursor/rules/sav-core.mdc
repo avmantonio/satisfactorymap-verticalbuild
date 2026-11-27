@@ -1,0 +1,17 @@
+---
+description: sav_core parser, mapdata port, and byte-splice editor
+globs: rust_parser/**/*.rs
+alwaysApply: false
+---
+
+# sav_core
+
+Pure Rust engine. `wasm/` and `tauri/` only bind it. Game tables are `include_str!`d — unpack generated data before compile.
+
+- `SaveStore` keeps the decompressed body; strings are `u32` spans into it. After load/edit, drop the object model; queries re-parse one object from its span (`parse_object_at`). Prefer `parse_full_save_lean`.
+- Mapdata is a behavioral port of the old Python builder. Keep IndexMap insertion order, `jsonval::py_hypot`, banker's `py_round`, Python `repr(float)`, `rem_euclid`. Payload already diets floats and drops `worldPositions`.
+- Untrusted counts: clamp before `Vec::with_capacity`. Sorts must be NaN-safe. Adversarial coverage lives in `tests/corrupt_input.rs` — new parse paths need a hostile case that `Err`s, never panics.
+- Editor applies a validated plan (bounds, disjoint removes) then mutates bytes; `apply_plan` must not partially commit. Session orchestration in `wasm/src/lib.rs` and `tauri/src/session.rs` stays in step.
+- wasm32-only size cap in `decompress.rs`. Native has no 4 GB ceiling. `parallel` (rayon) is native-only; chunk order must stay identical.
+- Conveyor 1.0 chains: do not synthesize `FGConveyorChainActor`. Follow `docs/chained-belt-delete.md`.
+- Tests read real saves from `map/uploads/` (`py tools/fetch_test_saves.py`). Run `cargo test -p sav_core --release`.

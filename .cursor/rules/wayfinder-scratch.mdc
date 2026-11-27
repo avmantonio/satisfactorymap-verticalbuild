@@ -1,0 +1,14 @@
+---
+description: Wayfinder tracker lives on scratch/vertical-builds, not main
+alwaysApply: true
+---
+
+# Wayfinder scratch worktree
+
+`.scratch/` is the Wayfinder tracker (maps, tickets, specs, graph). It is **not** product code.
+
+- Checkout: sibling worktree `../satisfactorymap-scratch` on branch `scratch/vertical-builds`.
+- Commit tracker/map/spec/graph/star-map changes **on that branch only**, then `git push origin scratch/vertical-builds`.
+- Never merge `scratch/vertical-builds` into `main`. Never `git add .scratch/` while on `main`.
+- Product work stays on feature branches from `main` in `../satisfactorymap`.
+- Glossary for this map: `CONTEXT.md` at the scratch worktree root.
