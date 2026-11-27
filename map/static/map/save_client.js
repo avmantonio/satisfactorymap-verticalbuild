@@ -728,3 +728,7 @@ const SaveClient = (() => {
       throw unexpected;
    }
 })();
+
+// Classic-script `const` is not a `window` property. Tests and optional
+// feature guards look up `window.SaveClient`.
+window.SaveClient = SaveClient;
