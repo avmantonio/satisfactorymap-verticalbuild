@@ -24,6 +24,7 @@ var RegionalViewer = (function() {
   var unsubInvalidated = null;
   var unsubVisibility = null;
   var occupants = null;
+  var visitModel = null;
   var queryDrain = Promise.resolve();
   var lastWasmSample = { unavailable: "not sampled" };
   var railFrozen = false;
@@ -352,14 +353,35 @@ var RegionalViewer = (function() {
     handle.setVisibility(booleanMask({ occupants: occupants }));
   }
 
+  function worldToSceneZ(range) {
+    var originZ = visitModel && visitModel.originM ? visitModel.originM[2] : 0;
+    if (!range || !isFinite(range.min) || !isFinite(range.max) || !isFinite(originZ)) {
+      return null;
+    }
+    return { min: range.min - originZ, max: range.max - originZ };
+  }
+
+  function cutMarginWorldZ(model) {
+    var loaded = loadedZFromModel(model);
+    var padded = sceneModule && sceneModule.occupantPaddedZ && sceneModule.occupantPaddedZ(model);
+    if (!loaded || !padded || !model.originM || !isFinite(model.originM[2])) {
+      return null;
+    }
+    var world = { min: padded.min + model.originM[2], max: padded.max + model.originM[2] };
+    var min = Math.max(loaded.min, world.min);
+    var max = Math.min(loaded.max, world.max);
+    if (!(max >= min)) {
+      return null;
+    }
+    return { min: min, max: max };
+  }
+
   function applyVisualZ() {
     if (!handle || state !== STATE_ACTIVE) {
       return;
     }
     var range = window.Altitude && Altitude.getRange ? Altitude.getRange() : MapApp.altitudeRange;
-    if (range && isFinite(range.min) && isFinite(range.max)) {
-      handle.setVisualZ({ min: range.min, max: range.max });
-    }
+    handle.setVisualZ(worldToSceneZ(range));
   }
 
   function restoreSameSave() {
@@ -403,6 +425,7 @@ var RegionalViewer = (function() {
     }
     host = null;
     occupants = null;
+    visitModel = null;
   }
 
   function releaseVisitResources() {
@@ -656,10 +679,13 @@ var RegionalViewer = (function() {
     }
     host = document.createElement("div");
     host.className = "regionalViewerHost";
+    visitModel = model;
+    var initialVisualZ = sceneModule.occupantPaddedZ ? sceneModule.occupantPaddedZ(model) : null;
     handle = await sceneModule.createRegionalScene({
       host: host,
       model: model,
       visibility: mask,
+      visualZ: initialVisualZ,
       signal: signal,
       onFailure: function(error) {
         failCurrent(id, error, true);
@@ -679,7 +705,7 @@ var RegionalViewer = (function() {
     if (window.HeightView && HeightView.suspendForViewer) {
       HeightView.suspendForViewer();
     }
-    endAltitude = Altitude.beginRegionalWindow(loadedZFromModel(model));
+    endAltitude = Altitude.beginRegionalWindow(loadedZFromModel(model), cutMarginWorldZ(model));
     handle.setVisibility(mask);
     if (abandonIfStale(id)) {
       if (endAltitude) {
@@ -705,6 +731,9 @@ var RegionalViewer = (function() {
       attached = true;
       state = STATE_ACTIVE;
       applyVisualZ();
+      if (handle.resetCamera) {
+        handle.resetCamera();
+      }
     } catch (error) {
       attached = false;
       setOverlayVisible(false);

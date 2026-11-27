@@ -401,7 +401,7 @@ var Altitude = {};
     setVisitDisabled(!!frozen, reason || "3D view is preparing");
   };
 
-  Altitude.beginRegionalWindow = function(loadedZ) {
+  Altitude.beginRegionalWindow = function(loadedZ, initialZ) {
     if (!visitEnded && visitMode) {
       return visitMode.end;
     }
@@ -427,7 +427,10 @@ var Altitude = {};
       maxSlider.max = visitMode.loadedZ.max;
       minSlider.max = visitMode.loadedZ.max;
       maxSlider.min = visitMode.loadedZ.min;
-      setRange(visitMode.loadedZ.min, visitMode.loadedZ.max);
+      var start = initialZ && isFinite(initialZ.min) && isFinite(initialZ.max)
+        ? initialZ
+        : visitMode.loadedZ;
+      setRange(start.min, start.max);
     }
     layoutSliders();
     visitMode.end = Altitude.endRegionalWindow;
