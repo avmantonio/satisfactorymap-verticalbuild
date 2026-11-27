@@ -523,6 +523,169 @@ def run(page, save):
           healthy)
     check("HEC-07 visibility/Z hooks", not any(str(item).startswith("hec07") for item in (hec.get("fails") or [])))
 
+    # ---- Regional renderer kit (HEC-08/09), test-only detached host ----------
+    # Frozen protocol/form fixtures drive the adapter. This is not product
+    # entry, not a replacement save API, and not actual-save geometry acceptance.
+    leafletBefore = page.evaluate("""() => ({
+      ready: !!(window.SaveClient && SaveClient.isReady()),
+      gl: !!(MapApp.layer && MapApp.layer._gl) && !MapApp.layer._gl.isContextLost()
+    })""")
+    kit = page.evaluate("""async () => {
+      const fails = [];
+      const fail = (name, detail) => { fails.push(name + (detail ? ': ' + detail : '')); };
+      const liveZero = (live, label) => {
+        const keys = ['canvases','controls','listeners','observers','raf','geometries','materials','renderers','decodedRefs'];
+        const leftover = keys.filter((k) => (live && live[k]) > 0);
+        if (leftover.length) fail(label, JSON.stringify(live));
+      };
+      try {
+        const sceneMod = await import('/regional_scene.js');
+        const formsMod = await import('/regional_forms.js');
+        const { createRegionalScene, setRegionalSceneTestFailure, regionalSceneLiveResources } = sceneMod;
+        const host = document.createElement('div');
+        host.id = 'regionalSceneTestHost';
+        host.style.cssText = 'position:fixed;left:8px;top:8px;width:480px;height:320px;z-index:20;pointer-events:auto;';
+        document.body.appendChild(host);
+
+        const pose = new Float32Array([-4, -4, -2, 0, 0, 0, 1, 1, 1, 1, 8, 8, 4, 0, 0, 2]);
+        const poseSmelter = new Float32Array([4, 0, 0, 0, 0, 0, 1, 1, 1, 1, 5, 10, 4.5, 0, 0, 0]);
+        const poseUnknown = new Float32Array([0, 4, 0, 0, 0, 0, 1, 0, 0, 0, 8, 8, 4, 0, 0, 0]);
+        const posePath = new Float32Array([-8, -8, -10, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0]);
+        const poses = new Float32Array(16 * 4);
+        poses.set(pose, 0);
+        poses.set(poseSmelter, 16);
+        poses.set(poseUnknown, 32);
+        poses.set(posePath, 48);
+        const model = {
+          schemaVersion: 1, requestId: 'regional:kit', originM: [0, 0, 0],
+          effectiveBoundsM: { min: [-16, -16, -8], max: [16, 16, 16] },
+          emptyReason: null,
+          types: [
+            { typePath: '/Game/FactoryGame/Buildable/Building/Foundation.Build_Foundation_8x4_01_C', label: 'Foundation', category: 'Foundation', subcategory: 'Floors' },
+            { typePath: '/Game/FactoryGame/Buildable/Factory/SmelterMk1.Build_SmelterMk1_C', label: 'Smelter', category: 'Production', subcategory: null },
+            { typePath: '/Game/FactoryGame/Buildable/Factory/MinerMk1.Build_MinerMk1_C', label: 'Miner', category: 'Production', subcategory: null },
+            { typePath: '/Game/FactoryGame/Buildable/Factory/ConveyorBeltMk1.Build_ConveyorBeltMk1_C', label: 'Belt', category: 'Logistics', subcategory: null }
+          ],
+          occupants: [
+            { id: 'F1', typeIndex: 0, sourceKind: 'actor', recordKind: 'occupant', sizeKind: 'named-box', poseFlags: 15, pathState: 'not-path', uncertainty: [] },
+            { id: 'S1', typeIndex: 1, sourceKind: 'actor', recordKind: 'occupant', sizeKind: 'clearance-reserve', poseFlags: 7, pathState: 'not-path', uncertainty: [] },
+            { id: 'U1', typeIndex: 2, sourceKind: 'lightweight', recordKind: 'occupant', sizeKind: 'named-box', poseFlags: 13, pathState: 'not-path', uncertainty: ['scale-unknown'] },
+            { id: 'P1', typeIndex: 3, sourceKind: 'actor', recordKind: 'path', sizeKind: 'unknown', poseFlags: 3, pathState: 'linear', uncertainty: [] }
+          ],
+          poses,
+          fragments: new Uint32Array([3, 0, 2, 0]),
+          vertices: new Float32Array([-8, -6, -5, 0, 0, 0, 0, 0, 0, 8, -6, -5, 0, 0, 0, 0, 0, 0]),
+          vertexFlags: new Uint32Array([4, 4]),
+          bytes: new Uint8Array(0),
+          counts: { occupants: 4, fragments: 1, vertices: 2 }
+        };
+
+        const classified = model.occupants.map((row, i) => formsMod.classifyOccupant(row, model.types[row.typeIndex]));
+        if (classified[0].visual !== 'named-form') fail('hec09-floor', classified[0].visual);
+        if (!(classified[1].visual === 'reserve-cue' && classified[1].envelope && classified[1].cue)) fail('hec09-smelter');
+        if (classified[2].visual !== 'uncertain-marker') fail('hec09-scale');
+        if (classified[3].visual !== 'static-path') fail('hec09-path');
+        if (formsMod.recipeIdForClass(model.types[2].typePath) !== null) fail('hec09-unlisted-recipe');
+
+        const handle = await createRegionalScene({ host, model, visibility: { F1: true, S1: true, U1: true, P1: true } });
+        handle.attach();
+        handle.resize();
+        handle.resetCamera();
+        handle.setVisibility({ F1: true, S1: false, U1: true, P1: true });
+        handle.setVisualZ({ min: -8, max: 16 });
+        const inspected = handle.inspect();
+        if (!inspected.legend || inspected.legend.indexOf('not collision') < 0) fail('hec09-legend');
+        if (!inspected.summary || inspected.summary.indexOf('Admitted') < 0) fail('hec09-summary');
+        const smelter = inspected.occupants.find((row) => row.id === 'S1');
+        if (!smelter || !smelter.envelope || !smelter.cue) fail('hec09-envelope');
+        const floor = inspected.occupants.find((row) => row.id === 'F1');
+        if (!floor || floor.visual !== 'named-form') fail('hec09-floor-draw');
+        const canvas = host.querySelector('canvas.regionalSceneCanvas');
+        if (!canvas || canvas.getAttribute('aria-label') !== 'Regional 3D view' || canvas.tabIndex < 0) {
+          fail('hec08-canvas-a11y');
+        }
+        canvas.focus();
+        if (document.activeElement !== canvas) fail('hec08-focus');
+
+        handle.dispose();
+        handle.dispose();
+        liveZero(regionalSceneLiveResources(), 'hec08-after-dispose');
+        if (host.querySelector('canvas')) fail('hec08-canvas-left');
+
+        const aborted = new AbortController();
+        aborted.abort();
+        let abortCode = null;
+        try {
+          await createRegionalScene({ host, model, signal: aborted.signal });
+        } catch (error) {
+          abortCode = error && error.code;
+        }
+        if (abortCode !== 'CANCELLED') fail('hec08-abort', String(abortCode));
+        liveZero(regionalSceneLiveResources(), 'hec08-after-abort');
+
+        setRegionalSceneTestFailure('shader');
+        let shaderCode = null;
+        try {
+          await createRegionalScene({ host, model });
+        } catch (error) {
+          shaderCode = error && error.code;
+        }
+        if (shaderCode !== 'RENDER_FAILED') fail('hec08-shader', String(shaderCode));
+        liveZero(regionalSceneLiveResources(), 'hec08-after-shader');
+
+        let lost = null;
+        const liveHandle = await createRegionalScene({
+          host, model,
+          onFailure: (error) => { lost = error && error.code; }
+        });
+        liveHandle.attach();
+        const glCanvas = host.querySelector('canvas.regionalSceneCanvas');
+        const gl = glCanvas.getContext('webgl2') || glCanvas.getContext('webgl');
+        const ext = gl && gl.getExtension('WEBGL_lose_context');
+        if (!ext) fail('hec08-lose-ext');
+        else ext.loseContext();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        if (lost !== 'RENDER_FAILED') fail('hec08-context-loss', String(lost));
+        liveHandle.dispose();
+        liveZero(regionalSceneLiveResources(), 'hec08-after-context');
+
+        const emptyModel = {
+          schemaVersion: 1, requestId: 'regional:empty', originM: [0, 0, 0],
+          effectiveBoundsM: null, emptyReason: 'DISJOINT_Z', types: [], occupants: [],
+          poses: new Float32Array(0), fragments: new Uint32Array(0),
+          vertices: new Float32Array(0), vertexFlags: new Uint32Array(0),
+          bytes: new Uint8Array(0), counts: { occupants: 0, fragments: 0, vertices: 0 }
+        };
+        const empty = await createRegionalScene({ host, model: emptyModel });
+        empty.attach();
+        const emptyInspect = empty.inspect();
+        if (!emptyInspect.status || emptyInspect.status.indexOf('do not overlap') < 0) fail('hec08-empty');
+        empty.dispose();
+        liveZero(regionalSceneLiveResources(), 'hec08-after-empty');
+        if (host.parentNode) host.parentNode.removeChild(host);
+      } catch (error) {
+        fail('hec08-exception', String(error && error.stack || error));
+        try {
+          const sceneMod = await import('/regional_scene.js');
+          liveZero(sceneMod.regionalSceneLiveResources(), 'hec08-exception-live');
+        } catch (ignored) {}
+      }
+      return { fails };
+    }""")
+    for item in kit.get("fails") or []:
+        check("HEC kit " + item.split(":")[0], False, item)
+    if not (kit.get("fails") or []):
+        check("HEC-08 adapter lifetime/disposal", True)
+        check("HEC-09 rendered form fixtures", True)
+    leafletAfter = page.evaluate("""() => ({
+      ready: !!(window.SaveClient && SaveClient.isReady()),
+      gl: !!(MapApp.layer && MapApp.layer._gl) && !MapApp.layer._gl.isContextLost()
+    })""")
+    check("adapter did not dispose Leaflet/SaveClient",
+          leafletBefore.get("ready") and leafletAfter.get("ready")
+          and leafletBefore.get("gl") and leafletAfter.get("gl"),
+          {"before": leafletBefore, "after": leafletAfter})
+
     check("no JS errors overall", not errors, errors[:5])
 
 
