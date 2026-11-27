@@ -656,6 +656,28 @@ def run(page, save):
           if (!moved) fail('hec08-orbit-azimuth-xy', JSON.stringify({ cam0, cam1 }));
         }
 
+        const distOf = (cam) => Math.hypot(
+          cam.position[0] - cam.target[0],
+          cam.position[1] - cam.target[1],
+          cam.position[2] - cam.target[2],
+        );
+        const camHome = handle.inspect().camera;
+        const distHome = distOf(camHome);
+        if (!(camHome.minDistance > 0) || camHome.minDistance >= distHome) {
+          fail('hec08-min-distance', JSON.stringify(camHome));
+        }
+        for (let i = 0; i < 40; i++) {
+          canvas.dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true, cancelable: true }));
+        }
+        const camClose = handle.inspect().camera;
+        const distClose = distOf(camClose);
+        if (distClose + 1e-3 < camClose.minDistance) {
+          fail('hec08-dolly-clamp', JSON.stringify({ distClose, camClose }));
+        }
+        if (distClose < 1) {
+          fail('hec08-dolly-inside', JSON.stringify({ distClose, distHome, camClose }));
+        }
+
         handle.dispose();
         handle.dispose();
         liveZero(regionalSceneLiveResources(), 'hec08-after-dispose');

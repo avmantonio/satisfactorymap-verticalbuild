@@ -190,6 +190,33 @@ function regionFrame(model) {
   return { target: mid, frameMin, frameMax, rawMin, rawMax, empty: false };
 }
 
+function frameCornerRadius(frame) {
+  const target = new THREE.Vector3(frame.target[0], frame.target[1], frame.target[2]);
+  let radius = 0.5;
+  for (const x of [frame.frameMin[0], frame.frameMax[0]]) {
+    for (const y of [frame.frameMin[1], frame.frameMax[1]]) {
+      for (const z of [frame.frameMin[2], frame.frameMax[2]]) {
+        radius = Math.max(radius, target.distanceTo(new THREE.Vector3(x, y, z)));
+      }
+    }
+  }
+  return radius;
+}
+
+function syncPerspective(camera, distance, radius, maxDistance) {
+  const clearance = Math.max(0.5, distance - radius);
+  camera.near = Math.max(0.05, Math.min(distance * 0.05, clearance * 0.5));
+  camera.far = Math.max(camera.near * 20, (maxDistance || distance) + radius * 2);
+  camera.updateProjectionMatrix();
+}
+
+function limitOrbit(controls, dist, radius) {
+  const minDistance = Math.min(Math.max(radius * 1.15, 1), dist * 0.92);
+  controls.minDistance = minDistance;
+  controls.maxDistance = Math.max(dist * 6, minDistance * 2);
+  return minDistance;
+}
+
 function fitCamera(camera, controls, frame, aspect) {
   const vFov = THREE.MathUtils.degToRad(45);
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * Math.max(aspect, 1e-6));
@@ -229,21 +256,12 @@ function fitCamera(camera, controls, frame, aspect) {
   camera.lookAt(target);
   camera.fov = 45;
   camera.aspect = aspect;
-  let near = dist;
-  let far = dist;
-  corners.forEach((corner) => {
-    const camSpace = corner.clone().sub(position);
-    const look = target.clone().sub(position).normalize();
-    const z = camSpace.dot(look);
-    near = Math.min(near, z);
-    far = Math.max(far, z);
-  });
-  camera.near = Math.max(0.05, near * 0.5);
-  camera.far = Math.max(camera.near * 20, far * 2);
-  camera.updateProjectionMatrix();
+  const radius = frameCornerRadius(frame);
+  const minDistance = limitOrbit(controls, dist, radius);
+  syncPerspective(camera, dist, radius, controls.maxDistance);
   controls.target.copy(target);
   controls.update();
-  return { target: target.clone(), position: position.clone(), dist };
+  return { target: target.clone(), position: position.clone(), dist, radius, minDistance };
 }
 
 function aabbIntersectsZ(aabb, zRange) {
@@ -880,7 +898,17 @@ export async function createRegionalScene(options) {
     applyCameraFit();
     rebuildDrawing();
 
-    listen(ledger, controls, "change", invalidate);
+    listen(ledger, controls, "change", () => {
+      if (home) {
+        syncPerspective(
+          camera,
+          camera.position.distanceTo(controls.target),
+          home.radius,
+          controls.maxDistance,
+        );
+      }
+      invalidate();
+    });
     listen(ledger, canvas, "webglcontextlost", (event) => {
       event.preventDefault();
       contextLost = true;
@@ -948,7 +976,12 @@ export async function createRegionalScene(options) {
 
     function dollyBy(factor) {
       const offset = camera.position.clone().sub(controls.target);
-      offset.multiplyScalar(factor);
+      const length = offset.length();
+      if (length < 1e-9) {
+        return;
+      }
+      const next = THREE.MathUtils.clamp(length * factor, controls.minDistance, controls.maxDistance);
+      offset.multiplyScalar(next / length);
       camera.position.copy(controls.target).add(offset);
       controls.update();
     }
@@ -1042,6 +1075,11 @@ export async function createRegionalScene(options) {
             up: [camera.up.x, camera.up.y, camera.up.z],
             position: [camera.position.x, camera.position.y, camera.position.z],
             target: [controls.target.x, controls.target.y, controls.target.z],
+            near: camera.near,
+            far: camera.far,
+            distance: camera.position.distanceTo(controls.target),
+            minDistance: controls.minDistance,
+            maxDistance: controls.maxDistance,
           },
           occupants: records.map((record) => ({
             id: record.occupant.id,
