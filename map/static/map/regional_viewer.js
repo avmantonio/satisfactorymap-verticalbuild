@@ -430,14 +430,31 @@ var RegionalViewer = (function() {
     }
   }
 
+  function restoreOpenHeightView(hadAttached, snap) {
+    if (hadAttached || !snap || !snap.heightViewWasOpen) {
+      return;
+    }
+    if (!window.HeightView || !HeightView.reopenCommitted) {
+      return;
+    }
+    if (HeightView.isOpen && HeightView.isOpen()) {
+      return;
+    }
+    HeightView.reopenCommitted();
+  }
+
   function cleanupToIdle(opts) {
     opts = opts || {};
     var hadAttached = attached;
+    var snap = snapshot;
     releaseVisitResources();
     if (opts.restore !== false) {
       restoreSameSave();
     } else {
       hideLeaflet(false);
+    }
+    if (opts.restore !== false) {
+      restoreOpenHeightView(hadAttached, snap);
     }
     attached = false;
     state = STATE_IDLE;
@@ -647,6 +664,9 @@ var RegionalViewer = (function() {
     mask = booleanMask(model);
     occupants = model.occupants;
     freezeRail(false);
+    if (window.HeightView && HeightView.suspendForViewer) {
+      HeightView.suspendForViewer();
+    }
     endAltitude = Altitude.beginRegionalWindow(loadedZFromModel(model));
     handle.setVisibility(mask);
     if (abandonIfStale(id)) {
@@ -662,12 +682,7 @@ var RegionalViewer = (function() {
       freezeRail(false);
       return;
     }
-    var suspended = false;
     try {
-      if (window.HeightView && HeightView.suspendForViewer) {
-        HeightView.suspendForViewer();
-        suspended = true;
-      }
       hideLeaflet(true);
       if (overlayHost) {
         overlayHost.appendChild(host);
@@ -682,9 +697,6 @@ var RegionalViewer = (function() {
       attached = false;
       setOverlayVisible(false);
       hideLeaflet(false);
-      if (suspended && snap.heightViewWasOpen && window.HeightView && HeightView.reopenCommitted) {
-        HeightView.reopenCommitted();
-      }
       throw error;
     }
     announce("");

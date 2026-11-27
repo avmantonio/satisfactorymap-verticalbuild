@@ -2538,7 +2538,7 @@ var HeightView = {};
   };
 
   HeightView.onAltitudeChanged = function() {
-    if (!isolation) {
+    if (viewerSuspended || !isolation) {
       return;
     }
     var prevBand = { min: band.min, max: band.max };
@@ -2563,6 +2563,9 @@ var HeightView = {};
   HeightView.onPlacementChanged = function() {
     if (isolation) {
       positionEdgeHandles();
+    }
+    if (window.RegionalViewer && RegionalViewer.syncChrome) {
+      RegionalViewer.syncChrome();
     }
   };
 

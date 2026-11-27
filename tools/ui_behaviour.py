@@ -830,6 +830,40 @@ def run(page, save):
         if (HeightView.isOpen()) fail('c015-reenter-hv');
 
         HeightView.reopenCommitted();
+        const placeBox = SelectionTool.collectInBox(rect.minX, rect.maxX, rect.minY, rect.maxY) || [];
+        const placeRow = placeBox.find((row) => row.bucket && row.bucket.key && row.bucket.key.indexOf('building:') === 0);
+        if (placeRow) {
+          SelectionTool.setRecords([placeRow]);
+          const keysPlace = SelectionTool.identitySnapshot();
+          const placeTargets = SelectionTool.currentEditTargets && SelectionTool.currentEditTargets();
+          if (placeTargets && (placeTargets.actorNames.length + placeTargets.lightweight.length) > 0) {
+            EditorTool.startMove(placeTargets);
+            const enterBtn = document.getElementById('regionalEnterBtn');
+            if (!enterBtn || !enterBtn.disabled) fail('c015-place-start-enabled');
+            await RegionalViewer.enter();
+            if (RegionalViewer.state() !== 'idle') fail('c015-place-entered');
+            if (!enterBtn.disabled) fail('c015-place-refused-enabled');
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            if (EditorTool.isPlacing()) fail('c015-place-still');
+            if (enterBtn.disabled) fail('c015-place-cancel-stuck', enterBtn.title);
+          } else {
+            fail('c015-place-no-targets');
+          }
+          await RegionalViewer.enter();
+          await waitActive();
+          if (JSON.stringify(SelectionTool.identitySnapshot()) !== JSON.stringify(keysPlace)) {
+            fail('c015-visit-mutated-selection');
+          }
+          RegionalViewer.exit('back');
+          await waitIdle();
+          if (JSON.stringify(SelectionTool.identitySnapshot()) !== JSON.stringify(keysPlace)) {
+            fail('c015-exit-mutated-selection');
+          }
+        } else {
+          fail('c015-no-place-row');
+        }
+
+        HeightView.reopenCommitted();
         const inBox = SelectionTool.collectInBox(rect.minX, rect.maxX, rect.minY, rect.maxY) || [];
         const editable = inBox.find((row) => row.bucket && row.bucket.key && row.bucket.key.indexOf('building:') === 0);
         if (editable) {
