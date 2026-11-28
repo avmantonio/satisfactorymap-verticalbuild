@@ -354,21 +354,23 @@ var RegionalViewer = (function() {
     handle.setVisibility(booleanMask({ occupants: occupants }));
   }
 
-  function worldToSceneZ(range) {
-    var originZ = visitModel && visitModel.originM ? visitModel.originM[2] : 0;
+  // Altitude controls and SceneHandle.setVisualZ speak world metres. The
+  // renderer alone converts those ranges into origin-relative scene space.
+  function sceneToWorldZ(range, model) {
+    var originZ = model && model.originM ? model.originM[2] : NaN;
     if (!range || !isFinite(range.min) || !isFinite(range.max) || !isFinite(originZ)) {
       return null;
     }
-    return { min: range.min - originZ, max: range.max - originZ };
+    return { min: range.min + originZ, max: range.max + originZ };
   }
 
   function cutMarginWorldZ(model) {
     var loaded = loadedZFromModel(model);
     var padded = sceneModule && sceneModule.occupantPaddedZ && sceneModule.occupantPaddedZ(model);
-    if (!loaded || !padded || !model.originM || !isFinite(model.originM[2])) {
+    var world = sceneToWorldZ(padded, model);
+    if (!loaded || !world) {
       return null;
     }
-    var world = { min: padded.min + model.originM[2], max: padded.max + model.originM[2] };
     var min = Math.max(loaded.min, world.min);
     var max = Math.min(loaded.max, world.max);
     if (!(max >= min)) {
@@ -382,7 +384,7 @@ var RegionalViewer = (function() {
       return;
     }
     var range = window.Altitude && Altitude.getRange ? Altitude.getRange() : MapApp.altitudeRange;
-    handle.setVisualZ(worldToSceneZ(range));
+    handle.setVisualZ(range);
   }
 
   function restoreSameSave() {
@@ -682,6 +684,7 @@ var RegionalViewer = (function() {
     host.className = "regionalViewerHost";
     visitModel = model;
     var initialVisualZ = sceneModule.occupantPaddedZ ? sceneModule.occupantPaddedZ(model) : null;
+    initialVisualZ = sceneToWorldZ(initialVisualZ, model);
     handle = await sceneModule.createRegionalScene({
       host: host,
       model: model,
