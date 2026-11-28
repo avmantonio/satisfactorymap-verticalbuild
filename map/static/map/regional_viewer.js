@@ -208,7 +208,8 @@ var RegionalViewer = (function() {
   function syncChrome() {
     var reason = entryBlockReason();
     var committed = window.HeightRegion && HeightRegion.getCommitted();
-    var showBar = !!(committed && state !== STATE_ACTIVE);
+    // Preparation uses the same top slot as the idle region actions.
+    var showBar = !!(committed && state === STATE_IDLE);
     if (regionBar) {
       regionBar.hidden = !showBar;
       regionBar.style.display = showBar ? "flex" : "none";

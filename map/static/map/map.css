@@ -3493,10 +3493,6 @@ body.height-view-side #selectionPanel {
 #regionalEnterReason {
   color: var(--muted);
 }
-#regionalViewerProgress {
-  top: auto;
-  bottom: var(--sp-6);
-}
 #regionalViewer {
   position: fixed;
   top: var(--appbar-height);
