@@ -33,8 +33,12 @@ previous extended acceptance checks without making every daily run pay for them.
 It still contains legacy large JavaScript evaluations. Extracted does **not**
 mean those internals have all been redesigned.
 
-The existing CI command now runs the daily guard. Specialized groups remain
-explicit commands; they are not automatically scheduled by this change.
+CI explicitly runs `--suite shell 3d` after pushes to `main` and `dev/**`,
+and on manual runs, not on PRs. A newer push cancels an older CI run for the
+same branch; PR and manual runs have separate concurrency groups.
+In GitHub Actions → CI → Run workflow, enable `regional_diagnostics` to
+additionally run `--suite hooks renderer stress`. The extended groups reuse
+the same build and are not scheduled on normal pushes.
 
 ## Old-to-new guarantee map
 

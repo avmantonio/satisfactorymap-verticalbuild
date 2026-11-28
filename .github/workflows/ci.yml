@@ -3,9 +3,20 @@ name: CI
 # No-op comment: keep this workflow eligible to run on the fork.
 on:
   push:
-    branches: [main]
+    branches: [main, 'dev/**']
   pull_request:
   workflow_dispatch:
+    inputs:
+      regional_diagnostics:
+        description: Run extended regional hooks, renderer and 20-visit stress checks
+        type: boolean
+        default: false
+
+# A newer push supersedes an older run of this workflow on the same ref.
+# PR refs remain separate from branch pushes, as do manual and automatic runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   rust-tests:
@@ -98,9 +109,13 @@ jobs:
       - name: Install browser test dependencies
         if: github.event_name != 'pull_request'
         run: python3 -m pip install -r requirements.txt
-      - name: Check browser UI behavior
+      - name: Check daily browser UI behavior
         if: github.event_name != 'pull_request'
         # GitHub's ubuntu-latest x64 image includes Chrome; ui_behaviour.py
-        # launches the system browser with channel="chrome". Run the full
-        # 20-visit browser suite after merge or on manual dispatch, not per PR.
-        run: python3 tools/ui_behaviour.py --serve
+        # launches the system browser with channel="chrome". Keep the normal
+        # post-merge/manual guard focused on the shell and essential 3D journey.
+        run: python3 tools/ui_behaviour.py --serve --suite shell 3d
+      - name: Check extended regional browser diagnostics
+        if: github.event_name == 'workflow_dispatch' && inputs.regional_diagnostics
+        # Opt in from Run workflow; reuse the site build and dependencies above.
+        run: python3 tools/ui_behaviour.py --serve --suite hooks renderer stress
