@@ -120,7 +120,9 @@ tests, so these are what make a CSS or layout change verifiable:
 ```bash
 py tools/ui_shots.py --serve --out ui_shots/before   # record, then make changes
 py tools/ui_shots.py --serve --out ui_shots/after --baseline ui_shots/before
-py tools/ui_behaviour.py --serve                     # dialogs, Escape layers, docks
+py tools/ui_behaviour.py --serve                     # daily: shell + essential 3D journey
+py tools/ui_behaviour.py --serve --suite hooks renderer  # targeted regional diagnostics
+py tools/ui_behaviour.py --serve --suite stress       # extended integration + 20 visits
 py tools/ui_classes.py                               # static: nothing renders unstyled
 ```
 
@@ -129,6 +131,11 @@ pixel-wise against a previous run; `ui_behaviour.py` asserts the things a
 screenshot cannot see (that dialogs are real modals, that the tooltip still
 paints above one, that opening a category does not resize the map). Both run
 against `dist/`, so build or copy the changed files there first.
+
+The behaviour runner isolates each group in a fresh page/save. The default does
+not run the extended regional diagnostics; use `--suite all` for everything.
+See [UI behaviour scope and maintenance](docs/ui-behaviour-tests.md) for group
+ownership, fixture requirements and known limits.
 
 `ui_classes.py` needs no browser at all: it flags any element the JS builds
 whose classes are ALL unstyled, which is what a renamed CSS class with a missed
