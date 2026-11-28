@@ -47,10 +47,16 @@ jobs:
         working-directory: rust_parser
 
   wasm-build:
-    name: WASM build
+    name: WASM and frontend integration
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -70,10 +76,31 @@ jobs:
         run: |
           wget -q -O game_data.zip https://github.com/valentinps/satisfactorymap/releases/download/game-data-v3/game_data.zip
           python3 game_data/package_game_data.py unpack game_data.zip
+      - name: Cache test saves
+        if: github.event_name != 'pull_request'
+        uses: actions/cache@v4
+        with:
+          path: map/uploads
+          key: test-saves-v2
+      - name: Fetch test saves
+        if: github.event_name != 'pull_request'
+        run: python3 tools/fetch_test_saves.py
+      - name: Install build dependencies
+        run: python3 -m pip install -r requirements-build.txt
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-      - name: wasm-pack build
-        # Same flags as tools/build_site.py so CI catches what production hits.
-        run: wasm-pack build rust_parser/wasm --release --target no-modules --no-typescript
-        env:
-          RUSTFLAGS: -C target-feature=+simd128,+bulk-memory
+      - name: Build deployable site (includes WASM)
+        run: python3 tools/build_site.py
+      - name: Check regional decoder
+        run: node tools/check_regional_wire.mjs
+      - name: Check regional static resources
+        run: python3 tools/check_regional_assets.py
+      - name: Install browser test dependencies
+        if: github.event_name != 'pull_request'
+        run: python3 -m pip install -r requirements.txt
+      - name: Check browser UI behavior
+        if: github.event_name != 'pull_request'
+        # GitHub's ubuntu-latest x64 image includes Chrome; ui_behaviour.py
+        # launches the system browser with channel="chrome". Run the full
+        # 20-visit browser suite after merge or on manual dispatch, not per PR.
+        run: python3 tools/ui_behaviour.py --serve

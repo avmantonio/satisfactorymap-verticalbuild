@@ -1,0 +1,3 @@
+# Pillow is used by offline game-data extraction and the tile pyramid in
+# tools/build_site.py. It is not needed at runtime; the app is a static site.
+Pillow>=10,<12

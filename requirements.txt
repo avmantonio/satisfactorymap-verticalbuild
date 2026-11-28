@@ -1,8 +1,6 @@
-# Pillow: offline game-data extraction (game_data/extract_map_image.py) AND
-# the tile-pyramid cut in tools/build_site.py (buildTiles). Needed for a full
-# `py tools/build_site.py`; not needed at runtime -- the app is a static site.
-Pillow>=10,<12
-# Playwright: browser-driven tooling only (tools/benchmark.py,
-# tools/e2e_editor.py). Install its browser with `playwright install chromium`
-# or use the system Chrome channel. Not needed to build or run the site.
+# Build dependencies required for map tile generation.
+-r requirements-build.txt
+# Playwright: browser-driven tooling only (tools/ui_behaviour.py,
+# tools/benchmark.py, tools/e2e_editor.py). Install its browser with
+# `playwright install chromium` or use the system Chrome channel.
 playwright>=1.40
