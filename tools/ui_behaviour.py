@@ -509,6 +509,52 @@ def run(page, save):
           if (checkAll) checkAll.click();
           const shown = Filters.resolveRegionalVisibility([occupant]);
           if (!shown[occupant.id] || !shown[occupant.id].visible) fail('hec07-after-check');
+
+          const buckets = MapApp.layer.buckets || [];
+          const sampleIndex = buckets.indexOf(sample);
+          const duplicateBucket = buckets.find((bucket, index) =>
+            index > sampleIndex && bucket !== sample && bucket.ids
+              && !Array.from(bucket.ids).includes(occupant.id));
+          if (!duplicateBucket) {
+            fail('hec07-multibucket-fixture');
+          } else {
+            const originalSampleVisible = sample.visible;
+            const originalSampleHidden = sample.hiddenIndices;
+            const originalDuplicateVisible = duplicateBucket.visible;
+            const originalDuplicateIds = duplicateBucket.ids;
+            const duplicateIds = Array.from(originalDuplicateIds);
+            duplicateIds.push(occupant.id);
+            let duplicateReads = 0;
+            duplicateBucket.ids = new Proxy(duplicateIds, {
+              get(target, key, receiver) {
+                if (key === 'length' || /^\\d+$/.test(String(key))) duplicateReads++;
+                return Reflect.get(target, key, receiver);
+              }
+            });
+            sample.visible = true;
+            sample.hiddenIndices = new Set([0]);
+            duplicateBucket.visible = true;
+            const multiOccupants = [occupant];
+            try {
+              const multiBucketMask = Filters.resolveRegionalVisibility(multiOccupants);
+              const readsAfterFirstIndex = duplicateReads;
+              if (!multiBucketMask[occupant.id] || !multiBucketMask[occupant.id].visible) {
+                fail('hec07-multibucket-visible', JSON.stringify(multiBucketMask[occupant.id]));
+              }
+              const cachedMask = Filters.resolveRegionalVisibility(multiOccupants);
+              if (!cachedMask[occupant.id] || !cachedMask[occupant.id].visible) {
+                fail('hec07-multibucket-cached-visible', JSON.stringify(cachedMask[occupant.id]));
+              }
+              if (duplicateReads !== readsAfterFirstIndex) {
+                fail('hec07-index-once-per-visit', duplicateReads + ' vs ' + readsAfterFirstIndex);
+              }
+            } finally {
+              sample.visible = originalSampleVisible;
+              sample.hiddenIndices = originalSampleHidden;
+              duplicateBucket.visible = originalDuplicateVisible;
+              duplicateBucket.ids = originalDuplicateIds;
+            }
+          }
           release();
         } else {
           fail('hec07-sample-bucket');

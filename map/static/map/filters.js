@@ -41,6 +41,7 @@ var Filters = {};
   var visibilityListeners = [];
   var regionalByType = new Map();
   var regionalIdMarks = new Map();
+  var regionalMarkOccupants = null;
   var regionalTempTypes = [];
   var regionalTypes = [];
 
@@ -2058,6 +2059,7 @@ var Filters = {};
   function indexRegionalRegistry() {
     regionalByType = new Map();
     regionalIdMarks = new Map();
+    regionalMarkOccupants = null;
     regionalTempTypes = [];
     function rememberRow(row) {
       if (!row) {
@@ -2087,8 +2089,13 @@ var Filters = {};
   // Resolve admitted extract ids against current 2D buckets once the visit
   // list is known. Do not retain a whole-save identity tree.
   function indexAdmittedMarks(occupants) {
+    var visitOccupants = occupants || [];
+    if (regionalMarkOccupants === visitOccupants) {
+      return;
+    }
+    regionalMarkOccupants = visitOccupants;
     var wanted = new Set();
-    (occupants || []).forEach(function(occupant) {
+    visitOccupants.forEach(function(occupant) {
       if (occupant && occupant.id) {
         wanted.add(occupant.id);
       }
@@ -2097,9 +2104,8 @@ var Filters = {};
     if (!wanted.size) {
       return;
     }
-    var remaining = wanted.size;
     var buckets = (MapApp.layer && MapApp.layer.buckets) || [];
-    for (var bi = 0; bi < buckets.length && remaining > 0; bi++) {
+    for (var bi = 0; bi < buckets.length; bi++) {
       var bucket = buckets[bi];
       if (!bucket.ids) {
         continue;
@@ -2113,7 +2119,6 @@ var Filters = {};
         if (!marks) {
           marks = [];
           regionalIdMarks.set(id, marks);
-          remaining--;
         }
         marks.push({ bucket: bucket, index: index });
       }
@@ -2145,6 +2150,7 @@ var Filters = {};
     groupCheckboxStates = [];
     regionalByType = new Map();
     regionalIdMarks = new Map();
+    regionalMarkOccupants = null;
     regionalTempTypes = [];
     regionalTypes = [];
     MapApp.layer.clearBuckets();
