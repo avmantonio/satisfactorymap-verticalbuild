@@ -896,10 +896,10 @@ export async function createRegionalScene(options) {
       return { width: Math.max(32, width), height: Math.max(32, height) };
     }
 
-    function applyCameraFit() {
+    function applyCameraFit(frameOverride) {
       const size = hostSize();
       const aspect = size.width / size.height;
-      home = fitCamera(camera, controls, currentFrame(), aspect);
+      home = fitCamera(camera, controls, frameOverride || currentFrame(), aspect);
       renderer.setSize(size.width, size.height, false);
     }
 
@@ -1182,6 +1182,13 @@ export async function createRegionalScene(options) {
         applyCameraFit();
         invalidate();
       },
+      frameFullRegion() {
+        if (ledger.disposed) {
+          return;
+        }
+        applyCameraFit(frame);
+        invalidate();
+      },
       resize() {
         if (ledger.disposed) {
           return;
@@ -1237,6 +1244,10 @@ export async function createRegionalScene(options) {
           outline: {
             min: currentFrame().frameMin.slice(),
             max: currentFrame().frameMax.slice(),
+          },
+          regionFrame: {
+            min: frame.frameMin.slice(),
+            max: frame.frameMax.slice(),
           },
           occupants: records.map((record) => ({
             id: record.occupant.id,

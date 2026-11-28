@@ -686,6 +686,26 @@ def run(page, save):
         if (!(zSpan > 4.5 && zSpan < 6.5)) {
           fail('hec08-outline-visual-z', JSON.stringify(mixed.outline));
         }
+        handle.resetCamera();
+        const sectionCamera = handle.inspect().camera;
+        if (!sectionCamera || Math.abs(sectionCamera.target[2] - (-0.5)) > 1e-5) {
+          fail('hec08-reset-visible-section', JSON.stringify(sectionCamera));
+        }
+        handle.frameFullRegion();
+        const fullRegionCamera = handle.inspect().camera;
+        if (!fullRegionCamera || Math.abs(fullRegionCamera.target[2] - 4) > 1e-5) {
+          fail('hec08-frame-full-region', JSON.stringify(fullRegionCamera));
+        }
+        const fullRegionOutline = handle.inspect().outline;
+        if (!fullRegionOutline || Math.abs(fullRegionOutline.min[2] - (-3)) > 1e-5
+            || Math.abs(fullRegionOutline.max[2] - 2) > 1e-5) {
+          fail('hec08-full-region-keeps-visual-z', JSON.stringify(fullRegionOutline));
+        }
+        handle.resetCamera();
+        const sectionAgain = handle.inspect().camera;
+        if (!sectionAgain || Math.abs(sectionAgain.target[2] - (-0.5)) > 1e-5) {
+          fail('hec08-reset-section-after-full-frame', JSON.stringify(sectionAgain));
+        }
         const pathMixed = mixed.occupants.find((row) => row.id === 'P1');
         if (!pathMixed || pathMixed.zVisible || pathMixed.drawn) fail('hec08-path-zclip', JSON.stringify(pathMixed));
         const floorMixed = mixed.occupants.find((row) => row.id === 'F1');
@@ -1166,6 +1186,45 @@ def run(page, save):
         const hiddenAll = RegionalViewer.inspect();
         if (!hiddenAll.status || hiddenAll.status.indexOf('No loaded occupants are visible') < 0) {
           fail('c015-all-hidden-msg', hiddenAll.status);
+        }
+        const fullButton = document.getElementById('regionalFullRegionBtn');
+        const resetButton = document.getElementById('regionalResetBtn');
+        const beforeCameraActions = RegionalViewer.inspect();
+        let cameraActions = null;
+        if (fullButton && resetButton && beforeCameraActions && beforeCameraActions.regionFrame) {
+          fullButton.click();
+          const fullCamera = RegionalViewer.inspect();
+          resetButton.click();
+          const resetCamera = RegionalViewer.inspect();
+          cameraActions = {
+            frame: beforeCameraActions.regionFrame,
+            before: beforeCameraActions,
+            full: fullCamera,
+            reset: resetCamera
+          };
+        }
+        if (!cameraActions) {
+          fail('c015-camera-toolbar');
+        } else {
+          const expectedFull = cameraActions.frame.min.map((value, axis) =>
+            (value + cameraActions.frame.max[axis]) / 2);
+          const expectedSection = cameraActions.reset.outline.min.map((value, axis) =>
+            (value + cameraActions.reset.outline.max[axis]) / 2);
+          const initialTarget = cameraActions.before.camera.target;
+          const fullTarget = cameraActions.full.camera.target;
+          const resetTarget = cameraActions.reset.camera.target;
+          if (initialTarget.some((value, axis) => Math.abs(value - expectedFull[axis]) > 1e-4)) {
+            fail('c015-initial-full-region-frame', JSON.stringify({ expectedFull, initialTarget }));
+          }
+          if (fullTarget.some((value, axis) => Math.abs(value - expectedFull[axis]) > 1e-4)) {
+            fail('c015-full-region-toolbar-action', JSON.stringify({ expectedFull, fullTarget }));
+          }
+          if (resetTarget.some((value, axis) => Math.abs(value - expectedSection[axis]) > 1e-4)) {
+            fail('c015-reset-section-toolbar-action', JSON.stringify({ expectedSection, resetTarget }));
+          }
+          if (JSON.stringify(cameraActions.full.outline) !== JSON.stringify(cameraActions.reset.outline)) {
+            fail('c015-full-frame-preserves-z', JSON.stringify({ full: cameraActions.full.outline, reset: cameraActions.reset.outline }));
+          }
         }
         RegionalViewer.exit('back');
         await waitIdle();

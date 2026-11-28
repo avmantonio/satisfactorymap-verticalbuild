@@ -46,6 +46,7 @@ var RegionalViewer = (function() {
   var overlayHost = document.getElementById("regionalViewerHost");
   var backBtn = document.getElementById("regionalBackBtn");
   var resetBtn = document.getElementById("regionalResetBtn");
+  var fullRegionBtn = document.getElementById("regionalFullRegionBtn");
   var liveStatus = document.getElementById("regionalViewerLiveStatus");
   var dialogEl = document.getElementById("regionalViewerDialog");
   var dialogTitle = document.getElementById("regionalViewerDialogTitle");
@@ -731,7 +732,9 @@ var RegionalViewer = (function() {
       attached = true;
       state = STATE_ACTIVE;
       applyVisualZ();
-      if (handle.resetCamera) {
+      if (handle.frameFullRegion) {
+        handle.frameFullRegion();
+      } else if (handle.resetCamera) {
         handle.resetCamera();
       }
     } catch (error) {
@@ -906,6 +909,13 @@ var RegionalViewer = (function() {
     resetBtn.addEventListener("click", function() {
       if (handle && handle.resetCamera) {
         handle.resetCamera();
+      }
+    });
+  }
+  if (fullRegionBtn) {
+    fullRegionBtn.addEventListener("click", function() {
+      if (handle && handle.frameFullRegion) {
+        handle.frameFullRegion();
       }
     });
   }
