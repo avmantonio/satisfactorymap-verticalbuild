@@ -617,6 +617,28 @@ export async function createRegionalScene(options) {
     });
     const hud = document.createElement("div");
     hud.className = "regionalSceneHud";
+    const hudHeader = document.createElement("div");
+    hudHeader.className = "regionalSceneHudHeader";
+    const hudTitle = document.createElement("span");
+    hudTitle.className = "regionalSceneHudTitle";
+    hudTitle.textContent = "Scene guide";
+    const hudActions = document.createElement("div");
+    hudActions.className = "regionalSceneHudActions";
+    const minimizeButton = document.createElement("button");
+    minimizeButton.type = "button";
+    minimizeButton.className = "btn btn-sm";
+    minimizeButton.textContent = "Minimize";
+    minimizeButton.setAttribute("aria-expanded", "true");
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "btn btn-sm";
+    closeButton.textContent = "Hide";
+    closeButton.setAttribute("aria-label", "Hide scene guide");
+    const reopenButton = document.createElement("button");
+    reopenButton.type = "button";
+    reopenButton.className = "btn btn-sm regionalSceneReopen";
+    reopenButton.textContent = "Show scene guide";
+    reopenButton.hidden = true;
     const legend = document.createElement("p");
     legend.className = "kicker";
     legend.id = "regional-scene-legend";
@@ -638,13 +660,39 @@ export async function createRegionalScene(options) {
     help.className = "regionalSceneHelp";
     help.id = "regional-scene-help";
     help.textContent = "Keyboard: arrows orbit, Shift+arrows pan, +/− dolly, Home reset. Keys apply only while the canvas is focused.";
-    hud.appendChild(legend);
-    hud.appendChild(visualList);
-    hud.appendChild(summary);
-    hud.appendChild(status);
-    hud.appendChild(help);
+    const hudBody = document.createElement("div");
+    hudBody.className = "regionalSceneHudBody";
+    hudBody.appendChild(legend);
+    hudBody.appendChild(visualList);
+    hudBody.appendChild(summary);
+    hudBody.appendChild(status);
+    hudBody.appendChild(help);
+    hudActions.appendChild(minimizeButton);
+    hudActions.appendChild(closeButton);
+    hudHeader.appendChild(hudTitle);
+    hudHeader.appendChild(hudActions);
+    hud.appendChild(hudHeader);
+    hud.appendChild(hudBody);
     root.appendChild(canvas);
     root.appendChild(hud);
+    root.appendChild(reopenButton);
+
+    minimizeButton.addEventListener("click", () => {
+      const expanded = !hudBody.hidden;
+      hudBody.hidden = expanded;
+      minimizeButton.textContent = expanded ? "Expand" : "Minimize";
+      minimizeButton.setAttribute("aria-expanded", String(!expanded));
+    });
+    closeButton.addEventListener("click", () => {
+      hud.hidden = true;
+      reopenButton.hidden = false;
+      reopenButton.focus();
+    });
+    reopenButton.addEventListener("click", () => {
+      hud.hidden = false;
+      reopenButton.hidden = true;
+      closeButton.focus();
+    });
 
     const renderer = new THREE.WebGLRenderer({
       canvas,

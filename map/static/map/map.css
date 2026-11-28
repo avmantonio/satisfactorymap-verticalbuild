@@ -3580,6 +3580,31 @@ body.regional-viewer-active #map {
   border-radius: var(--r-sm);
   pointer-events: none;
 }
+.regionalSceneHudHeader,
+.regionalSceneHudActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.regionalSceneHudHeader {
+  justify-content: space-between;
+  pointer-events: auto;
+}
+.regionalSceneHudTitle {
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.regionalSceneHudBody[hidden],
+.regionalSceneHud[hidden],
+.regionalSceneReopen[hidden] {
+  display: none;
+}
+.regionalSceneReopen {
+  position: absolute;
+  left: var(--sp-2);
+  bottom: var(--sp-2);
+}
 .regionalSceneLegendList {
   margin: var(--sp-1) 0 0;
   padding-left: var(--sp-4);
